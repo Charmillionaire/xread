@@ -44,19 +44,19 @@ Rust 版 `reader` 服务端（核心阅读 API），基于 axum + tokio + reqwes
 
 ### 运行（开发模式）
 ```bash
-cd /Users/mac/project/reder/reader-rust
+cd reder/reader-rust
 cargo run
 ```
 
 ### 构建（Release）
 ```bash
-cd /Users/mac/project/reder/reader-rust
+cd reder/reader-rust
 cargo build --release
 ```
 
 ### 运行（Release）
 ```bash
-/Users/mac/project/reder/reader-rust/target/release/reader-rust
+reader-rust/target/release/reader-rust
 ```
 
 ## 配置
