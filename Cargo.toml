@@ -37,3 +37,5 @@ feed-rs = "1"
 base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 url = "2"
+sxd-xpath = "0.4"
+sxd-document = "0.3"
