@@ -339,6 +339,14 @@ impl BookService {
         Ok(list.into_iter().find(|b| b.book_url == book_url))
     }
 
+    /// Find book by name and author (for cases where book_url might differ)
+    pub async fn find_shelf_book_by_name_author(&self, user_ns: &str, name: &str, author: &str) -> Result<Option<Book>, AppError> {
+        let list = self.read_bookshelf(user_ns).await?;
+        Ok(list.into_iter().find(|b| {
+            b.name.trim() == name.trim() && b.author.trim() == author.trim()
+        }))
+    }
+
     pub async fn save_book(&self, user_ns: &str, mut book: Book) -> Result<Book, AppError> {
         if book.origin.trim().is_empty() {
             return Err(AppError::BadRequest("missing origin".to_string()));

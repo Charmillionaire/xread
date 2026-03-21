@@ -159,6 +159,8 @@ pub struct BookSourceDebugRequest {
 #[derive(Debug, Deserialize)]
 pub struct GetAvailableBookSourceRequest {
     url: Option<String>,
+    name: Option<String>,
+    author: Option<String>,
     refresh: Option<i32>,
 }
 
@@ -605,13 +607,13 @@ pub async fn get_shelf_book_with_cache_info(State(state): State<AppState>, Query
     Ok(Json(ApiResponse::ok(serde_json::to_value(result).unwrap_or_default())))
 }
 
-pub async fn get_book_cover(State(state): State<AppState>, Query(access_q): Query<AccessTokenQuery>, Query(q): Query<CoverQuery>) -> Result<Response, AppError> {
-    let user_ns = state.user_service.resolve_user_ns(access_q.access_token.as_deref(), access_q.secure_key.as_deref()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+pub async fn get_book_cover(State(state): State<AppState>, Query(q): Query<CoverQuery>) -> Result<Response, AppError> {
     let url = match q.path {
         Some(u) if !u.trim().is_empty() => u,
         _ => return Ok(StatusCode::NOT_FOUND.into_response()),
     };
-    match state.book_service.get_cover(&user_ns, &url).await {
+    // Use "public" namespace for unauthenticated cover requests
+    match state.book_service.get_cover("public", &url).await {
         Ok((bytes, content_type)) => {
             let mut resp = Response::new(Body::from(bytes));
             let headers = resp.headers_mut();
@@ -915,17 +917,39 @@ pub async fn search_book_source_sse(State(state): State<AppState>, Query(access_
 pub async fn get_available_book_source(State(state): State<AppState>, Query(access_q): Query<AccessTokenQuery>, Query(q): Query<GetAvailableBookSourceRequest>, body: Option<Json<GetAvailableBookSourceRequest>>) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state.user_service.resolve_user_ns(access_q.access_token.as_deref(), access_q.secure_key.as_deref()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let req = if let Some(b) = body { b.0 } else { q };
-    let book_url = req.url.ok_or_else(|| AppError::BadRequest("url required".to_string()))?;
     let refresh = req.refresh.unwrap_or(0) > 0;
 
+    // Try to find book by URL first, then by name+author
+    let book_url = req.url.clone();
+
     if !refresh {
-        if let Some(list) = state.book_service.load_book_sources_cache(&user_ns, &book_url).await? {
-            return Ok(Json(ApiResponse::ok(serde_json::to_value(list).unwrap_or_default())));
+        if let Some(ref url) = book_url {
+            if let Some(list) = state.book_service.load_book_sources_cache(&user_ns, url).await? {
+                return Ok(Json(ApiResponse::ok(serde_json::to_value(list).unwrap_or_default())));
+            }
         }
     }
 
-    let book = state.book_service.get_shelf_book(&user_ns, &book_url).await?
-        .ok_or_else(|| AppError::BadRequest("书籍信息错误".to_string()))?;
+    // Find book on shelf - try URL first, then name+author
+    let book = if let Some(ref url) = book_url {
+        state.book_service.get_shelf_book(&user_ns, url).await?
+    } else {
+        None
+    };
+
+    // If not found by URL, try name+author
+    let book = match book {
+        Some(b) => Some(b),
+        None => {
+            if let (Some(name), Some(author)) = (&req.name, &req.author) {
+                state.book_service.find_shelf_book_by_name_author(&user_ns, name, author).await?
+            } else {
+                None
+            }
+        }
+    };
+
+    let book = book.ok_or_else(|| AppError::BadRequest("书籍信息错误".to_string()))?;
     let sources = state.book_source_service.list(&user_ns).await?;
     if sources.is_empty() {
         return Ok(Json(ApiResponse::ok(serde_json::json!([]))));
