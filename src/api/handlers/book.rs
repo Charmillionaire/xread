@@ -222,13 +222,64 @@ pub async fn search_book_multi(State(state): State<AppState>, Query(access_q): Q
         let k = key.clone();
         tasks.push(tokio::spawn(async move { svc.search_book(&source, &k, page).await }));
     }
-    let mut results = Vec::new();
+    let mut results: Vec<crate::model::search::SearchBook> = Vec::new();
     for t in tasks {
         if let Ok(Ok(list)) = t.await {
             results.extend(list);
         }
     }
-    Ok(Json(ApiResponse::ok(serde_json::to_value(results).unwrap_or_default())))
+
+    // Merge books with same name and author
+    let merged = merge_search_results(results);
+
+    Ok(Json(ApiResponse::ok(serde_json::to_value(merged).unwrap_or_default())))
+}
+
+/// Merge search results from different book sources for the same book
+fn merge_search_results(results: Vec<crate::model::search::SearchBook>) -> Vec<crate::model::search::SearchBook> {
+    use std::collections::HashMap;
+    use crate::model::search::SearchBook;
+
+    let mut merged: HashMap<String, SearchBook> = HashMap::new();
+
+    for book in results {
+        let key = book.merge_key();
+
+        if let Some(existing) = merged.get_mut(&key) {
+            // Add this source to the existing book
+            if let Some(ref mut urls) = existing.book_source_urls {
+                if !urls.contains(&book.origin) {
+                    urls.push(book.origin.clone());
+                }
+            } else {
+                existing.book_source_urls = Some(vec![existing.origin.clone(), book.origin.clone()]);
+            }
+
+            // Fill in missing fields from this source
+            if existing.cover_url.is_none() && book.cover_url.is_some() {
+                existing.cover_url = book.cover_url;
+            }
+            if existing.intro.is_none() && book.intro.is_some() {
+                existing.intro = book.intro;
+            }
+            if existing.kind.is_none() && book.kind.is_some() {
+                existing.kind = book.kind;
+            }
+            if existing.last_chapter.is_none() && book.last_chapter.is_some() {
+                existing.last_chapter = book.last_chapter;
+            }
+            if existing.update_time.is_none() && book.update_time.is_some() {
+                existing.update_time = book.update_time;
+            }
+        } else {
+            merged.insert(key, book);
+        }
+    }
+
+    let mut result: Vec<SearchBook> = merged.into_values().collect();
+    // Sort by name for consistent ordering
+    result.sort_by(|a, b| a.name.cmp(&b.name));
+    result
 }
 
 pub async fn explore_book(State(state): State<AppState>, Query(access_q): Query<AccessTokenQuery>, Query(q): Query<ExploreBookRequest>, body: Bytes) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {

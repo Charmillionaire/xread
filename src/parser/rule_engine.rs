@@ -260,6 +260,7 @@ impl RuleEngine {
                 kind,
                 last_chapter,
                 update_time,
+                book_source_urls: None,
             });
         }
         out
@@ -303,6 +304,7 @@ impl RuleEngine {
                 kind,
                 last_chapter,
                 update_time,
+                book_source_urls: None,
             });
         }
         out

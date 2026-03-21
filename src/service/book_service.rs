@@ -491,7 +491,28 @@ impl BookService {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).await.map_err(|e| AppError::Internal(e.into()))?;
         }
-        let res = self.http.client().get(url).send().await.map_err(|e| AppError::Internal(e.into()))?;
+
+        // Extract referer from URL for anti-hotlinking bypass
+        let referer = url::Url::parse(url)
+            .ok()
+            .and_then(|u| {
+                let scheme = u.scheme();
+                let host = u.host_str()?;
+                Some(format!("{}://{}", scheme, host))
+            });
+
+        let mut req = self.http.client().get(url);
+
+        // Add necessary headers to bypass anti-hotlinking
+        req = req
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
+
+        if let Some(ref referer) = referer {
+            req = req.header("Referer", referer);
+        }
+
+        let res = req.send().await.map_err(|e| AppError::Internal(e.into()))?;
         if !res.status().is_success() {
             return Err(AppError::NotFound("cover not found".to_string()));
         }

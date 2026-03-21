@@ -12,4 +12,16 @@ pub struct SearchBook {
     pub kind: Option<String>,
     pub last_chapter: Option<String>,
     pub update_time: Option<String>,
+    /// Book source URLs for the same book from different sources (for merged results)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub book_source_urls: Option<Vec<String>>,
+}
+
+impl SearchBook {
+    /// Generate a key for merging books with same name and author
+    pub fn merge_key(&self) -> String {
+        let name = self.name.trim().to_lowercase();
+        let author = self.author.trim().to_lowercase();
+        format!("{}|{}", name, author)
+    }
 }
