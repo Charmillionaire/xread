@@ -129,6 +129,7 @@ import Prism from "prismjs";
 import "prismjs/components/prism-json";
 import "prismjs/themes/prism.css";
 import "./assets/fonts/iconfont.css";
+import "./assets/styles/theme.css";
 import {
   cacheFirstRequest,
   isMiniInterface,
@@ -857,14 +858,14 @@ export default {
 
 <style>
 #app {
-  font-family: "Avenir", Helvetica, Arial, sans-serif;
+  font-family: var(--font-body, "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #2c3e50;
+  color: var(--color-text-primary, #2c3e50);
   margin: 0;
   height: 100%;
-  /* height: calc(100% + var(--status-bar-height, 0px)); */
   position: relative;
+  background: var(--color-bg-primary, #FAF8F5);
 }
 
 @font-face {
