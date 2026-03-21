@@ -15,7 +15,15 @@ pub fn eval_js_search(script: &str, key: &str, page: i32) -> anyhow::Result<Stri
     eval_js_inner(script, None, None, Some(key), Some(page))
 }
 
+pub fn eval_js_search_with_source(script: &str, key: &str, page: i32, source_key: &str) -> anyhow::Result<String> {
+    eval_js_inner_with_source(script, None, None, Some(key), Some(page), Some(source_key))
+}
+
 fn eval_js_inner(script: &str, input: Option<&str>, base_url: Option<&str>, key: Option<&str>, page: Option<i32>) -> anyhow::Result<String> {
+    eval_js_inner_with_source(script, input, base_url, key, page, None)
+}
+
+fn eval_js_inner_with_source(script: &str, input: Option<&str>, base_url: Option<&str>, key: Option<&str>, page: Option<i32>, source_key: Option<&str>) -> anyhow::Result<String> {
     println!("DEBUG: eval_js_inner entry for script: {}", script);
     let rt = Runtime::new()?;
     let ctx = Context::full(&rt)?;
@@ -25,18 +33,24 @@ fn eval_js_inner(script: &str, input: Option<&str>, base_url: Option<&str>, key:
         if let Some(base_url) = base_url { globals.set("base_url", base_url)?; }
         if let Some(key) = key { globals.set("key", key)?; }
         if let Some(page) = page { globals.set("page", page)?; }
-        
+
+        // Default url variable for Legado compatibility
+        globals.set("url", "")?;
+
         // Stubs for Legado compatibility
+        let source_key_val = source_key.unwrap_or("").to_string();
         let source_obj = Object::new(ctx.clone())?;
-        source_obj.set("getKey", Func::new(|| -> String { "key".to_string() }))?;
+        let sk_clone = source_key_val.clone();
+        source_obj.set("key", source_key_val)?;
+        source_obj.set("getKey", Func::new(move || sk_clone.clone()))?;
         globals.set("source", source_obj)?;
 
         let cookie_obj = Object::new(ctx.clone())?;
         cookie_obj.set("removeCookie", Func::new(|_key: String| -> String { "".to_string() }))?;
-        globals.set("cookie", cookie_obj)?;
+        globals.set("cookie", cookie_obj);
 
         println!("DEBUG: eval_js script after stubs: {}", script);
-        
+
         globals.set("kv_get", Func::new(|key: String| -> Option<String> {
             let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
             map.get(&key).cloned()

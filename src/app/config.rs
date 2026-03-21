@@ -54,7 +54,7 @@ pub fn load() -> anyhow::Result<AppConfig> {
         .set_default("invite_code", defaults.invite_code)?
         .set_default("user_limit", defaults.user_limit as i64)?
         .set_default("user_book_limit", defaults.user_book_limit as i64)?
-        .add_source(config::Environment::default().separator("__"))
+        .add_source(config::Environment::default().try_parsing(true))
         .build()?;
     Ok(cfg.try_deserialize()?)
 }

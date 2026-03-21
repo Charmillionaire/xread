@@ -58,7 +58,12 @@ pub async fn login(State(state): State<AppState>, Query(q): Query<AccessTokenQue
     let username = req.username.unwrap_or_default();
     let password = req.password.unwrap_or_default();
     let is_login = req.is_login.unwrap_or(false);
+    let is_new_user = !is_login && !username.is_empty(); // registration attempt
     let data = state.user_service.login(&username, &password, is_login, req.code.as_deref()).await?;
+    // If this was a new user registration, copy default book sources
+    if is_new_user {
+        let _ = state.book_source_service.copy_default_to_user(&username).await;
+    }
     Ok(Json(ApiResponse::ok(data)))
 }
 
@@ -101,10 +106,12 @@ pub async fn get_user_config(State(state): State<AppState>, Query(q): Query<Acce
 }
 
 pub async fn get_user_list(State(state): State<AppState>, Query(q): Query<AccessTokenQuery>) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() || !state.user_service.secure_key_required() {
+    if !state.user_service.secure_enabled() {
         return Ok(Json(ApiResponse::err("不支持的操作")));
     }
-    if !q.secure_key.as_deref().map(|k| state.user_service.secure_key_matches(k)).unwrap_or(false) {
+    // Check if admin (either by is_admin flag or secure key)
+    let is_admin = state.user_service.is_admin(q.access_token.as_deref(), q.secure_key.as_deref()).await?;
+    if !is_admin {
         return Ok(Json(ApiResponse::err_with_data("请输入管理密码", Value::String("NEED_SECURE_KEY".to_string()))));
     }
     let list = state.user_service.get_user_list().await?;
@@ -112,10 +119,12 @@ pub async fn get_user_list(State(state): State<AppState>, Query(q): Query<Access
 }
 
 pub async fn add_user(State(state): State<AppState>, Query(q): Query<AccessTokenQuery>, Json(req): Json<AddUserRequest>) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() || !state.user_service.secure_key_required() {
+    if !state.user_service.secure_enabled() {
         return Ok(Json(ApiResponse::err("不支持的操作")));
     }
-    if !q.secure_key.as_deref().map(|k| state.user_service.secure_key_matches(k)).unwrap_or(false) {
+    // Check if admin (either by is_admin flag or secure key)
+    let is_admin = state.user_service.is_admin(q.access_token.as_deref(), q.secure_key.as_deref()).await?;
+    if !is_admin {
         return Ok(Json(ApiResponse::err_with_data("请输入管理密码", Value::String("NEED_SECURE_KEY".to_string()))));
     }
     let username = req.username.unwrap_or_default();
@@ -125,10 +134,12 @@ pub async fn add_user(State(state): State<AppState>, Query(q): Query<AccessToken
 }
 
 pub async fn reset_password(State(state): State<AppState>, Query(q): Query<AccessTokenQuery>, Json(req): Json<ResetPasswordRequest>) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() || !state.user_service.secure_key_required() {
+    if !state.user_service.secure_enabled() {
         return Ok(Json(ApiResponse::err("不支持的操作")));
     }
-    if !q.secure_key.as_deref().map(|k| state.user_service.secure_key_matches(k)).unwrap_or(false) {
+    // Check if admin (either by is_admin flag or secure key)
+    let is_admin = state.user_service.is_admin(q.access_token.as_deref(), q.secure_key.as_deref()).await?;
+    if !is_admin {
         return Ok(Json(ApiResponse::err_with_data("请输入管理密码", Value::String("NEED_SECURE_KEY".to_string()))));
     }
     let username = req.username.unwrap_or_default();
@@ -138,10 +149,12 @@ pub async fn reset_password(State(state): State<AppState>, Query(q): Query<Acces
 }
 
 pub async fn delete_users(State(state): State<AppState>, Query(q): Query<AccessTokenQuery>, Json(list): Json<Vec<String>>) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() || !state.user_service.secure_key_required() {
+    if !state.user_service.secure_enabled() {
         return Ok(Json(ApiResponse::err("不支持的操作")));
     }
-    if !q.secure_key.as_deref().map(|k| state.user_service.secure_key_matches(k)).unwrap_or(false) {
+    // Check if admin (either by is_admin flag or secure key)
+    let is_admin = state.user_service.is_admin(q.access_token.as_deref(), q.secure_key.as_deref()).await?;
+    if !is_admin {
         return Ok(Json(ApiResponse::err_with_data("请输入管理密码", Value::String("NEED_SECURE_KEY".to_string()))));
     }
     let users = state.user_service.delete_users(&list).await?;
@@ -149,10 +162,12 @@ pub async fn delete_users(State(state): State<AppState>, Query(q): Query<AccessT
 }
 
 pub async fn update_user(State(state): State<AppState>, Query(q): Query<AccessTokenQuery>, Json(req): Json<UpdateUserRequest>) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() || !state.user_service.secure_key_required() {
+    if !state.user_service.secure_enabled() {
         return Ok(Json(ApiResponse::err("不支持的操作")));
     }
-    if !q.secure_key.as_deref().map(|k| state.user_service.secure_key_matches(k)).unwrap_or(false) {
+    // Check if admin (either by is_admin flag or secure key)
+    let is_admin = state.user_service.is_admin(q.access_token.as_deref(), q.secure_key.as_deref()).await?;
+    if !is_admin {
         return Ok(Json(ApiResponse::err_with_data("请输入管理密码", Value::String("NEED_SECURE_KEY".to_string()))));
     }
     let username = req.username.unwrap_or_default();

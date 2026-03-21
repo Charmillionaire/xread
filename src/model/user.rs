@@ -13,4 +13,5 @@ pub struct User {
     pub enable_webdav: bool,
     pub token_map: Option<HashMap<String, i64>>,
     pub enable_local_store: bool,
+    pub is_admin: bool,
 }

@@ -2,13 +2,23 @@ use crate::crawler::{http_client::HttpClient, fetcher::{RequestSpec, HttpMethod,
 use crate::error::error::AppError;
 use crate::model::{book::Book, book_chapter::BookChapter, book_source::BookSource, search::SearchBook};
 use crate::parser::rule_engine::RuleEngine;
-use crate::parser::js::eval_js_search;
+use crate::parser::js::eval_js_search_with_source;
 use crate::storage::cache::file_cache::FileCache;
 use tokio::fs;
 use std::path::PathBuf;
 use urlencoding::encode;
 use crate::util::time::now_ts;
 use crate::util::hash::md5_hex;
+
+/// State for background chapter fetching
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct ChapterPagination {
+    pub source: BookSource,
+    pub toc_url: String,
+    pub visited_urls: Vec<String>,
+    pub pending_urls: Vec<String>,
+    pub next_index: i32,
+}
 
 #[derive(Clone)]
 pub struct BookService {
@@ -73,18 +83,246 @@ impl BookService {
     }
 
     pub async fn get_chapter_list(&self, source: &BookSource, toc_url: &str) -> Result<Vec<BookChapter>, AppError> {
+        let (chapters, _) = self.get_chapter_list_with_pagination(source, toc_url).await?;
+        Ok(chapters)
+    }
+
+    /// Get first page of chapters and pagination info for background fetching
+    pub async fn get_chapter_list_first_page(&self, source: &BookSource, toc_url: &str) -> Result<(Vec<BookChapter>, ChapterPagination), AppError> {
         let res = fetch(&self.http, RequestSpec { url: toc_url.to_string(), method: HttpMethod::GET, headers: vec![], body: None }).await?;
-        Ok(self.parser.chapter_list(source, &res.body, &res.url))
+        let (chapters, next_urls) = self.parser.chapter_list(source, &res.body, &res.url);
+
+        let mut chapter_index = 0i32;
+        let mut result = Vec::new();
+        for mut ch in chapters {
+            ch.index = chapter_index;
+            chapter_index += 1;
+            result.push(ch);
+        }
+
+        let pagination = ChapterPagination {
+            source: source.clone(),
+            toc_url: toc_url.to_string(),
+            visited_urls: vec![toc_url.to_string()],
+            pending_urls: next_urls.into_iter().collect(),
+            next_index: chapter_index,
+        };
+
+        Ok((result, pagination))
+    }
+
+    /// Continue fetching remaining chapters from pagination state
+    pub async fn fetch_remaining_chapters(&self, mut pagination: ChapterPagination) -> Result<Vec<BookChapter>, AppError> {
+        let mut all_chapters = Vec::new();
+        let mut visited_page_urls: std::collections::HashSet<String> = pagination.visited_urls.iter().cloned().collect();
+        let mut seen_chapter_urls: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut chapter_index = pagination.next_index;
+
+        // Collect chapter URLs from the first page to avoid duplicates
+        // (these would have been saved in cache already)
+
+        let pending_urls: Vec<String> = pagination.pending_urls.into_iter()
+            .filter(|u| !visited_page_urls.contains(u))
+            .collect();
+
+        if pending_urls.len() > 1 {
+            // Multiple URLs from option dropdown - fetch all pages
+            for url in pending_urls {
+                if visited_page_urls.contains(&url) { continue; }
+                visited_page_urls.insert(url.clone());
+
+                let res = fetch(&self.http, RequestSpec { url: url.clone(), method: HttpMethod::GET, headers: vec![], body: None }).await?;
+                let (chapters, _) = self.parser.chapter_list(&pagination.source, &res.body, &res.url);
+
+                for ch in chapters {
+                    // Deduplicate by chapter URL
+                    if seen_chapter_urls.contains(&ch.url) {
+                        continue;
+                    }
+                    seen_chapter_urls.insert(ch.url.clone());
+
+                    all_chapters.push(BookChapter {
+                        title: ch.title,
+                        url: ch.url,
+                        index: chapter_index,
+                    });
+                    chapter_index += 1;
+                }
+            }
+        } else if pending_urls.len() == 1 {
+            // Single next page link - follow sequentially
+            let mut current_url = pending_urls[0].clone();
+            loop {
+                if visited_page_urls.contains(&current_url) { break; }
+                visited_page_urls.insert(current_url.clone());
+
+                let res = fetch(&self.http, RequestSpec { url: current_url.clone(), method: HttpMethod::GET, headers: vec![], body: None }).await?;
+                let (chapters, next_urls) = self.parser.chapter_list(&pagination.source, &res.body, &res.url);
+
+                for ch in chapters {
+                    // Deduplicate by chapter URL
+                    if seen_chapter_urls.contains(&ch.url) {
+                        continue;
+                    }
+                    seen_chapter_urls.insert(ch.url.clone());
+
+                    all_chapters.push(BookChapter {
+                        title: ch.title,
+                        url: ch.url,
+                        index: chapter_index,
+                    });
+                    chapter_index += 1;
+                }
+
+                // Get next page
+                let next = next_urls.into_iter().find(|u| !visited_page_urls.contains(u));
+                match next {
+                    Some(url) if !url.is_empty() => current_url = url,
+                    _ => break,
+                }
+            }
+        }
+
+        Ok(all_chapters)
+    }
+
+    async fn get_chapter_list_with_pagination(&self, source: &BookSource, toc_url: &str) -> Result<(Vec<BookChapter>, Vec<String>), AppError> {
+        let mut all_chapters = Vec::new();
+        let mut visited_page_urls = std::collections::HashSet::new();
+        let mut seen_chapter_urls = std::collections::HashSet::new();
+        let mut chapter_index = 0i32;
+
+        // Fetch first page
+        let res = fetch(&self.http, RequestSpec { url: toc_url.to_string(), method: HttpMethod::GET, headers: vec![], body: None }).await?;
+        let (chapters, next_urls) = self.parser.chapter_list(source, &res.body, &res.url);
+
+        visited_page_urls.insert(toc_url.to_string());
+
+        // Add first page chapters with deduplication
+        for ch in chapters {
+            if seen_chapter_urls.contains(&ch.url) {
+                continue;
+            }
+            seen_chapter_urls.insert(ch.url.clone());
+            all_chapters.push(BookChapter {
+                title: ch.title,
+                url: ch.url,
+                index: chapter_index,
+            });
+            chapter_index += 1;
+        }
+
+        // Determine how to handle pagination
+        // Filter out already visited URLs
+        let pending_urls: Vec<String> = next_urls.into_iter()
+            .filter(|u| !visited_page_urls.contains(u))
+            .collect();
+
+        if pending_urls.len() > 1 {
+            // Multiple URLs from option dropdown - fetch all pages
+            for url in pending_urls {
+                if visited_page_urls.contains(&url) { continue; }
+                visited_page_urls.insert(url.clone());
+
+                let res = fetch(&self.http, RequestSpec { url: url.clone(), method: HttpMethod::GET, headers: vec![], body: None }).await?;
+                let (chapters, _) = self.parser.chapter_list(source, &res.body, &res.url);
+
+                for ch in chapters {
+                    if seen_chapter_urls.contains(&ch.url) {
+                        continue;
+                    }
+                    seen_chapter_urls.insert(ch.url.clone());
+                    all_chapters.push(BookChapter {
+                        title: ch.title,
+                        url: ch.url,
+                        index: chapter_index,
+                    });
+                    chapter_index += 1;
+                }
+            }
+        } else if pending_urls.len() == 1 {
+            // Single next page link - follow sequentially
+            let mut current_url = pending_urls[0].clone();
+            loop {
+                if visited_page_urls.contains(&current_url) { break; }
+                visited_page_urls.insert(current_url.clone());
+
+                let res = fetch(&self.http, RequestSpec { url: current_url.clone(), method: HttpMethod::GET, headers: vec![], body: None }).await?;
+                let (chapters, next_urls) = self.parser.chapter_list(source, &res.body, &res.url);
+
+                for ch in chapters {
+                    if seen_chapter_urls.contains(&ch.url) {
+                        continue;
+                    }
+                    seen_chapter_urls.insert(ch.url.clone());
+                    all_chapters.push(BookChapter {
+                        title: ch.title,
+                        url: ch.url,
+                        index: chapter_index,
+                    });
+                    chapter_index += 1;
+                }
+
+                // Get next page
+                let next = next_urls.into_iter().find(|u| !visited_page_urls.contains(u));
+                match next {
+                    Some(url) if !url.is_empty() => current_url = url,
+                    _ => break,
+                }
+            }
+        }
+
+        Ok((all_chapters, visited_page_urls.into_iter().collect()))
     }
 
     pub async fn get_content(&self, user_ns: &str, source: &BookSource, chapter_url: &str, cache_key: &str) -> Result<String, AppError> {
+        println!("DEBUG: get_content called, chapter_url={}, cache_key={}", chapter_url, cache_key);
         if let Ok(Some(cached)) = self.cache.get(user_ns, cache_key).await {
+            println!("DEBUG: get_content returning cached content, len={}", cached.len());
             return Ok(cached);
         }
-        let res = fetch(&self.http, RequestSpec { url: chapter_url.to_string(), method: HttpMethod::GET, headers: vec![], body: None }).await?;
-        let content = self.parser.content(source, &res.body, &res.url);
-        let _ = self.cache.put(user_ns, cache_key, &content).await;
-        Ok(content)
+        println!("DEBUG: get_content cache miss, fetching from network");
+
+        let mut all_content = String::new();
+        let mut visited_urls = std::collections::HashSet::new();
+        let mut current_url = chapter_url.to_string();
+
+        // Follow pagination to get all content pages
+        loop {
+            if visited_urls.contains(&current_url) {
+                println!("DEBUG: get_content detected loop, breaking");
+                break;
+            }
+            visited_urls.insert(current_url.clone());
+
+            println!("DEBUG: get_content fetching: {}", current_url);
+            let res = fetch(&self.http, RequestSpec { url: current_url.clone(), method: HttpMethod::GET, headers: vec![], body: None }).await?;
+            println!("DEBUG: get_content fetch done, body len={}", res.body.len());
+            let content = self.parser.content(source, &res.body, &res.url);
+            println!("DEBUG: get_content parsed content len={}", content.len());
+
+            if !content.is_empty() {
+                if !all_content.is_empty() {
+                    all_content.push('\n');
+                }
+                all_content.push_str(&content);
+            }
+
+            // Check for next page
+            if let Some(next_url) = self.parser.next_content_url(source, &res.body, &res.url) {
+                println!("DEBUG: get_content found next_url: {}", next_url);
+                current_url = next_url;
+            } else {
+                println!("DEBUG: get_content no more pages");
+                break;
+            }
+        }
+
+        println!("DEBUG: get_content final content len={}", all_content.len());
+        if !all_content.is_empty() {
+            let _ = self.cache.put(user_ns, cache_key, &all_content).await;
+        }
+        Ok(all_content)
     }
 
     pub async fn delete_cache(&self, user_ns: &str, cache_key: &str) -> Result<(), AppError> {
@@ -316,6 +554,44 @@ impl BookService {
         fs::write(&path, data).await.map_err(|e| AppError::Internal(e.into()))?;
         Ok(())
     }
+
+    // Chapter list cache methods
+    fn chapter_list_cache_path(&self, user_ns: &str, toc_url: &str) -> PathBuf {
+        let name = md5_hex(toc_url);
+        self.storage_dir.join("data").join(user_ns).join("chapters").join(format!("{}.json", name))
+    }
+
+    pub async fn load_chapter_list_cache(&self, user_ns: &str, toc_url: &str) -> Result<Option<Vec<BookChapter>>, AppError> {
+        let path = self.chapter_list_cache_path(user_ns, toc_url);
+        if !path.exists() {
+            return Ok(None);
+        }
+        let data = fs::read_to_string(&path).await.map_err(|e| AppError::Internal(e.into()))?;
+        let list: Vec<BookChapter> = serde_json::from_str(&data).map_err(|e| AppError::BadRequest(e.to_string()))?;
+        Ok(Some(list))
+    }
+
+    pub async fn save_chapter_list_cache(&self, user_ns: &str, toc_url: &str, chapters: &Vec<BookChapter>) -> Result<(), AppError> {
+        let path = self.chapter_list_cache_path(user_ns, toc_url);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).await.map_err(|e| AppError::Internal(e.into()))?;
+        }
+        let data = serde_json::to_string(chapters).map_err(|e| AppError::BadRequest(e.to_string()))?;
+        fs::write(&path, data).await.map_err(|e| AppError::Internal(e.into()))?;
+        Ok(())
+    }
+
+    pub async fn append_chapter_list_cache(&self, user_ns: &str, toc_url: &str, new_chapters: &Vec<BookChapter>) -> Result<Vec<BookChapter>, AppError> {
+        let mut existing = self.load_chapter_list_cache(user_ns, toc_url).await?.unwrap_or_default();
+        let start_index = existing.len() as i32;
+        for (i, ch) in new_chapters.iter().enumerate() {
+            let mut ch = ch.clone();
+            ch.index = start_index + i as i32;
+            existing.push(ch);
+        }
+        self.save_chapter_list_cache(user_ns, toc_url, &existing).await?;
+        Ok(existing)
+    }
 }
 
 fn file_ext_from_url(url: &str) -> Option<String> {
@@ -353,7 +629,7 @@ fn analyze_url(m_url: &str, key: &str, page: i32, base_url: &str) -> Result<Requ
         if let Some(end) = rule_url[start..].find("}}") {
             let script = &rule_url[start + 2..start + end];
             tracing::debug!("evaluating search js: {}", script);
-            let res = eval_js_search(script, key, page).map_err(|e| {
+            let res = eval_js_search_with_source(script, key, page, base_url).map_err(|e| {
                 tracing::error!("js eval failed for search url: {:?}, script: {}", e, script);
                 AppError::Internal(e)
             })?;

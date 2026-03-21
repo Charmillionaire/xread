@@ -1315,21 +1315,22 @@ export default {
       if (page === 1) {
         this.searchResult = [];
       }
+      const isSingleSearch = this.searchConfig.searchType === "single";
       Axios.post(
         this.api +
-          (this.searchConfig.searchType === "single"
+          (isSingleSearch
             ? "/searchBook"
             : "/searchBookMulti"),
         {
           key: this.search,
-          bookSourceUrl: this.searchConfig.bookSourceUrl,
+          bookSourceUrl: isSingleSearch ? this.searchConfig.bookSourceUrl : undefined,
           bookSourceGroup: this.searchConfig.bookSourceGroup,
           concurrentCount: this.searchConfig.concurrentCount,
           lastIndex: this.searchLastIndex, // 多源搜索时的索引
           page: page // 单源搜索时的page
         },
         {
-          timeout: this.searchConfig.searchType === "single" ? 30000 : 180000
+          timeout: isSingleSearch ? 30000 : 180000
         }
       ).then(
         res => {
@@ -1387,7 +1388,7 @@ export default {
       const params = {
         accessToken: this.$store.state.token,
         key: this.search,
-        bookSourceUrl: this.searchConfig.bookSourceUrl,
+        // 多源搜索不传bookSourceUrl，否则只会用单个书源
         bookSourceGroup: this.searchConfig.bookSourceGroup,
         concurrentCount: this.searchConfig.concurrentCount,
         lastIndex: this.searchLastIndex, // 多源搜索时的索引

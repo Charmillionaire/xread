@@ -76,6 +76,7 @@ pub struct BookContentRequest {
     pub book_source_url: Option<String>,
     #[serde(rename = "bookSource")]
     pub book_source: Option<BookSource>,
+    pub index: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -292,7 +293,7 @@ pub async fn get_chapter_list(State(state): State<AppState>, Query(access_q): Qu
     let body_str = String::from_utf8_lossy(&body);
     println!("DEBUG: get_chapter_list handler reached: q={:?}, body={}", q, body_str);
     let user_ns = state.user_service.resolve_user_ns(access_q.access_token.as_deref(), access_q.secure_key.as_deref()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
-    
+
     let mut req = q;
     if !body.is_empty() {
         if let Ok(v) = serde_json::from_slice::<ChapterListRequest>(&body) {
@@ -309,7 +310,7 @@ pub async fn get_chapter_list(State(state): State<AppState>, Query(access_q): Qu
         }
     }
 
-    let source = resolve_book_source(&state, &user_ns, req.book_source_url, req.book_source, req.book_url.as_deref().or(req.toc_url.as_deref())).await?;
+    let source = resolve_book_source(&state, &user_ns, req.book_source_url.clone(), req.book_source.clone(), req.book_url.as_deref().or(req.toc_url.as_deref())).await?;
     let toc_url = if let Some(u) = req.toc_url {
         u
     } else if let Some(book_url) = req.book_url {
@@ -318,34 +319,105 @@ pub async fn get_chapter_list(State(state): State<AppState>, Query(access_q): Qu
     } else {
         return Err(AppError::BadRequest("tocUrl or bookUrl required".to_string()));
     };
-    let chapters = state.book_service.get_chapter_list(&source, &toc_url).await?;
+
+    // Check if we have cached chapters
+    if let Ok(Some(cached)) = state.book_service.load_chapter_list_cache(&user_ns, &toc_url).await {
+        if !cached.is_empty() {
+            return Ok(Json(ApiResponse::ok(serde_json::to_value(cached).unwrap_or_default())));
+        }
+    }
+
+    // Get first page of chapters
+    let (chapters, pagination) = state.book_service.get_chapter_list_first_page(&source, &toc_url).await?;
+
+    // Save first page to cache immediately
+    let _ = state.book_service.save_chapter_list_cache(&user_ns, &toc_url, &chapters).await;
+
+    // If there are more pages to fetch, do it in background
+    if !pagination.pending_urls.is_empty() {
+        let state_clone = state.clone();
+        let user_ns_clone = user_ns.clone();
+        let toc_url_clone = toc_url.clone();
+
+        tokio::spawn(async move {
+            println!("DEBUG: Starting background fetch for remaining chapters");
+            match state_clone.book_service.fetch_remaining_chapters(pagination).await {
+                Ok(remaining) => {
+                    if !remaining.is_empty() {
+                        // Append to cache
+                        match state_clone.book_service.append_chapter_list_cache(&user_ns_clone, &toc_url_clone, &remaining).await {
+                            Ok(all_chapters) => {
+                                println!("DEBUG: Background fetch complete, total chapters: {}", all_chapters.len());
+                            }
+                            Err(e) => {
+                                println!("DEBUG: Failed to append chapters to cache: {:?}", e);
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("DEBUG: Background fetch failed: {:?}", e);
+                }
+            }
+        });
+    }
+
     Ok(Json(ApiResponse::ok(serde_json::to_value(chapters).unwrap_or_default())))
 }
 
 pub async fn get_book_content(State(state): State<AppState>, Query(access_q): Query<AccessTokenQuery>, Query(q): Query<BookContentRequest>, body: axum::body::Bytes) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     println!("DEBUG: get_book_content handler reached: q={:?}, body_len={}", q, body.len());
+    if !body.is_empty() {
+        println!("DEBUG: get_book_content body: {}", String::from_utf8_lossy(&body));
+    }
     let user_ns = state.user_service.resolve_user_ns(access_q.access_token.as_deref(), access_q.secure_key.as_deref()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
-    
+
     let mut req = q;
     if !body.is_empty() {
         if let Ok(v) = serde_json::from_slice::<BookContentRequest>(&body) {
-            req = v;
+            // Merge with query params
+            if req.chapter_url.is_none() { req.chapter_url = v.chapter_url; }
+            if req.book_source_url.is_none() { req.book_source_url = v.book_source_url; }
+            if req.book_source.is_none() { req.book_source = v.book_source; }
+            if req.index.is_none() { req.index = v.index; }
         } else if let Ok(s) = std::str::from_utf8(&body) {
             for (k, v) in url::form_urlencoded::parse(s.as_bytes()) {
                 match k.as_ref() {
-                    "chapterUrl" | "url" | "href" => req.chapter_url = Some(v.into_owned()),
+                    "chapterUrl" | "href" => req.chapter_url = Some(v.into_owned()),
                     "bookSourceUrl" | "origin" => req.book_source_url = Some(v.into_owned()),
+                    "index" => req.index = v.parse().ok(),
                     _ => {}
                 }
             }
         }
     }
 
-    let chapter_url = req.chapter_url.ok_or_else(|| AppError::BadRequest("chapterUrl required".to_string()))?;
+    // If we have url but no chapterUrl, treat url as bookUrl and use index
+    let chapter_url = if let Some(url) = &req.chapter_url {
+        // Check if url looks like a book URL (not a chapter URL) and we have an index
+        if req.index.is_some() && !url.contains("/read/") && !url.contains("/chapter/") {
+            // Need to get chapter from book URL + index
+            let source = resolve_book_source(&state, &user_ns, req.book_source_url.clone(), req.book_source.clone(), Some(url)).await?;
+            let book_info = state.book_service.get_book_info(&source, url).await?;
+            let toc_url = book_info.toc_url.as_deref().unwrap_or(url);
+            let chapters = state.book_service.get_chapter_list(&source, toc_url).await?;
+            let idx = req.index.unwrap() as usize;
+            if idx >= chapters.len() {
+                return Err(AppError::BadRequest("chapter index out of range".to_string()));
+            }
+            chapters[idx].url.clone()
+        } else {
+            url.clone()
+        }
+    } else {
+        return Err(AppError::BadRequest("chapterUrl required".to_string()));
+    };
+
+    println!("DEBUG: get_book_content resolved chapter_url: {}", chapter_url);
     let source = resolve_book_source(&state, &user_ns, req.book_source_url, req.book_source, Some(&chapter_url)).await?;
     let cache_key = format!("chapter:{}", md5_hex(&chapter_url));
     let content = state.book_service.get_content(&user_ns, &source, &chapter_url, &cache_key).await?;
-    Ok(Json(ApiResponse::ok(serde_json::json!({"content": content}))))
+    Ok(Json(ApiResponse::ok(serde_json::Value::String(content))))
 }
 
 pub async fn delete_book_cache(State(state): State<AppState>, Query(access_q): Query<AccessTokenQuery>, Query(q): Query<DeleteCacheRequest>, body: axum::body::Bytes) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -632,9 +704,11 @@ pub async fn search_book_multi_sse(State(state): State<AppState>, Query(access_q
         let mut result_map = std::collections::HashSet::<String>::new();
         let mut total = 0usize;
         let mut tasks: FuturesUnordered<_> = FuturesUnordered::new();
+        let mut stop_adding = false;
 
         while (idx as usize) < sources.len() || !tasks.is_empty() {
-            while tasks.len() < concurrent && (idx as usize) < sources.len() {
+            // Only add new tasks if we haven't reached search_size yet
+            if !stop_adding && tasks.len() < concurrent && (idx as usize) < sources.len() {
                 let source = sources[idx as usize].clone();
                 let svc = state_clone.book_service.clone();
                 let k = key.clone();
@@ -644,6 +718,7 @@ pub async fn search_book_multi_sse(State(state): State<AppState>, Query(access_q
                     (cur_idx, source.book_source_name, res)
                 }));
                 idx += 1;
+                continue;
             }
 
             if let Some(res) = tasks.next().await {
@@ -663,8 +738,9 @@ pub async fn search_book_multi_sse(State(state): State<AppState>, Query(access_q
                             let payload = serde_json::json!({"lastIndex": cur_idx, "data": batch});
                             let _ = tx.send(Event::default().data(payload.to_string())).await;
                         }
+                        // Stop adding new tasks when search_size is reached
                         if total >= search_size {
-                            break;
+                            stop_adding = true;
                         }
                     }
                     Ok((cur_idx, _source_name, Err(e))) => {
@@ -908,11 +984,15 @@ async fn resolve_book_source(state: &AppState, user_ns: &str, book_source_url: O
             Err(_) => "".to_string(),
         };
         if !b_host.is_empty() {
+            // Extract root domain for comparison (e.g., "22biqu" from "m.22biqu.com")
+            let b_root = extract_root_domain(&b_host);
             let sources = state.book_source_service.list(&user_ns).await?;
             for s in sources {
                 if let Ok(s_url) = url::Url::parse(&s.book_source_url) {
                     if let Some(s_host) = s_url.host_str() {
-                        if b_host.ends_with(s_host) || s_host.ends_with(&b_host) {
+                        // Match by exact host or by root domain
+                        let s_root = extract_root_domain(s_host);
+                        if b_host.ends_with(s_host) || s_host.ends_with(&b_host) || (b_root == s_root && !b_root.is_empty()) {
                             println!("DEBUG: auto-discovered book source: {} for host: {}", s.book_source_url, b_host);
                             return Ok(s);
                         }
@@ -923,6 +1003,16 @@ async fn resolve_book_source(state: &AppState, user_ns: &str, book_source_url: O
     }
 
     Err(AppError::BadRequest("bookSource or bookSourceUrl required, and auto-discovery failed".to_string()))
+}
+
+/// Extract root domain for matching (e.g., "22biqu" from "m.22biqu.com" or "m.22biqu.net")
+fn extract_root_domain(host: &str) -> String {
+    let parts: Vec<&str> = host.split('.').collect();
+    if parts.len() >= 2 {
+        parts[parts.len() - 2].to_string()
+    } else {
+        host.to_string()
+    }
 }
 
 fn merge_book(target: &mut Book, info: Book) {

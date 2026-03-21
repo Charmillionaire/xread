@@ -583,6 +583,10 @@ export default {
             }
             if (res.data.data.userInfo) {
               this.$store.commit("setUserInfo", res.data.data.userInfo);
+              // 如果用户是管理员，也显示管理功能
+              if (res.data.data.userInfo.isAdmin) {
+                this.$store.commit("setShowManagerMode", true);
+              }
             }
           }
         },

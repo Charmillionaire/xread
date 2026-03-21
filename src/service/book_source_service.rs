@@ -52,4 +52,25 @@ impl BookSourceService {
     pub async fn delete_all(&self, user_ns: &str) -> Result<(), AppError> {
         self.repo.delete_all(user_ns).await
     }
+
+    /// Copy sources from one user to another (used for setting default sources)
+    pub async fn copy_to(&self, from_ns: &str, to_ns: &str) -> Result<i64, AppError> {
+        self.repo.copy_to(from_ns, to_ns).await
+    }
+
+    /// Set a user's sources as the default sources (for new users)
+    pub async fn set_as_default(&self, from_ns: &str) -> Result<i64, AppError> {
+        self.copy_to(from_ns, "__default__").await
+    }
+
+    /// Copy default sources to a new user
+    pub async fn copy_default_to_user(&self, to_ns: &str) -> Result<i64, AppError> {
+        let defaults = self.list("__default__").await?;
+        if defaults.is_empty() {
+            return Ok(0);
+        }
+        let count = defaults.len() as i64;
+        self.save_many(to_ns, defaults).await?;
+        Ok(count)
+    }
 }

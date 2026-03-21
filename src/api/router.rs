@@ -15,6 +15,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/reader3/deleteBookSource", post(handlers::delete_book_source))
         .route("/reader3/deleteBookSources", post(handlers::delete_book_sources))
         .route("/reader3/deleteAllBookSources", post(handlers::delete_all_book_sources))
+        .route("/reader3/setAsDefaultBookSources", post(handlers::set_as_default_book_sources))
         .route("/reader3/readRemoteSourceFile", post(handlers::read_remote_source_file))
         .route("/readRemoteSourceFile", post(handlers::read_remote_source_file))
         .route("/reader3/readSourceFile", post(handlers::read_source_file))

@@ -36,6 +36,10 @@ impl UserService {
 
     pub async fn login(&self, username: &str, password: &str, is_login: bool, code: Option<&str>) -> Result<Value, AppError> {
         let mut users = self.load_users().await?;
+
+        // Check if this is the first user (will be admin)
+        let is_first_user = users.is_empty();
+
         if let Some(user) = users.get_mut(username) {
             if !is_login {
                 return Err(AppError::BadRequest("用户名已被占用".to_string()));
@@ -69,6 +73,7 @@ impl UserService {
             enable_webdav: false,
             token_map: None,
             enable_local_store: false,
+            is_admin: is_first_user, // First user is admin
         };
         let login_data = self.save_user_session(&mut user, true);
         users.insert(username.to_string(), user);
@@ -151,6 +156,7 @@ impl UserService {
             enable_webdav: false,
             token_map: None,
             enable_local_store: false,
+            is_admin: false,
         };
         users.insert(username.to_string(), user);
         self.save_users(&users).await?;
@@ -232,6 +238,23 @@ impl UserService {
         Ok(None)
     }
 
+    /// Check if user is admin (either by is_admin flag or by secure key)
+    pub async fn is_admin(&self, access_token: Option<&str>, secure_key: Option<&str>) -> Result<bool, AppError> {
+        // Check secure key first
+        if let Some(key) = secure_key {
+            if self.secure_key_matches(key) {
+                return Ok(true);
+            }
+        }
+        // Check if user is admin
+        if let Some(token) = access_token {
+            if let Ok(Some(user)) = self.check_auth(token).await {
+                return Ok(user.is_admin);
+            }
+        }
+        Ok(false)
+    }
+
     pub async fn resolve_user_ns(&self, access_token: Option<&str>, secure_key: Option<&str>) -> Result<String, AppError> {
         if !self.cfg.secure {
             return Ok("default".to_string());
@@ -270,6 +293,7 @@ impl UserService {
             "enableWebdav": user.enable_webdav,
             "enableLocalStore": user.enable_local_store,
             "createdAt": user.created_at,
+            "isAdmin": user.is_admin,
         })
     }
 

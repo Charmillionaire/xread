@@ -40,6 +40,7 @@ pub struct TocRule {
     pub chapter_list: Option<String>,
     pub chapter_name: Option<String>,
     pub chapter_url: Option<String>,
+    pub next_toc_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -11,6 +11,11 @@ pub struct BookSourceUrlParam {
     book_source_url: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UsernameParam {
+    pub username: Option<String>,
+}
+
 pub async fn save_book_source(State(state): State<AppState>, Query(access_q): Query<AccessTokenQuery>, Json(source): Json<BookSource>) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state.user_service.resolve_user_ns(access_q.access_token.as_deref(), access_q.secure_key.as_deref()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     state.book_source_service.save(&user_ns, source).await?;
@@ -91,18 +96,29 @@ pub struct RemoteSourceParam {
 
 pub async fn read_remote_source_file(
     Json(param): Json<RemoteSourceParam>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<String>>>, AppError> {
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
+        .timeout(std::time::Duration::from_secs(30))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .danger_accept_invalid_certs(true)
         .build()
         .map_err(|e| AppError::Internal(e.into()))?;
-    
+
     let text = client.get(&param.url)
-        .send().await.map_err(|e| AppError::BadRequest(e.to_string()))?
-        .text().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
-        
+        .send().await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch remote source from {}: {:?}", param.url, e);
+            AppError::BadRequest(format!("网络请求失败: {}", e))
+        })?
+        .text().await
+        .map_err(|e| AppError::BadRequest(format!("读取响应失败: {}", e)))?;
+
+    println!("DEBUG: remote source file length: {}", text.len());
+    println!("DEBUG: remote source file preview: {}", &text.chars().take(500).collect::<String>());
+
     let sources: Vec<BookSource> = serde_json::from_str(&text)
-        .or_else(|_| {
+        .or_else(|e| {
+            println!("DEBUG: direct parse failed: {:?}", e);
             // some sources are wrapped in a list or object
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
                 extract_sources(v)
@@ -110,15 +126,21 @@ pub async fn read_remote_source_file(
                 Err(AppError::BadRequest("invalid book sources json format".to_string()))
             }
         })?;
-        
-    Ok(Json(ApiResponse::ok(serde_json::to_value(sources).unwrap_or_default())))
+
+    println!("DEBUG: parsed {} book sources", sources.len());
+
+    // Return as array of JSON strings (frontend expects each item to be a JSON string)
+    let json_str = serde_json::to_string(&sources)
+        .map_err(|e| AppError::BadRequest(format!("序列化书源失败: {}", e)))?;
+
+    Ok(Json(ApiResponse::ok(vec![json_str])))
 }
 
 use axum::extract::Multipart;
 
 pub async fn read_source_file(
     mut multipart: Multipart,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<serde_json::Value>, AppError> {
     while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
         if let Some(file_name) = field.file_name() {
             if file_name.ends_with(".json") || file_name.ends_with(".txt") {
@@ -132,9 +154,24 @@ pub async fn read_source_file(
                             Err(AppError::BadRequest("invalid book sources json format".to_string()))
                         }
                     })?;
-                return Ok(Json(ApiResponse::ok(serde_json::to_value(sources).unwrap_or_default())));
+                return Ok(Json(serde_json::to_value(sources).unwrap_or_default()));
             }
         }
     }
     Err(AppError::BadRequest("No json file uploaded".to_string()))
+}
+
+pub async fn set_as_default_book_sources(
+    State(state): State<AppState>,
+    Query(access_q): Query<AccessTokenQuery>,
+    Json(param): Json<UsernameParam>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // Check if admin
+    let is_admin = state.user_service.is_admin(access_q.access_token.as_deref(), access_q.secure_key.as_deref()).await?;
+    if !is_admin {
+        return Ok(Json(ApiResponse::err_with_data("请输入管理密码", serde_json::Value::String("NEED_SECURE_KEY".to_string()))));
+    }
+    let username = param.username.ok_or_else(|| AppError::BadRequest("username required".to_string()))?;
+    let count = state.book_source_service.set_as_default(&username).await?;
+    Ok(Json(ApiResponse::ok(serde_json::json!({"success": true, "count": count}))))
 }
