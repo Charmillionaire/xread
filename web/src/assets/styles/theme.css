@@ -1425,16 +1425,20 @@ body {
   background: var(--color-bg-secondary) !important;
   border: 1px solid var(--color-border) !important;
   border-radius: var(--radius-full) !important;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   height: 34px;
   vertical-align: middle;
 }
 
-.settings-wrapper .setting-list li .resize span {
-  min-width: 72px;
+.settings-wrapper .setting-list li .resize span.less,
+.settings-wrapper .setting-list li .resize span.more {
+  min-width: 44px;
   height: 34px;
   line-height: 34px;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   text-align: center;
   vertical-align: middle;
@@ -1454,13 +1458,36 @@ body {
   color: var(--color-text-primary) !important;
   font-family: var(--font-body) !important;
   font-weight: 400;
+  min-width: 70px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-wrapper .setting-list li .resize .lang .setting-input {
+  width: 70px !important;
+}
+
+.settings-wrapper .setting-list li .resize .lang .el-input {
+  width: 70px !important;
+}
+
+.settings-wrapper .setting-list li .resize .lang .el-input__inner {
+  text-align: center !important;
+  padding: 0 !important;
+  height: 28px !important;
+  line-height: 28px !important;
+  width: 70px !important;
 }
 
 .settings-wrapper .setting-list li .resize b {
   display: inline-block;
+  width: 1px;
   height: 20px;
   vertical-align: middle;
-  border-right: 1px solid var(--color-border) !important;
+  background: var(--color-border);
+  margin: 0 2px;
 }
 
 .settings-wrapper .operation-zone .span-btn {
@@ -1574,7 +1601,7 @@ body {
 }
 
 .night-theme .settings-wrapper .setting-list li .resize b {
-  border-color: var(--color-border) !important;
+  background: var(--color-border) !important;
 }
 
 /* ========================================
@@ -1588,15 +1615,6 @@ body {
     padding: 16px !important;
     box-shadow: none !important;
     border: none !important;
-  }
-
-  .chapter-wrapper .chapter .content-inner h3 {
-    font-size: 20px !important;
-  }
-
-  .chapter-wrapper .chapter .content-inner p {
-    font-size: 16px;
-    line-height: 1.8;
   }
 
   .chapter-wrapper .tool-bar {
@@ -1624,12 +1642,16 @@ body {
     max-height: 60vh !important;
   }
 
-  /* iOS Safari触摸优化 */
+  /* Mobile触摸优化 */
+  .settings-wrapper .setting-list li .resize {
+    display: inline-flex !important;
+  }
+
   .settings-wrapper .setting-list li .resize span.less,
   .settings-wrapper .setting-list li .resize span.more {
     min-width: 44px !important;
     min-height: 44px !important;
-    display: flex !important;
+    display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     cursor: pointer !important;
@@ -1641,20 +1663,33 @@ body {
     color: var(--color-accent) !important;
   }
 
+  .settings-wrapper .setting-list li .resize .lang {
+    min-width: 60px !important;
+  }
+
+  .settings-wrapper .setting-list li .resize .lang .setting-input,
+  .settings-wrapper .setting-list li .resize .lang .el-input,
+  .settings-wrapper .setting-list li .resize .lang .el-input__inner {
+    width: 60px !important;
+  }
+
   .settings-wrapper .setting-input .el-input__inner {
     font-size: 16px !important;
     -webkit-appearance: none !important;
-    border-radius: 0 !important;
   }
 }
 
 /* iOS Safari特定修复 */
 @supports (-webkit-touch-callout: none) {
+  .settings-wrapper .setting-list li .resize {
+    display: inline-flex !important;
+  }
+
   .settings-wrapper .setting-list li .resize span.less,
   .settings-wrapper .setting-list li .resize span.more {
     min-width: 44px !important;
     min-height: 44px !important;
-    display: flex !important;
+    display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
   }
@@ -1674,7 +1709,8 @@ body {
     -webkit-tap-highlight-color: transparent !important;
   }
 
-  .settings-wrapper .setting-list li .resize span {
+  .settings-wrapper .setting-list li .resize span.less,
+  .settings-wrapper .setting-list li .resize span.more {
     cursor: pointer !important;
     touch-action: manipulation !important;
   }
