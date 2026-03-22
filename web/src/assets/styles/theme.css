@@ -1608,6 +1608,61 @@ body {
   .settings-wrapper .setting-list {
     max-height: 60vh !important;
   }
+
+  /* iOS Safari触摸优化 */
+  .settings-wrapper .setting-list li .resize span.less,
+  .settings-wrapper .setting-list li .resize span.more {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .settings-wrapper .setting-list li .resize span:active {
+    background: var(--color-accent-soft) !important;
+    color: var(--color-accent) !important;
+  }
+
+  .settings-wrapper .setting-input .el-input__inner {
+    font-size: 16px !important;
+    -webkit-appearance: none !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* iOS Safari特定修复 */
+@supports (-webkit-touch-callout: none) {
+  .settings-wrapper .setting-list li .resize span.less,
+  .settings-wrapper .setting-list li .resize span.more {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .settings-wrapper .setting-list li .resize span:active {
+    background: var(--color-accent-soft) !important;
+    color: var(--color-accent) !important;
+  }
+
+  .settings-wrapper .setting-input .el-input__inner {
+    font-size: 16px !important;
+    -webkit-appearance: none !important;
+  }
+
+  /* 确保点击事件正常触发 */
+  .settings-wrapper .setting-list li {
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .settings-wrapper .setting-list li .resize span {
+    cursor: pointer !important;
+    touch-action: manipulation !important;
+  }
 }
 
 /* ========================================

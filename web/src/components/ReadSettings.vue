@@ -219,17 +219,18 @@
         <li>
           <span class="setting-item-title">字体大小</span>
           <div class="resize">
-            <span class="less" @click="decConfig('fontSize')"
+            <span class="less" @click="decConfig('fontSize')" @touchend.prevent="decConfig('fontSize')"
               ><em class="iconfont">&#58966;</em></span
             ><b></b>
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model="config.fontSize"
+                v-model.number="config.fontSize"
                 size="mini"
+                type="number"
               ></el-input></span
             ><b></b>
-            <span class="more" @click="incConfig('fontSize')"
+            <span class="more" @click="incConfig('fontSize')" @touchend.prevent="incConfig('fontSize')"
               ><em class="iconfont">&#58976;</em></span
             >
           </div>
@@ -237,17 +238,18 @@
         <li>
           <span class="setting-item-title">字体粗细</span>
           <div class="resize">
-            <span class="less" @click="decConfig('fontWeight')"
+            <span class="less" @click="decConfig('fontWeight')" @touchend.prevent="decConfig('fontWeight')"
               ><i class="el-icon-minus"></i></span
             ><b></b>
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model="config.fontWeight"
+                v-model.number="config.fontWeight"
                 size="mini"
+                type="number"
               ></el-input></span
             ><b></b>
-            <span class="less" @click="incConfig('fontWeight')"
+            <span class="more" @click="incConfig('fontWeight')" @touchend.prevent="incConfig('fontWeight')"
               ><i class="el-icon-plus"></i
             ></span>
           </div>
@@ -255,17 +257,18 @@
         <li>
           <span class="setting-item-title">段落行高</span>
           <div class="resize">
-            <span class="less" @click="decConfig('lineHeight')"
+            <span class="less" @click="decConfig('lineHeight')" @touchend.prevent="decConfig('lineHeight')"
               ><i class="el-icon-minus"></i></span
             ><b></b>
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model="config.lineHeight"
+                v-model.number="config.lineHeight"
                 size="mini"
+                type="number"
               ></el-input></span
             ><b></b>
-            <span class="less" @click="incConfig('lineHeight')"
+            <span class="more" @click="incConfig('lineHeight')" @touchend.prevent="incConfig('lineHeight')"
               ><i class="el-icon-plus"></i
             ></span>
           </div>
@@ -273,17 +276,18 @@
         <li>
           <span class="setting-item-title">段落间距</span>
           <div class="resize">
-            <span class="less" @click="decConfig('paragraphSpace')"
+            <span class="less" @click="decConfig('paragraphSpace')" @touchend.prevent="decConfig('paragraphSpace')"
               ><i class="el-icon-minus"></i></span
             ><b></b>
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model="config.paragraphSpace"
+                v-model.number="config.paragraphSpace"
                 size="mini"
+                type="number"
               ></el-input></span
             ><b></b>
-            <span class="less" @click="incConfig('paragraphSpace')"
+            <span class="more" @click="incConfig('paragraphSpace')" @touchend.prevent="incConfig('paragraphSpace')"
               ><i class="el-icon-plus"></i
             ></span>
           </div>
@@ -308,11 +312,11 @@
         <li v-if="!$store.state.miniInterface">
           <span class="setting-item-title">页面宽度</span>
           <div class="resize">
-            <span class="less" @click="decConfig('readWidth')"
+            <span class="less" @click="decConfig('readWidth')" @touchend.prevent="decConfig('readWidth')"
               ><em class="iconfont">&#58965;</em></span
             ><b></b> <span class="lang">{{ config.readWidth }}</span
             ><b></b>
-            <span class="more" @click="incConfig('readWidth')"
+            <span class="more" @click="incConfig('readWidth')" @touchend.prevent="incConfig('readWidth')"
               ><em class="iconfont">&#58975;</em></span
             >
           </div>
@@ -340,17 +344,18 @@
         <li>
           <span class="setting-item-title">动画时长</span>
           <div class="resize">
-            <span class="less" @click="decConfig('animateMSTime')"
+            <span class="less" @click="decConfig('animateMSTime')" @touchend.prevent="decConfig('animateMSTime')"
               ><i class="el-icon-minus"></i></span
             ><b></b>
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model="config.animateMSTime"
+                v-model.number="config.animateMSTime"
                 size="mini"
+                type="number"
               ></el-input></span
             ><b></b>
-            <span class="less" @click="incConfig('animateMSTime')"
+            <span class="more" @click="incConfig('animateMSTime')" @touchend.prevent="incConfig('animateMSTime')"
               ><i class="el-icon-plus"></i
             ></span>
           </div>
@@ -371,17 +376,18 @@
         <li v-if="config.autoReadingMethod === '像素滚动'">
           <span class="setting-item-title">滚动像素</span>
           <div class="resize">
-            <span class="less" @click="decConfig('autoReadingPixel')"
+            <span class="less" @click="decConfig('autoReadingPixel')" @touchend.prevent="decConfig('autoReadingPixel')"
               ><i class="el-icon-minus"></i></span
             ><b></b>
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model="config.autoReadingPixel"
+                v-model.number="config.autoReadingPixel"
                 size="mini"
+                type="number"
               ></el-input> </span
             ><b></b>
-            <span class="less" @click="incConfig('autoReadingPixel')"
+            <span class="more" @click="incConfig('autoReadingPixel')" @touchend.prevent="incConfig('autoReadingPixel')"
               ><i class="el-icon-plus"></i
             ></span>
           </div>
@@ -389,17 +395,18 @@
         <li>
           <span class="setting-item-title">翻页速度</span>
           <div class="resize">
-            <span class="less" @click="decConfig('autoReadingLineTime')"
+            <span class="less" @click="decConfig('autoReadingLineTime')" @touchend.prevent="decConfig('autoReadingLineTime')"
               ><i class="el-icon-minus"></i></span
             ><b></b>
             <span class="lang"
               ><el-input
                 class="setting-input"
-                v-model="config.autoReadingLineTime"
+                v-model.number="config.autoReadingLineTime"
                 size="mini"
+                type="number"
               ></el-input></span
             ><b></b>
-            <span class="less" @click="incConfig('autoReadingLineTime')"
+            <span class="more" @click="incConfig('autoReadingLineTime')" @touchend.prevent="incConfig('autoReadingLineTime')"
               ><i class="el-icon-plus"></i
             ></span>
           </div>
