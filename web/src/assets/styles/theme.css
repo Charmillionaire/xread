@@ -1009,8 +1009,6 @@ body {
 /* Paragraph styles */
 .chapter-wrapper .chapter .content-inner p {
   text-indent: 2em;
-  margin: 0.8em 0;
-  line-height: 1.9;
   color: var(--color-text-primary);
   text-align: justify;
   word-break: break-word;
