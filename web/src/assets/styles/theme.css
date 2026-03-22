@@ -1425,13 +1425,24 @@ body {
   background: var(--color-bg-secondary) !important;
   border: 1px solid var(--color-border) !important;
   border-radius: var(--radius-full) !important;
-  overflow: hidden;
+  display: inline-block;
+  height: 34px;
+  vertical-align: middle;
 }
 
 .settings-wrapper .setting-list li .resize span {
-  min-width: auto !important;
-  padding: 0 16px;
+  min-width: 72px;
+  height: 34px;
+  line-height: 34px;
+  display: inline-block;
+  cursor: pointer;
+  text-align: center;
+  vertical-align: middle;
   transition: all var(--transition-fast);
+}
+
+.settings-wrapper .setting-list li .resize span em {
+  font-style: normal;
 }
 
 .settings-wrapper .setting-list li .resize span:hover {
@@ -1442,9 +1453,13 @@ body {
 .settings-wrapper .setting-list li .resize .lang {
   color: var(--color-text-primary) !important;
   font-family: var(--font-body) !important;
+  font-weight: 400;
 }
 
 .settings-wrapper .setting-list li .resize b {
+  display: inline-block;
+  height: 20px;
+  vertical-align: middle;
   border-right: 1px solid var(--color-border) !important;
 }
 

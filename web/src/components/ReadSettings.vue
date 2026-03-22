@@ -225,9 +225,8 @@
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model.number="config.fontSize"
+                v-model="config.fontSize"
                 size="mini"
-                type="number"
               ></el-input></span
             ><b></b>
             <span class="more" @click="incConfig('fontSize')" @touchend.prevent="incConfig('fontSize')"
@@ -244,9 +243,8 @@
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model.number="config.fontWeight"
+                v-model="config.fontWeight"
                 size="mini"
-                type="number"
               ></el-input></span
             ><b></b>
             <span class="more" @click="incConfig('fontWeight')" @touchend.prevent="incConfig('fontWeight')"
@@ -263,9 +261,8 @@
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model.number="config.lineHeight"
+                v-model="config.lineHeight"
                 size="mini"
-                type="number"
               ></el-input></span
             ><b></b>
             <span class="more" @click="incConfig('lineHeight')" @touchend.prevent="incConfig('lineHeight')"
@@ -282,9 +279,8 @@
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model.number="config.paragraphSpace"
+                v-model="config.paragraphSpace"
                 size="mini"
-                type="number"
               ></el-input></span
             ><b></b>
             <span class="more" @click="incConfig('paragraphSpace')" @touchend.prevent="incConfig('paragraphSpace')"
@@ -350,9 +346,8 @@
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model.number="config.animateMSTime"
+                v-model="config.animateMSTime"
                 size="mini"
-                type="number"
               ></el-input></span
             ><b></b>
             <span class="more" @click="incConfig('animateMSTime')" @touchend.prevent="incConfig('animateMSTime')"
@@ -382,9 +377,8 @@
             <span class="lang">
               <el-input
                 class="setting-input"
-                v-model.number="config.autoReadingPixel"
+                v-model="config.autoReadingPixel"
                 size="mini"
-                type="number"
               ></el-input> </span
             ><b></b>
             <span class="more" @click="incConfig('autoReadingPixel')" @touchend.prevent="incConfig('autoReadingPixel')"
@@ -401,9 +395,8 @@
             <span class="lang"
               ><el-input
                 class="setting-input"
-                v-model.number="config.autoReadingLineTime"
+                v-model="config.autoReadingLineTime"
                 size="mini"
-                type="number"
               ></el-input></span
             ><b></b>
             <span class="more" @click="incConfig('autoReadingLineTime')" @touchend.prevent="incConfig('autoReadingLineTime')"
