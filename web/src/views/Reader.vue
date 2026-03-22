@@ -3219,6 +3219,14 @@ export default {
   padding: 0;
   flex-direction: column;
   align-items: center;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 
   >>>.no-point {
     pointer-events: none;
@@ -3908,9 +3916,6 @@ export default {
       column-gap: 16px;
     }
   }
-}
-.chapter-wrapper.mini-interface::-webkit-scrollbar {
-  width: 0 !important;
 }
 </style>
 <style lang="stylus">
