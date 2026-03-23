@@ -3,7 +3,7 @@
   "version": "2.5.4",
   "private": true,
   "scripts": {
-    "serve": "vue-cli-service serve",
+    "serve": "node -r ./disable-storage.js ./node_modules/@vue/cli-service/bin/vue-cli-service.js serve",
     "build": "node -r ./disable-storage.js ./node_modules/@vue/cli-service/bin/vue-cli-service.js build",
     "lint": "vue-cli-service lint",
     "sync": "yarn build && rm -rf ../src/main/resources/web && mv dist ../src/main/resources/web"

@@ -20,4 +20,4 @@ __pycache__/
 Thumbs.db
 
 # Storage data (if contains user data)
-storage/
+/storage/

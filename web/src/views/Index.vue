@@ -593,6 +593,12 @@
                   @click.stop="deleteBook(book)"
                 ></i>
                 <i
+                  class="el-icon-download"
+                  v-if="!isSearchResult && showBookEditButton"
+                  @click.stop="cacheBookLocal(book)"
+                  :class="{ 'cashing-item': isCaching(book) }"
+                ></i>
+                <i
                   class="el-icon-edit"
                   v-if="!isSearchResult && showBookEditButton"
                   @click.stop="editBook(book)"
@@ -1496,6 +1502,15 @@ export default {
         return;
       }
       this.saveBook({ ...book, ...customImportBookInfo });
+    },
+    cacheBookLocal(book) {
+      this.$refs.bookManage.cacheBookLocal(book);
+    },
+    isCaching(book) {
+      if (this.$refs.bookManage) {
+        return this.$refs.bookManage.isCaching(book);
+      }
+      return false;
     },
     saveBook(book, isImport, isEdit) {
       if (!book || !book.bookUrl || !book.origin) {
@@ -3677,8 +3692,22 @@ export default {
   .el-icon-close:hover {
     color: #409eff;
   }
-  .el-icon-edit:hover {
+  .el-icon-download:hover {
     color: #409eff;
+  }
+}
+
+.cashing-item {
+  color: #409eff !important;
+  animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
   }
 }
 

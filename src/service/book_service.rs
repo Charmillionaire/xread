@@ -17,6 +17,7 @@ pub struct ChapterPagination {
     pub toc_url: String,
     pub visited_urls: Vec<String>,
     pub pending_urls: Vec<String>,
+    pub seen_chapter_urls: Vec<String>,
     pub next_index: i32,
 }
 
@@ -105,6 +106,7 @@ impl BookService {
             toc_url: toc_url.to_string(),
             visited_urls: vec![toc_url.to_string()],
             pending_urls: next_urls.into_iter().collect(),
+            seen_chapter_urls: result.iter().map(|c| c.url.clone()).collect(),
             next_index: chapter_index,
         };
 
@@ -112,10 +114,10 @@ impl BookService {
     }
 
     /// Continue fetching remaining chapters from pagination state
-    pub async fn fetch_remaining_chapters(&self, mut pagination: ChapterPagination) -> Result<Vec<BookChapter>, AppError> {
+    pub async fn fetch_remaining_chapters(&self, pagination: ChapterPagination) -> Result<Vec<BookChapter>, AppError> {
         let mut all_chapters = Vec::new();
         let mut visited_page_urls: std::collections::HashSet<String> = pagination.visited_urls.iter().cloned().collect();
-        let mut seen_chapter_urls: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut seen_chapter_urls: std::collections::HashSet<String> = pagination.seen_chapter_urls.iter().cloned().collect();
         let mut chapter_index = pagination.next_index;
 
         // Collect chapter URLs from the first page to avoid duplicates
