@@ -3809,9 +3809,28 @@ export default {
 
     .cache-content-zone {
       position: relative;
-      width: auto;
+      width: 100%;
       right: 0;
       background: inherit;
+      padding: 10px 15px;
+      flex-wrap: wrap;
+      gap: 8px;
+
+      .cache-content-btn {
+        cursor: pointer;
+        padding: 6px 12px;
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 4px;
+        font-size: 13px;
+      }
+
+      .caching-tip {
+        font-size: 13px;
+      }
+
+      .caching-cancel-btn {
+        padding: 6px;
+      }
     }
 
     .float-btn-zone {
@@ -3850,6 +3869,16 @@ export default {
         }
         span {
           vertical-align: middle;
+        }
+      }
+    }
+  }
+
+  &.night {
+    .read-bar {
+      .cache-content-zone {
+        .cache-content-btn {
+          background: rgba(255, 255, 255, 0.1);
         }
       }
     }
