@@ -24,7 +24,7 @@ impl Default for AppConfig {
             server_port: 8080,
             database_url: "sqlite:storage/reader.db?mode=rwc".to_string(),
             storage_dir: "storage".to_string(),
-            web_root: "../reader/web".to_string(),
+            web_root: "web/dist".to_string(),
             assets_dir: "storage/assets".to_string(),
             log_level: "info".to_string(),
             request_timeout_secs: 15,
