@@ -23,16 +23,43 @@ cargo run
 cargo build --release
 ```
 
-### 或者使用musl静态编译
+### musl 静态编译
 
-> 需要在 Linux 环境或 Docker 中进行，macOS 不支持。
+生成的二进制文件不依赖 glibc，可在任何 x86_64 Linux 上运行。
+
+#### Linux 环境
 
 ```bash
 rustup target add x86_64-unknown-linux-musl
 cargo build --target x86_64-unknown-linux-musl --release
 ```
 
-### musl静态编译后的二进制文件
+#### macOS 交叉编译
+
+macOS 需要安装 musl-cross 工具链：
+
+```bash
+# 1. 安装 musl-cross
+brew install FiloSottile/musl-cross/musl-cross
+
+# 2. 添加 Rust target
+rustup target add x86_64-unknown-linux-musl
+
+# 3. 配置链接器（项目已包含 .cargo/config.toml）
+# 如果没有，创建 .cargo/config.toml 内容如下：
+# [target.x86_64-unknown-linux-musl]
+# linker = "x86_64-linux-musl-gcc"
+
+# 4. 编译
+cargo build --target x86_64-unknown-linux-musl --release
+```
+
+> 注意：确保使用 rustup 安装的 Rust，而非 Homebrew 的 Rust。
+> 当前Homebrew 的 Rust 不支持交叉编译 target。
+> 如有冲突，临时用 rustup 的 cargo ~/.cargo/bin/cargo build --release --target x86_64-unknown-linux-musl 
+> 或者卸载Homebrew 的 Rust `brew uninstall rust` 后使用 rustup 版本。
+
+### musl 静态编译后的二进制文件
 
 ```bash
 target/x86_64-unknown-linux-musl/release/reader-rust
