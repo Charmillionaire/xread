@@ -405,10 +405,6 @@ fn parse_chapter_list_html(body: &str, base_url: &str, rule: &TocRule, ctx: &mut
     let mut seen_urls = std::collections::HashSet::new();
     let mut out = Vec::with_capacity(items.len());
 
-    // Detect if we have "latest chapters" section (descending order) before "content" section
-    let mut in_latest_section = false;
-    let mut last_chapter_num: Option<i32> = None;
-
     for el in items {
         let title = rule.chapter_name.as_ref().and_then(|r| eval_field_html_with_ctx(r, &el, base_url, ctx)).unwrap_or_default();
         let url = rule.chapter_url.as_ref().and_then(|r| eval_field_html_with_ctx(r, &el, base_url, ctx)).unwrap_or_default();
@@ -419,19 +415,19 @@ fn parse_chapter_list_html(body: &str, base_url: &str, rule: &TocRule, ctx: &mut
             continue;
         }
 
-        // Detect chapter number from title
-        let chapter_num = extract_chapter_number(&title);
-
-        // Detect if we're in a "latest chapters" section
-        if let Some(num) = chapter_num {
-            if let Some(last_num) = last_chapter_num {
-                if last_num > 100 && num < 10 && !in_latest_section {
-                    in_latest_section = true;
-                    seen_urls.clear();
-                    out.clear();
+        // Check if this element is inside #chapterlist (latest chapters section)
+        // The #chapterlist div contains duplicate "latest chapters" that appear on every page
+        let mut in_latest_div = false;
+        for ancestor in el.ancestors() {
+            if let Some(element) = ancestor.value().as_element() {
+                if element.attr("id") == Some("chapterlist") {
+                    in_latest_div = true;
+                    break;
                 }
             }
-            last_chapter_num = Some(num);
+        }
+        if in_latest_div {
+            continue;
         }
 
         seen_urls.insert(url_abs.clone());
@@ -821,22 +817,6 @@ fn apply_regex_replace_first(text: &str, pattern: &str, replacement: &str) -> St
 }
 
 /// Extract chapter number from title
-fn extract_chapter_number(title: &str) -> Option<i32> {
-    let re = regex::Regex::new(r"(?:^|\D)(\d+)(?:\.|章|回|节)").ok()?;
-    if let Some(caps) = re.captures(title) {
-        if let Some(m) = caps.get(1) {
-            return m.as_str().parse::<i32>().ok();
-        }
-    }
-    let re2 = regex::Regex::new(r"^(\d+)\.").ok()?;
-    if let Some(caps) = re2.captures(title) {
-        if let Some(m) = caps.get(1) {
-            return m.as_str().parse::<i32>().ok();
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

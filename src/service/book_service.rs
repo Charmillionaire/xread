@@ -56,15 +56,13 @@ impl BookService {
             }
         }
 
-        println!("DEBUG: search_book fetched spec: {:?}", spec);
+        tracing::debug!("search_book fetched spec: {:?}", spec);
         let res = fetch(&self.http, spec).await.map_err(|e| {
-            println!("DEBUG: fetch failed: {:?}", e);
             tracing::error!("fetch failed: {:?}", e);
             e
         })?;
-        println!("DEBUG: fetch success, body length: {}", res.body.len());
+        tracing::debug!("fetch success, body length: {}", res.body.len());
         let books = self.parser.search_books(source, &res.body, &source.book_source_url);
-        println!("DEBUG: search_books found {} books", books.len());
         tracing::info!("found {} books", books.len());
         Ok(books)
     }
@@ -101,12 +99,37 @@ impl BookService {
             result.push(ch);
         }
 
+        // The actual URL we fetched (after redirects) should be considered visited
+        let actual_visited_url = res.url.clone();
+
+        // Get chapter URLs from first page for deduplication
+        let first_page_chapter_urls: std::collections::HashSet<String> = result.iter().map(|c| c.url.clone()).collect();
+
+        // Filter out already visited URLs and the current page URL from pending_urls
+        // Also filter out URLs that point to the same page (same path but different domain)
+        let pending_urls: Vec<String> = next_urls.into_iter()
+            .filter(|u| {
+                // Filter out exact matches
+                if u == &actual_visited_url || u == toc_url {
+                    return false;
+                }
+                // Filter out URLs with the same path but different domain
+                // This handles cases like m.22biqu.com vs m.22biqu.net
+                if let (Ok(parsed_u), Ok(parsed_visited)) = (url::Url::parse(u), url::Url::parse(&actual_visited_url)) {
+                    if parsed_u.path() == parsed_visited.path() {
+                        return false;
+                    }
+                }
+                true
+            })
+            .collect();
+
         let pagination = ChapterPagination {
             source: source.clone(),
             toc_url: toc_url.to_string(),
-            visited_urls: vec![toc_url.to_string()],
-            pending_urls: next_urls.into_iter().collect(),
-            seen_chapter_urls: result.iter().map(|c| c.url.clone()).collect(),
+            visited_urls: vec![toc_url.to_string(), actual_visited_url],
+            pending_urls,
+            seen_chapter_urls: first_page_chapter_urls.iter().cloned().collect(),
             next_index: chapter_index,
         };
 
@@ -119,9 +142,6 @@ impl BookService {
         let mut visited_page_urls: std::collections::HashSet<String> = pagination.visited_urls.iter().cloned().collect();
         let mut seen_chapter_urls: std::collections::HashSet<String> = pagination.seen_chapter_urls.iter().cloned().collect();
         let mut chapter_index = pagination.next_index;
-
-        // Collect chapter URLs from the first page to avoid duplicates
-        // (these would have been saved in cache already)
 
         let pending_urls: Vec<String> = pagination.pending_urls.into_iter()
             .filter(|u| !visited_page_urls.contains(u))
@@ -136,8 +156,15 @@ impl BookService {
                 let res = fetch(&self.http, RequestSpec { url: url.clone(), method: HttpMethod::GET, headers: vec![], body: None }).await?;
                 let (chapters, _) = self.parser.chapter_list(&pagination.source, &res.body, &res.url);
 
+                // Check if this page is a duplicate (all chapters already seen)
+                // This handles cases where the first page URL differs from toc_url (e.g., different domain)
+                let all_seen = chapters.iter().all(|ch| seen_chapter_urls.contains(&ch.url));
+                if all_seen && !chapters.is_empty() {
+                    tracing::debug!("Skipping duplicate page: {}", url);
+                    continue;
+                }
+
                 for ch in chapters {
-                    // Deduplicate by chapter URL
                     if seen_chapter_urls.contains(&ch.url) {
                         continue;
                     }
@@ -161,8 +188,14 @@ impl BookService {
                 let res = fetch(&self.http, RequestSpec { url: current_url.clone(), method: HttpMethod::GET, headers: vec![], body: None }).await?;
                 let (chapters, next_urls) = self.parser.chapter_list(&pagination.source, &res.body, &res.url);
 
+                // Check if this page is a duplicate
+                let all_seen = chapters.iter().all(|ch| seen_chapter_urls.contains(&ch.url));
+                if all_seen && !chapters.is_empty() {
+                    tracing::debug!("Skipping duplicate page: {}", current_url);
+                    break; // Stop following pagination if we hit a duplicate page
+                }
+
                 for ch in chapters {
-                    // Deduplicate by chapter URL
                     if seen_chapter_urls.contains(&ch.url) {
                         continue;
                     }
@@ -278,12 +311,12 @@ impl BookService {
     }
 
     pub async fn get_content(&self, user_ns: &str, source: &BookSource, chapter_url: &str, cache_key: &str) -> Result<String, AppError> {
-        println!("DEBUG: get_content called, chapter_url={}, cache_key={}", chapter_url, cache_key);
+        tracing::debug!("get_content called, chapter_url={}, cache_key={}", chapter_url, cache_key);
         if let Ok(Some(cached)) = self.cache.get(user_ns, cache_key).await {
-            println!("DEBUG: get_content returning cached content, len={}", cached.len());
+            tracing::debug!("get_content returning cached content, len={}", cached.len());
             return Ok(cached);
         }
-        println!("DEBUG: get_content cache miss, fetching from network");
+        tracing::debug!("get_content cache miss, fetching from network");
 
         let mut all_content = String::new();
         let mut visited_urls = std::collections::HashSet::new();
@@ -292,16 +325,16 @@ impl BookService {
         // Follow pagination to get all content pages
         loop {
             if visited_urls.contains(&current_url) {
-                println!("DEBUG: get_content detected loop, breaking");
+                tracing::debug!("get_content detected loop, breaking");
                 break;
             }
             visited_urls.insert(current_url.clone());
 
-            println!("DEBUG: get_content fetching: {}", current_url);
+            tracing::debug!("get_content fetching: {}", current_url);
             let res = fetch(&self.http, RequestSpec { url: current_url.clone(), method: HttpMethod::GET, headers: vec![], body: None }).await?;
-            println!("DEBUG: get_content fetch done, body len={}", res.body.len());
+            tracing::debug!("get_content fetch done, body len={}", res.body.len());
             let content = self.parser.content(source, &res.body, &res.url);
-            println!("DEBUG: get_content parsed content len={}", content.len());
+            tracing::debug!("get_content parsed content len={}", content.len());
 
             if !content.is_empty() {
                 if !all_content.is_empty() {
@@ -312,15 +345,15 @@ impl BookService {
 
             // Check for next page
             if let Some(next_url) = self.parser.next_content_url(source, &res.body, &res.url) {
-                println!("DEBUG: get_content found next_url: {}", next_url);
+                tracing::debug!("get_content found next_url: {}", next_url);
                 current_url = next_url;
             } else {
-                println!("DEBUG: get_content no more pages");
+                tracing::debug!("get_content no more pages");
                 break;
             }
         }
 
-        println!("DEBUG: get_content final content len={}", all_content.len());
+        tracing::debug!("get_content final content len={}", all_content.len());
         if !all_content.is_empty() {
             let _ = self.cache.put(user_ns, cache_key, &all_content).await;
         }
@@ -651,9 +684,8 @@ fn content_type_from_ext(ext: &str) -> String {
 }
 
 fn analyze_url(m_url: &str, key: &str, page: i32, base_url: &str) -> Result<RequestSpec, AppError> {
-    println!("DEBUG: starting analyze_url for: {}", m_url);
-    let mut rule_url = m_url.to_string();
     tracing::debug!("analyzing url: {}", m_url);
+    let mut rule_url = m_url.to_string();
 
     // 1. Evaluate {{js}} blocks
     while let Some(start) = rule_url.find("{{") {
