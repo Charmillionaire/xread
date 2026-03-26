@@ -359,7 +359,7 @@ pub async fn get_chapter_list(State(state): State<AppState>, Query(access_q): Qu
             for (k, v) in url::form_urlencoded::parse(s.as_bytes()) {
                 match k.as_ref() {
                     "tocUrl" => req.toc_url = Some(v.into_owned()),
-                    "bookUrl" => req.book_url = Some(v.into_owned()),
+                    "bookUrl" | "url" => req.book_url = Some(v.into_owned()),
                     "bookSourceUrl" | "origin" => req.book_source_url = Some(v.into_owned()),
                     _ => {}
                 }
@@ -599,7 +599,7 @@ pub async fn save_book_progress(State(state): State<AppState>, Query(access_q): 
     let mut updated = shelf_book.clone();
     let mut chapter_title: Option<String> = None;
     if let (Some(toc_url), Ok(Some(source))) = (shelf_book.toc_url.clone(), state.book_source_service.get(&user_ns, &shelf_book.origin).await) {
-        if let Ok(chapters) = state.book_service.get_chapter_list(&source, &toc_url).await {
+        if let Ok(chapters) = state.book_service.get_chapter_list(&user_ns, &source, &toc_url).await {
             if index >= 0 && (index as usize) < chapters.len() {
                 chapter_title = Some(chapters[index as usize].title.clone());
             }
@@ -638,7 +638,7 @@ pub async fn get_shelf_book_with_cache_info(State(state): State<AppState>, Query
     for book in books {
         let mut cached_count = 0usize;
         if let (Some(toc_url), Ok(Some(source))) = (book.toc_url.clone(), state.book_source_service.get(&user_ns, &book.origin).await) {
-            if let Ok(chapters) = state.book_service.get_chapter_list(&source, &toc_url).await {
+            if let Ok(chapters) = state.book_service.get_chapter_list(&user_ns, &source, &toc_url).await {
                 let urls: Vec<String> = chapters.into_iter().map(|c| c.url).collect();
                 cached_count = state.book_service.cached_chapter_count(&user_ns, &urls).await.unwrap_or(0);
             }
@@ -705,7 +705,7 @@ pub async fn cache_book_sse(State(state): State<AppState>, Query(access_q): Quer
         .ok_or_else(|| AppError::BadRequest("未配置书源".to_string()))?;
     let toc_url = book.toc_url.clone().ok_or_else(|| AppError::BadRequest("tocUrl missing".to_string()))?;
 
-    let chapters = state.book_service.get_chapter_list(&source, &toc_url).await?;
+    let chapters = state.book_service.get_chapter_list(&user_ns, &source, &toc_url).await?;
     let mut cached_count = 0usize;
     if !refresh {
         for ch in &chapters {
@@ -1087,16 +1087,28 @@ async fn resolve_book_source(state: &AppState, user_ns: &str, book_source_url: O
     if let Some(src) = book_source {
         return Ok(src);
     }
-    if let Some(url) = book_source_url {
+    if let Some(url) = &book_source_url {
         if !url.trim().is_empty() {
-            return state.book_source_service.get(&user_ns, &url).await?
+            return state.book_source_service.get(&user_ns, url).await?
                 .ok_or_else(|| {
                     println!("ERROR: bookSource not found for url: {}", url);
                     AppError::NotFound("bookSource not found".to_string())
                 });
         }
     }
-    
+
+    // Try to find book_source_url from shelf book
+    if let Some(b_url) = book_url {
+        if let Ok(Some(shelf_book)) = state.book_service.get_shelf_book(&user_ns, b_url).await {
+            if !shelf_book.origin.trim().is_empty() {
+                println!("DEBUG: found book_source_url from shelf: {}", shelf_book.origin);
+                if let Some(src) = state.book_source_service.get(&user_ns, &shelf_book.origin).await? {
+                    return Ok(src);
+                }
+            }
+        }
+    }
+
     // Auto-discovery from book_url
     if let Some(b_url) = book_url {
         let b_host = match url::Url::parse(b_url) {

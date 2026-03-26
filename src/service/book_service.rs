@@ -81,8 +81,8 @@ impl BookService {
         Ok(self.parser.book_info(source, &res.body, &res.url, book_url))
     }
 
-    pub async fn get_chapter_list(&self, source: &BookSource, toc_url: &str) -> Result<Vec<BookChapter>, AppError> {
-        self.get_chapter_list_with_cache("default", source, toc_url, false).await
+    pub async fn get_chapter_list(&self, user_ns: &str, source: &BookSource, toc_url: &str) -> Result<Vec<BookChapter>, AppError> {
+        self.get_chapter_list_with_cache(user_ns, source, toc_url, false).await
     }
 
     pub async fn get_chapter_list_with_cache(&self, user_ns: &str, source: &BookSource, toc_url: &str, force_refresh: bool) -> Result<Vec<BookChapter>, AppError> {
