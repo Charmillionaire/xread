@@ -324,9 +324,10 @@ impl BookService {
         Ok((all_chapters, visited_page_urls.into_iter().collect()))
     }
 
-    pub async fn get_content(&self, user_ns: &str, book_key: &str, source: &BookSource, chapter_url: &str) -> Result<String, AppError> {
+    pub async fn get_content(&self, user_ns: &str, book_url: &str, source: &BookSource, chapter_url: &str) -> Result<String, AppError> {
+        let book_key = md5_hex(book_url);
         tracing::debug!("get_content called, chapter_url={}, book_key={}", chapter_url, book_key);
-        if let Ok(Some(cached)) = self.cache.get(user_ns, book_key, chapter_url).await {
+        if let Ok(Some(cached)) = self.cache.get(user_ns, &book_key, chapter_url).await {
             tracing::debug!("get_content returning cached content, len={}", cached.len());
             return Ok(cached);
         }
@@ -369,7 +370,7 @@ impl BookService {
 
         tracing::debug!("get_content final content len={}", all_content.len());
         if !all_content.is_empty() {
-            let _ = self.cache.put(user_ns, book_key, chapter_url, &all_content).await;
+            let _ = self.cache.put(user_ns, &book_key, chapter_url, &all_content).await;
         }
         Ok(all_content)
     }
@@ -581,7 +582,7 @@ impl BookService {
         if refresh {
             let _ = self.cache.remove(user_ns, &book_key, chapter_url).await;
         }
-        let _ = self.get_content(user_ns, &book_key, source, chapter_url).await?;
+        let _ = self.get_content(user_ns, book_url, source, chapter_url).await?;
         Ok(())
     }
 
