@@ -453,11 +453,11 @@ pub async fn get_book_content(State(state): State<AppState>, Query(access_q): Qu
 
     let do_refresh = req.refresh.unwrap_or(0) > 0;
 
-    // If we have url but no chapterUrl, treat url as bookUrl and use index
-    let chapter_url = if let Some(url) = &req.chapter_url {
+    // Determine book_url and chapter_url
+    let (book_url, chapter_url) = if let Some(url) = &req.chapter_url {
         // Check if url looks like a book URL (not a chapter URL) and we have an index
         if req.index.is_some() && !url.contains("/read/") && !url.contains("/chapter/") {
-            // Need to get chapter from book URL + index
+            // url is bookUrl, need to get chapter from index
             let source = resolve_book_source(&state, &user_ns, req.book_source_url.clone(), req.book_source.clone(), Some(url)).await?;
             let book_info = state.book_service.get_book_info(&source, url).await?;
             let toc_url = book_info.toc_url.as_deref().unwrap_or(url);
@@ -472,24 +472,29 @@ pub async fn get_book_content(State(state): State<AppState>, Query(access_q): Qu
             if idx >= chapters.len() {
                 return Err(AppError::BadRequest("chapter index out of range".to_string()));
             }
-            chapters[idx].url.clone()
+            (url.clone(), chapters[idx].url.clone())
         } else {
-            url.clone()
+            // url is chapterUrl, try to find book_url from shelf
+            let book_url = if let Ok(Some(shelf_book)) = state.book_service.get_shelf_book_by_chapter(&user_ns, url).await {
+                shelf_book.book_url
+            } else {
+                url.clone() // fallback to using chapter url as book key
+            };
+            (book_url, url.clone())
         }
     } else {
         return Err(AppError::BadRequest("chapterUrl required".to_string()));
     };
 
-    println!("DEBUG: get_book_content resolved chapter_url: {}", chapter_url);
+    println!("DEBUG: get_book_content book_url={}, chapter_url={}", book_url, chapter_url);
     let source = resolve_book_source(&state, &user_ns, req.book_source_url, req.book_source, Some(&chapter_url)).await?;
-    let cache_key = format!("chapter:{}", md5_hex(&chapter_url));
 
-    // If refresh is requested, delete content cache before fetching
+    // If refresh is requested, delete this chapter's cache before fetching
     if do_refresh {
-        let _ = state.book_service.delete_cache(&user_ns, &cache_key).await;
+        let _ = state.book_service.delete_book_cache(&user_ns, &book_url).await;
     }
 
-    let content = state.book_service.get_content(&user_ns, &source, &chapter_url, &cache_key).await?;
+    let content = state.book_service.get_content(&user_ns, &book_url, &source, &chapter_url).await?;
     Ok(Json(ApiResponse::ok(serde_json::Value::String(content))))
 }
 
@@ -515,23 +520,19 @@ pub async fn delete_book_cache(State(state): State<AppState>, Query(access_q): Q
         }
     }
 
-    // Support chapterUrl, url, and bookUrl parameters
-    let url = req.chapter_url.or(req.url).or(req.book_url)
-        .ok_or_else(|| AppError::BadRequest("chapterUrl required".to_string()))?;
+    // Get book_url (prefer bookUrl, fallback to url)
+    let book_url = req.book_url.or(req.url)
+        .ok_or_else(|| AppError::BadRequest("bookUrl required".to_string()))?;
 
     let mut deleted_content = false;
     let mut deleted_chapter_list = false;
 
-    // Try to delete chapter content cache
-    let cache_key = format!("chapter:{}", md5_hex(&url));
-    if state.book_service.cache_exists(&user_ns, &cache_key).await {
-        state.book_service.delete_cache(&user_ns, &cache_key).await?;
-        deleted_content = true;
-    }
+    // Delete all chapter content cache for this book
+    deleted_content = state.book_service.delete_book_cache(&user_ns, &book_url).await?;
 
-    // Try to delete chapter list cache (using URL as toc_url)
-    if state.book_service.chapter_list_cache_exists(&user_ns, &url).await {
-        state.book_service.delete_chapter_list_cache(&user_ns, &url).await?;
+    // Try to delete chapter list cache (using book_url as toc_url)
+    if state.book_service.chapter_list_cache_exists(&user_ns, &book_url).await {
+        state.book_service.delete_chapter_list_cache(&user_ns, &book_url).await?;
         deleted_chapter_list = true;
     }
 
@@ -640,7 +641,7 @@ pub async fn get_shelf_book_with_cache_info(State(state): State<AppState>, Query
         if let (Some(toc_url), Ok(Some(source))) = (book.toc_url.clone(), state.book_source_service.get(&user_ns, &book.origin).await) {
             if let Ok(chapters) = state.book_service.get_chapter_list(&user_ns, &source, &toc_url).await {
                 let urls: Vec<String> = chapters.into_iter().map(|c| c.url).collect();
-                cached_count = state.book_service.cached_chapter_count(&user_ns, &urls).await.unwrap_or(0);
+                cached_count = state.book_service.cached_chapter_count(&user_ns, &book.book_url, &urls).await.unwrap_or(0);
             }
         }
         let mut val = serde_json::to_value(&book).unwrap_or(serde_json::json!({}));
@@ -704,12 +705,13 @@ pub async fn cache_book_sse(State(state): State<AppState>, Query(access_q): Quer
     let source = state.book_source_service.get(&user_ns, &book.origin).await?
         .ok_or_else(|| AppError::BadRequest("未配置书源".to_string()))?;
     let toc_url = book.toc_url.clone().ok_or_else(|| AppError::BadRequest("tocUrl missing".to_string()))?;
+    let book_url = book.book_url.clone();
 
     let chapters = state.book_service.get_chapter_list(&user_ns, &source, &toc_url).await?;
     let mut cached_count = 0usize;
     if !refresh {
         for ch in &chapters {
-            if state.book_service.is_chapter_cached(&user_ns, &ch.url).await {
+            if state.book_service.is_chapter_cached(&user_ns, &book_url, &ch.url).await {
                 cached_count += 1;
             }
         }
@@ -718,7 +720,7 @@ pub async fn cache_book_sse(State(state): State<AppState>, Query(access_q): Quer
     let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrent));
     let mut tasks = Vec::new();
     for ch in chapters {
-        let already_cached = !refresh && state.book_service.is_chapter_cached(&user_ns, &ch.url).await;
+        let already_cached = !refresh && state.book_service.is_chapter_cached(&user_ns, &book_url, &ch.url).await;
         if already_cached {
             continue;
         }
@@ -726,11 +728,12 @@ pub async fn cache_book_sse(State(state): State<AppState>, Query(access_q): Quer
         let svc = state.book_service.clone();
         let src = source.clone();
         let url = ch.url.clone();
+        let b_url = book_url.clone();
         let refresh_flag = refresh;
         let u_ns = user_ns.clone();
         tasks.push(tokio::spawn(async move {
             let _permit = permit;
-            svc.cache_chapter(&u_ns, &src, &url, refresh_flag).await
+            svc.cache_chapter(&u_ns, &b_url, &src, &url, refresh_flag).await
         }));
     }
     let mut success = 0usize;

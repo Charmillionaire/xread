@@ -324,9 +324,9 @@ impl BookService {
         Ok((all_chapters, visited_page_urls.into_iter().collect()))
     }
 
-    pub async fn get_content(&self, user_ns: &str, source: &BookSource, chapter_url: &str, cache_key: &str) -> Result<String, AppError> {
-        tracing::debug!("get_content called, chapter_url={}, cache_key={}", chapter_url, cache_key);
-        if let Ok(Some(cached)) = self.cache.get(user_ns, cache_key).await {
+    pub async fn get_content(&self, user_ns: &str, book_key: &str, source: &BookSource, chapter_url: &str) -> Result<String, AppError> {
+        tracing::debug!("get_content called, chapter_url={}, book_key={}", chapter_url, book_key);
+        if let Ok(Some(cached)) = self.cache.get(user_ns, book_key, chapter_url).await {
             tracing::debug!("get_content returning cached content, len={}", cached.len());
             return Ok(cached);
         }
@@ -369,18 +369,27 @@ impl BookService {
 
         tracing::debug!("get_content final content len={}", all_content.len());
         if !all_content.is_empty() {
-            let _ = self.cache.put(user_ns, cache_key, &all_content).await;
+            let _ = self.cache.put(user_ns, book_key, chapter_url, &all_content).await;
         }
         Ok(all_content)
     }
 
-    pub async fn delete_cache(&self, user_ns: &str, cache_key: &str) -> Result<(), AppError> {
-        let _ = self.cache.remove(user_ns, cache_key).await;
-        Ok(())
+    /// Delete all chapter content cache for a book
+    pub async fn delete_book_cache(&self, user_ns: &str, book_url: &str) -> Result<bool, AppError> {
+        let book_key = md5_hex(book_url);
+        self.cache.remove_book(user_ns, &book_key).await.map_err(|e| AppError::Internal(e.into()))
     }
 
-    pub async fn cache_exists(&self, user_ns: &str, cache_key: &str) -> bool {
-        self.cache.exists(user_ns, cache_key).await
+    /// Check if any cache exists for a book
+    pub async fn book_cache_exists(&self, user_ns: &str, book_url: &str) -> bool {
+        let book_key = md5_hex(book_url);
+        self.cache.book_cache_exists(user_ns, &book_key)
+    }
+
+    /// Check if a specific chapter is cached
+    pub async fn is_chapter_cached(&self, user_ns: &str, book_url: &str, chapter_url: &str) -> bool {
+        let book_key = md5_hex(book_url);
+        self.cache.exists(user_ns, &book_key, chapter_url).await
     }
 
     pub async fn chapter_list_cache_exists(&self, user_ns: &str, toc_url: &str) -> bool {
@@ -395,6 +404,42 @@ impl BookService {
     pub async fn get_shelf_book(&self, user_ns: &str, book_url: &str) -> Result<Option<Book>, AppError> {
         let list = self.read_bookshelf(user_ns).await?;
         Ok(list.into_iter().find(|b| b.book_url == book_url))
+    }
+
+    /// Find book by chapter URL (chapter URL typically shares domain with book URL)
+    pub async fn get_shelf_book_by_chapter(&self, user_ns: &str, chapter_url: &str) -> Result<Option<Book>, AppError> {
+        let list = self.read_bookshelf(user_ns).await?;
+
+        // Extract domain from chapter_url
+        let chapter_domain = url::Url::parse(chapter_url)
+            .ok()
+            .and_then(|u| u.host_str().map(|h| h.to_string()));
+
+        for book in list {
+            // Check if chapter URL starts with book URL (common pattern)
+            if chapter_url.starts_with(&book.book_url) {
+                return Ok(Some(book));
+            }
+
+            // Check if they share the same domain
+            if let (Some(ref ch_domain), Ok(book_url_parsed)) = (&chapter_domain, url::Url::parse(&book.book_url)) {
+                if let Some(book_domain) = book_url_parsed.host_str() {
+                    if ch_domain == book_domain {
+                        // Check if chapter URL path contains book URL path prefix
+                        if let (Ok(ch_parsed), Ok(b_parsed)) = (url::Url::parse(chapter_url), url::Url::parse(&book.book_url)) {
+                            let ch_path = ch_parsed.path();
+                            let b_path = b_parsed.path();
+                            // Check if paths share a common prefix (e.g., /biqu104/)
+                            if ch_path.starts_with(b_path.trim_end_matches('/')) ||
+                               b_path.trim_end_matches('/').starts_with(ch_path.trim_end_matches('/')) {
+                                return Ok(Some(book));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
     }
 
     /// Find book by name and author (for cases where book_url might differ)
@@ -520,28 +565,23 @@ impl BookService {
         Ok(updated)
     }
 
-    pub async fn cached_chapter_count(&self, user_ns: &str, chapter_urls: &[String]) -> Result<usize, AppError> {
+    pub async fn cached_chapter_count(&self, user_ns: &str, book_url: &str, chapter_urls: &[String]) -> Result<usize, AppError> {
+        let book_key = md5_hex(book_url);
         let mut count = 0usize;
         for url in chapter_urls {
-            let key = format!("chapter:{}", md5_hex(url));
-            if self.cache.exists(user_ns, &key).await {
+            if self.cache.exists(user_ns, &book_key, url).await {
                 count += 1;
             }
         }
         Ok(count)
     }
 
-    pub async fn is_chapter_cached(&self, user_ns: &str, chapter_url: &str) -> bool {
-        let key = format!("chapter:{}", md5_hex(chapter_url));
-        self.cache.exists(user_ns, &key).await
-    }
-
-    pub async fn cache_chapter(&self, user_ns: &str, source: &BookSource, chapter_url: &str, refresh: bool) -> Result<(), AppError> {
-        let key = format!("chapter:{}", md5_hex(chapter_url));
+    pub async fn cache_chapter(&self, user_ns: &str, book_url: &str, source: &BookSource, chapter_url: &str, refresh: bool) -> Result<(), AppError> {
+        let book_key = md5_hex(book_url);
         if refresh {
-            let _ = self.cache.remove(user_ns, &key).await;
+            let _ = self.cache.remove(user_ns, &book_key, chapter_url).await;
         }
-        let _ = self.get_content(user_ns, source, chapter_url, &key).await?;
+        let _ = self.get_content(user_ns, &book_key, source, chapter_url).await?;
         Ok(())
     }
 
