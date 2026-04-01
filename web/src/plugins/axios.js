@@ -3,6 +3,20 @@ import { Message, MessageBox } from "element-ui";
 import { errorTypeList } from "./config";
 import store from "./vuex";
 
+export const buildAuthHeaders = () => {
+  const headers = {};
+  if (store.state.token) {
+    headers.Authorization = `Bearer ${store.state.token}`;
+  }
+  if (store.state.isManagerMode && store.state.secureKey) {
+    headers["X-Secure-Key"] = store.state.secureKey;
+    if (store.state.userNS) {
+      headers["X-User-NS"] = store.state.userNS;
+    }
+  }
+  return headers;
+};
+
 const service = Axios.create({
   baseURL: store.getters.api,
   withCredentials: true,
@@ -19,15 +33,7 @@ store.watch(
 service.interceptors.request.use(
   config => {
     config.headers = config.headers || {};
-    if (store.state.token) {
-      config.headers.Authorization = `Bearer ${store.state.token}`;
-    }
-    if (store.state.isManagerMode && store.state.secureKey) {
-      config.headers["X-Secure-Key"] = store.state.secureKey;
-      if (store.state.userNS) {
-        config.headers["X-User-NS"] = store.state.userNS;
-      }
-    }
+    Object.assign(config.headers, buildAuthHeaders());
     return config;
   },
   error => {

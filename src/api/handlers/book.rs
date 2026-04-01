@@ -790,7 +790,7 @@ pub async fn get_invalid_book_sources(State(state): State<AppState>, auth: AuthC
     }
 }
 
-pub async fn cache_book_sse(State(state): State<AppState>, auth: AuthContext, Query(q): Query<CacheBookRequest>, body: Option<Json<CacheBookRequest>>) -> Result<Json<ApiResponse<Value>>, AppError> {
+pub async fn cache_book_sse(State(state): State<AppState>, auth: AuthContext, Query(q): Query<CacheBookRequest>, body: Option<Json<CacheBookRequest>>) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, AppError> {
     let user_ns = state.user_service.resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let req = if let Some(b) = body { b.0 } else { q };
     let book_url = req.url.or(req.book_url).ok_or_else(|| AppError::BadRequest("url required".to_string()))?;
@@ -808,48 +808,94 @@ pub async fn cache_book_sse(State(state): State<AppState>, auth: AuthContext, Qu
     let book_url = book.book_url.clone();
 
     let chapters = state.book_service.get_chapter_list(&user_ns, &source, &toc_url).await?;
-    let mut cached_count = 0usize;
-    if !refresh {
-        for ch in &chapters {
-            if state.book_service.is_chapter_cached(&user_ns, &book_url, &ch.url).await {
-                cached_count += 1;
+    let (tx, rx) = mpsc::channel::<Event>(32);
+    let state_clone = state.clone();
+    let source_clone = source.clone();
+    let book_url_clone = book_url.clone();
+    let user_ns_clone = user_ns.clone();
+
+    tokio::spawn(async move {
+        let mut cached_count = 0usize;
+        if !refresh {
+            for ch in &chapters {
+                if state_clone.book_service.is_chapter_cached(&user_ns_clone, &book_url_clone, &ch.url).await {
+                    cached_count += 1;
+                }
             }
         }
-    }
+        let mut success = 0usize;
+        let mut failed = 0usize;
+        let _ = tx
+            .send(Event::default().data(serde_json::json!({
+                "cachedCount": cached_count,
+                "successCount": success,
+                "failedCount": failed
+            }).to_string()))
+            .await;
 
-    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrent));
-    let mut tasks = Vec::new();
-    for ch in chapters {
-        let already_cached = !refresh && state.book_service.is_chapter_cached(&user_ns, &book_url, &ch.url).await;
-        if already_cached {
-            continue;
+        let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrent));
+        let mut tasks: FuturesUnordered<_> = FuturesUnordered::new();
+        for ch in chapters {
+            let already_cached = !refresh
+                && state_clone
+                    .book_service
+                    .is_chapter_cached(&user_ns_clone, &book_url_clone, &ch.url)
+                    .await;
+            if already_cached {
+                continue;
+            }
+            let permit = match sem.clone().acquire_owned().await {
+                Ok(p) => p,
+                Err(_) => {
+                    failed += 1;
+                    continue;
+                }
+            };
+            let svc = state_clone.book_service.clone();
+            let src = source_clone.clone();
+            let url = ch.url.clone();
+            let b_url = book_url_clone.clone();
+            let refresh_flag = refresh;
+            let u_ns = user_ns_clone.clone();
+            tasks.push(tokio::spawn(async move {
+                let _permit = permit;
+                svc.cache_chapter(&u_ns, &b_url, &src, &url, refresh_flag).await
+            }));
         }
-        let permit = sem.clone().acquire_owned().await.map_err(|_| AppError::Internal(anyhow::anyhow!("semaphore closed")))?;
-        let svc = state.book_service.clone();
-        let src = source.clone();
-        let url = ch.url.clone();
-        let b_url = book_url.clone();
-        let refresh_flag = refresh;
-        let u_ns = user_ns.clone();
-        tasks.push(tokio::spawn(async move {
-            let _permit = permit;
-            svc.cache_chapter(&u_ns, &b_url, &src, &url, refresh_flag).await
-        }));
-    }
-    let mut success = 0usize;
-    let mut failed = 0usize;
-    for t in tasks {
-        match t.await {
-            Ok(Ok(_)) => success += 1,
-            _ => failed += 1,
+
+        while let Some(task) = tasks.next().await {
+            match task {
+                Ok(Ok(_)) => {
+                    success += 1;
+                    cached_count += 1;
+                }
+                _ => {
+                    failed += 1;
+                }
+            }
+            let _ = tx
+                .send(Event::default().data(serde_json::json!({
+                    "cachedCount": cached_count,
+                    "successCount": success,
+                    "failedCount": failed
+                }).to_string()))
+                .await;
         }
-    }
-    cached_count += success;
-    Ok(Json(ApiResponse::ok(serde_json::json!({
-        "cachedCount": cached_count,
-        "successCount": success,
-        "failedCount": failed
-    }))))
+
+        let _ = tx
+            .send(
+                Event::default()
+                    .event("end")
+                    .data(serde_json::json!({
+                        "cachedCount": cached_count,
+                        "successCount": success,
+                        "failedCount": failed
+                    }).to_string()),
+            )
+            .await;
+    });
+
+    Ok(Sse::new(ReceiverStream::new(rx).map(Ok::<_, Infallible>)))
 }
 
 pub async fn search_book_multi_sse(State(state): State<AppState>, auth: AuthContext, Query(q): Query<SearchBookMultiSseRequest>) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, AppError> {
