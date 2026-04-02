@@ -120,6 +120,9 @@ pub struct CacheBookRequest {
     url: Option<String>,
     #[serde(rename = "bookUrl")]
     book_url: Option<String>,
+    #[serde(rename = "tocUrl")]
+    toc_url: Option<String>,
+    count: Option<i32>,
     refresh: Option<i32>,
     #[serde(rename = "concurrentCount")]
     concurrent_count: Option<i32>,
@@ -465,10 +468,18 @@ pub async fn get_book_content(State(state): State<AppState>, auth: AuthContext, 
                 let _ = state.book_service.delete_chapter_list_cache(&user_ns, toc_url).await;
             }
 
-            let chapters = state.book_service.get_chapter_list_with_cache(&user_ns, &source, toc_url, do_refresh).await?;
+            let mut chapters = state.book_service.get_chapter_list_with_cache(&user_ns, &source, toc_url, do_refresh).await?;
             let idx = req.index.unwrap() as usize;
+            
             if idx >= chapters.len() {
-                return Err(AppError::BadRequest("chapter index out of range".to_string()));
+                // If index is out of range, it's possible our cache was partial (first page only).
+                // Try a forced refresh to get the full list synchronously.
+                tracing::info!("Index {} out of range (len={}). Attempting forced refresh for {}", idx, chapters.len(), toc_url);
+                chapters = state.book_service.get_chapter_list_with_cache(&user_ns, &source, toc_url, true).await?;
+                
+                if idx >= chapters.len() {
+                    return Err(AppError::BadRequest(format!("chapter index out of range (max: {})", chapters.len())));
+                }
             }
             (url.clone(), chapters[idx].url.clone())
         } else {
@@ -526,11 +537,24 @@ pub async fn delete_book_cache(State(state): State<AppState>, auth: AuthContext,
     // Delete all chapter content cache for this book
     let deleted_content = state.book_service.delete_book_cache(&user_ns, &book_url).await?;
 
-    // Try to delete chapter list cache (using book_url as toc_url)
-    if state.book_service.chapter_list_cache_exists(&user_ns, &book_url).await {
-        state.book_service.delete_chapter_list_cache(&user_ns, &book_url).await?;
-        deleted_chapter_list = true;
+    // Try to delete chapter list cache by shelf book toc_url first, then book_url fallback
+    let mut candidate_toc_urls = vec![book_url.clone()];
+    if let Ok(Some(shelf_book)) = state.book_service.get_shelf_book(&user_ns, &book_url).await {
+        if let Some(toc_url) = shelf_book.toc_url {
+            if !candidate_toc_urls.contains(&toc_url) {
+                candidate_toc_urls.push(toc_url);
+            }
+        }
     }
+
+    for toc_url in candidate_toc_urls {
+        if state.book_service.chapter_list_cache_exists(&user_ns, &toc_url).await {
+            state.book_service.delete_chapter_list_cache(&user_ns, &toc_url).await?;
+            deleted_chapter_list = true;
+        }
+    }
+
+    let _ = state.book_service.delete_book_sources_cache(&user_ns, &book_url).await;
 
     Ok(Json(ApiResponse::ok(serde_json::json!({
         "deleted": true,
@@ -737,10 +761,18 @@ pub async fn get_shelf_book_with_cache_info(State(state): State<AppState>, auth:
     let mut result: Vec<Value> = Vec::with_capacity(books.len());
     for book in books {
         let mut cached_count = 0usize;
-        if let (Some(toc_url), Ok(Some(source))) = (book.toc_url.clone(), state.book_source_service.get(&user_ns, &book.origin).await) {
-            if let Ok(chapters) = state.book_service.get_chapter_list(&user_ns, &source, &toc_url).await {
-                let urls: Vec<String> = chapters.into_iter().map(|c| c.url).collect();
-                cached_count = state.book_service.cached_chapter_count(&user_ns, &book.book_url, &urls).await.unwrap_or(0);
+        if let Ok(Some(source)) = state.book_source_service.get(&user_ns, &book.origin).await {
+            let mut toc_url = book.toc_url.clone();
+            if toc_url.is_none() {
+                if let Ok(info) = state.book_service.get_book_info(&source, &book.book_url).await {
+                    toc_url = info.toc_url.or(Some(book.book_url.clone()));
+                }
+            }
+            if let Some(toc_url) = toc_url.or(Some(book.book_url.clone())) {
+                if let Ok(chapters) = state.book_service.get_chapter_list(&user_ns, &source, &toc_url).await {
+                    let urls: Vec<String> = chapters.into_iter().map(|c| c.url).collect();
+                    cached_count = state.book_service.cached_chapter_count(&user_ns, &book.book_url, &urls).await.unwrap_or(0);
+                }
             }
         }
         let mut val = serde_json::to_value(&book).unwrap_or(serde_json::json!({}));
@@ -799,15 +831,39 @@ pub async fn cache_book_sse(State(state): State<AppState>, auth: AuthContext, Qu
 
     let book = state.book_service.get_shelf_book(&user_ns, &book_url).await?
         .ok_or_else(|| AppError::BadRequest("请先加入书架".to_string()))?;
+
     if book.origin.trim().is_empty() {
         return Err(AppError::BadRequest("未配置书源".to_string()));
     }
     let source = state.book_source_service.get(&user_ns, &book.origin).await?
-        .ok_or_else(|| AppError::BadRequest("未配置书源".to_string()))?;
-    let toc_url = book.toc_url.clone().ok_or_else(|| AppError::BadRequest("tocUrl missing".to_string()))?;
-    let book_url = book.book_url.clone();
+        .ok_or_else(|| AppError::BadRequest("书源不存在".to_string()))?;
 
-    let chapters = state.book_service.get_chapter_list(&user_ns, &source, &toc_url).await?;
+    // The root TOC url for the book (for fetching the full list)
+    let root_toc_url = book.toc_url.clone().unwrap_or_else(|| book.book_url.clone());
+    
+    // The starting chapter URL for caching (from query params)
+    let start_ch_url = req.toc_url.clone();
+    let cache_count = req.count.unwrap_or(0); // 0 means all
+
+    let mut chapters = state.book_service.get_chapter_list(&user_ns, &source, &root_toc_url).await?;
+    
+    // If a starting URL is provided, narrow down the list
+    if let Some(ch_url) = start_ch_url {
+        if let Some(idx) = chapters.iter().position(|c| c.url == ch_url) {
+            chapters = chapters.split_off(idx);
+        }
+    }
+    
+    // Limit count if requested
+    if cache_count > 0 && cache_count < chapters.len() as i32 {
+        chapters.truncate(cache_count as usize);
+    }
+
+    if chapters.is_empty() {
+        return Err(AppError::BadRequest("没有找到需要缓存的章节".to_string()));
+    }
+
+    let book_url = book.book_url.clone();
     let (tx, rx) = mpsc::channel::<Event>(32);
     let state_clone = state.clone();
     let source_clone = source.clone();

@@ -4,6 +4,10 @@
 
 Rust 版 `reader` 服务端，基于 axum + tokio + reqwest + sqlx(SQLite) + rquickjs。
 
+## 接口文档
+
+- 后端接口整理文档：[/Users/mac/project/reder/reader-rust/docs/backend-api.md](/Users/mac/project/reder/reader-rust/docs/backend-api.md)
+
 ## 运行环境
 
 - Rust 1.75+（建议使用最新稳定版）

@@ -496,6 +496,15 @@ impl BookService {
     pub async fn delete_book(&self, user_ns: &str, book: &Book) -> Result<bool, AppError> {
         let mut list = self.read_bookshelf(user_ns).await?;
         let orig_len = list.len();
+        let removed: Vec<Book> = list.iter().filter(|b| {
+            if !book.book_url.is_empty() && b.book_url == book.book_url {
+                return true;
+            }
+            if !book.name.is_empty() && !book.author.is_empty() && b.name == book.name && b.author == book.author {
+                return true;
+            }
+            false
+        }).cloned().collect();
         list.retain(|b| {
             if !book.book_url.is_empty() && b.book_url == book.book_url {
                 return false;
@@ -508,6 +517,9 @@ impl BookService {
         let deleted = list.len() != orig_len;
         if deleted {
             self.write_bookshelf(user_ns, &list).await?;
+            for removed_book in &removed {
+                let _ = self.clear_book_related_cache(user_ns, removed_book).await;
+            }
         }
         Ok(deleted)
     }
@@ -515,7 +527,18 @@ impl BookService {
     pub async fn delete_books(&self, user_ns: &str, books: Vec<Book>) -> Result<usize, AppError> {
         let mut list = self.read_bookshelf(user_ns).await?;
         let mut deleted = 0usize;
+        let mut removed_books: Vec<Book> = Vec::new();
         for book in books {
+            let matched: Vec<Book> = list.iter().filter(|b| {
+                if !book.book_url.is_empty() && b.book_url == book.book_url {
+                    return true;
+                }
+                if !book.name.is_empty() && !book.author.is_empty() && b.name == book.name && b.author == book.author {
+                    return true;
+                }
+                false
+            }).cloned().collect();
+            removed_books.extend(matched);
             let before = list.len();
             list.retain(|b| {
                 if !book.book_url.is_empty() && b.book_url == book.book_url {
@@ -532,6 +555,9 @@ impl BookService {
         }
         if deleted > 0 {
             self.write_bookshelf(user_ns, &list).await?;
+            for removed_book in &removed_books {
+                let _ = self.clear_book_related_cache(user_ns, removed_book).await;
+            }
         }
         Ok(deleted)
     }
@@ -622,6 +648,14 @@ impl BookService {
         Ok(())
     }
 
+    pub async fn delete_book_sources_cache(&self, user_ns: &str, book_url: &str) -> Result<(), AppError> {
+        let path = self.book_source_cache_path(user_ns, book_url);
+        if path.exists() {
+            fs::remove_file(&path).await.map_err(|e| AppError::Internal(e.into()))?;
+        }
+        Ok(())
+    }
+
     fn book_source_cache_path(&self, user_ns: &str, book_url: &str) -> PathBuf {
         let name = md5_hex(book_url);
         self.storage_dir.join("data").join(user_ns).join("book_sources").join(format!("{}.json", name))
@@ -695,6 +729,20 @@ impl BookService {
         let path = self.chapter_list_cache_path(user_ns, toc_url);
         if path.exists() {
             fs::remove_file(&path).await.map_err(|e| AppError::Internal(e.into()))?;
+        }
+        Ok(())
+    }
+
+    async fn clear_book_related_cache(&self, user_ns: &str, book: &Book) -> Result<(), AppError> {
+        if !book.book_url.is_empty() {
+            let _ = self.delete_book_cache(user_ns, &book.book_url).await;
+            let _ = self.delete_book_sources_cache(user_ns, &book.book_url).await;
+            let _ = self.delete_chapter_list_cache(user_ns, &book.book_url).await;
+        }
+        if let Some(toc_url) = &book.toc_url {
+            if !toc_url.is_empty() {
+                let _ = self.delete_chapter_list_cache(user_ns, toc_url).await;
+            }
         }
         Ok(())
     }

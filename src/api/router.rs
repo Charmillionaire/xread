@@ -3,6 +3,7 @@ use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::request_id::{SetRequestIdLayer, PropagateRequestIdLayer, MakeRequestUuid};
+use std::path::PathBuf;
 use crate::api::{AppState, handlers};
 
 pub fn build_router(state: AppState) -> Router {
@@ -86,8 +87,12 @@ pub fn build_router(state: AppState) -> Router {
 
     let web_root = state.config.web_root.clone();
     let assets_root = state.config.assets_dir.clone();
+    let web_assets_root = PathBuf::from(&web_root).join("assets");
 
-    let static_web = Router::new().nest_service("/assets", ServeDir::new(assets_root))
+    let static_web = Router::new().nest_service(
+        "/assets",
+        ServeDir::new(web_assets_root).not_found_service(ServeDir::new(assets_root)),
+    )
         .fallback_service(ServeDir::new(web_root));
 
     Router::new()
