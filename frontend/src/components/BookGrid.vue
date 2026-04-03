@@ -1,19 +1,34 @@
 <template>
   <div class="book-grid">
     <TransitionGroup name="card">
-      <BookCard
+      <div
         v-for="book in books"
         :key="book.bookUrl"
-        :book="book"
-        :edit-mode="editMode"
-        :selected="selectedUrls?.has(book.bookUrl)"
-        :is-search="isSearch"
-        @click="$emit('click', $event)"
-        @info="$emit('info', $event)"
-        @delete="$emit('delete', $event)"
-        @select="$emit('select', $event)"
-        @addToShelf="$emit('addToShelf', $event)"
-      />
+        class="book-grid-item"
+        :class="{
+          'drop-target': sortable && dropTargetUrl === book.bookUrl,
+          'is-dragging': sortable && draggedUrl === book.bookUrl,
+        }"
+        :draggable="sortable"
+        @dragstart="handleDragStart(book)"
+        @dragenter.prevent="handleDragEnter(book)"
+        @dragover.prevent="handleDragOver(book)"
+        @drop.prevent="handleDrop(book)"
+        @dragend="handleDragEnd"
+      >
+        <BookCard
+          :book="book"
+          :edit-mode="editMode"
+          :selected="selectedUrls?.has(book.bookUrl)"
+          :is-search="isSearch"
+          :dragging="sortable && draggedUrl === book.bookUrl"
+          @click="$emit('click', $event)"
+          @info="$emit('info', $event)"
+          @delete="$emit('delete', $event)"
+          @select="$emit('select', $event)"
+          @addToShelf="$emit('addToShelf', $event)"
+        />
+      </div>
     </TransitionGroup>
     <div v-if="books.length === 0 && !loading" class="empty-state">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -30,25 +45,67 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import BookCard from './BookCard.vue'
 import type { Book, SearchBook } from '../types'
 
-defineProps<{
+const props = defineProps<{
   books: (Book | SearchBook)[]
   editMode?: boolean
   selectedUrls?: Set<string>
   isSearch?: boolean
   loading?: boolean
   emptyText?: string
+  sortable?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   click: [book: Book | SearchBook]
   info: [book: Book | SearchBook]
   delete: [book: Book | SearchBook]
   select: [book: Book | SearchBook]
   addToShelf: [book: Book | SearchBook]
+  reorder: [payload: { draggedUrl: string; targetUrl: string }]
 }>()
+
+const draggedUrl = ref('')
+const dropTargetUrl = ref('')
+
+function getBookUrl(book: Book | SearchBook) {
+  return book.bookUrl
+}
+
+function handleDragStart(book: Book | SearchBook) {
+  if (!props.sortable) return
+  draggedUrl.value = getBookUrl(book)
+  dropTargetUrl.value = getBookUrl(book)
+}
+
+function handleDragEnter(book: Book | SearchBook) {
+  if (!props.sortable || !draggedUrl.value) return
+  dropTargetUrl.value = getBookUrl(book)
+}
+
+function handleDragOver(book: Book | SearchBook) {
+  if (!props.sortable || !draggedUrl.value) return
+  dropTargetUrl.value = getBookUrl(book)
+}
+
+function handleDrop(book: Book | SearchBook) {
+  if (!props.sortable || !draggedUrl.value) return
+  const sourceUrl = draggedUrl.value
+  const targetUrl = getBookUrl(book)
+  draggedUrl.value = ''
+  dropTargetUrl.value = ''
+  if (sourceUrl !== targetUrl) {
+    emit('reorder', { draggedUrl: sourceUrl, targetUrl })
+  }
+}
+
+function handleDragEnd() {
+  draggedUrl.value = ''
+  dropTargetUrl.value = ''
+}
 </script>
 
 <style scoped>
@@ -57,6 +114,19 @@ defineEmits<{
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: var(--space-4);
   padding: var(--space-4) 0;
+}
+
+.book-grid-item {
+  min-width: 0;
+}
+
+.book-grid-item.drop-target :deep(.book-card) {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.16);
+}
+
+.book-grid-item.is-dragging {
+  cursor: grabbing;
 }
 
 .empty-state {

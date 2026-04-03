@@ -17,6 +17,10 @@ export function saveBook(book: Partial<Book>) {
   return http.post<Book>('/saveBook', book).then((r) => r.data)
 }
 
+export function saveBooks(books: Partial<Book>[]) {
+  return http.post<Book[]>('/saveBooks', books).then((r) => r.data)
+}
+
 export function deleteBook(book: Partial<Book>) {
   return http.post<string>('/deleteBook', book).then((r) => r.data)
 }

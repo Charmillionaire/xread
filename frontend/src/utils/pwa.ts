@@ -31,8 +31,23 @@ export function registerPwa(appStore: AppStore) {
 
   function bindWaitingWorker(worker: ServiceWorker | null | undefined) {
     if (!worker) return
+    const wasAvailable = appStore.pwaUpdateAvailable
     appStore.setWaitingServiceWorker(worker)
     appStore.setPwaUpdateAvailable(true)
+    if (!wasAvailable) {
+      appStore.showToast('发现新版本，点击“更新应用”即可切换', 'success')
+    }
+  }
+
+  async function checkForUpdates(registration: ServiceWorkerRegistration) {
+    try {
+      await registration.update()
+      if (registration.waiting) {
+        bindWaitingWorker(registration.waiting)
+      }
+    } catch {
+      // Ignore update check errors and keep the current app available.
+    }
   }
 
   window.addEventListener('load', () => {
@@ -42,6 +57,8 @@ export function registerPwa(appStore: AppStore) {
       if (registration.waiting) {
         bindWaitingWorker(registration.waiting)
       }
+
+      void checkForUpdates(registration)
 
       registration.addEventListener('updatefound', () => {
         const installing = registration.installing
@@ -61,6 +78,11 @@ export function registerPwa(appStore: AppStore) {
         appStore.setWaitingServiceWorker(null)
         window.location.reload()
       })
+
+      window.setInterval(() => {
+        if (!navigator.onLine) return
+        void checkForUpdates(registration)
+      }, 5 * 60 * 1000)
     }).catch(() => {
       appStore.setPwaReady(false)
     })

@@ -23,14 +23,17 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/opencc-js')) {
-            return 'opencc'
+          if (id.includes('/web/src/plugins/chinese.js')) {
+            return 'chinese-convert'
+          }
+          if (id.includes('node_modules/vue') || id.includes('node_modules/pinia') || id.includes('node_modules/vue-router')) {
+            return 'vendor-core'
+          }
+          if (id.includes('node_modules/axios')) {
+            return 'vendor-http'
           }
           if (id.includes('node_modules')) {
-            return 'vendor'
-          }
-          if (id.includes('/src/components/reader/') || id.includes('/src/composables/useReader')) {
-            return 'reader-panels'
+            return 'vendor-misc'
           }
         },
       },

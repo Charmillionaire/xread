@@ -62,6 +62,7 @@ export const useAppStore = defineStore('app', () => {
   const showLoginModal = ref(false)
   const showSettingsDrawer = ref(false)
   const showSourceManager = ref(false)
+  const showWebdavManager = ref(false)
   const isOnline = ref(typeof navigator !== 'undefined' ? navigator.onLine : true)
   const pwaReady = ref(false)
   const pwaUpdateAvailable = ref(false)
@@ -181,7 +182,7 @@ export const useAppStore = defineStore('app', () => {
     theme, setTheme, toggleTheme,
     userInfo, isSecureMode, needSecureKey, isLoggedIn,
     fetchUserInfo, setUser, clearUser,
-    showLoginModal, showSettingsDrawer, showSourceManager,
+    showLoginModal, showSettingsDrawer, showSourceManager, showWebdavManager,
     isOnline, pwaReady, pwaUpdateAvailable, deferredInstallPrompt, waitingServiceWorker,
     setOnlineStatus, setPwaReady, setPwaUpdateAvailable, setDeferredInstallPrompt, setWaitingServiceWorker, installPwa, applyPwaUpdate,
     readingStats, readingStatsSummary, startReadingSession, stopReadingSession, markBookOpened, markChapterRead,

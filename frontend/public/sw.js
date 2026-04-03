@@ -12,7 +12,7 @@ const SHELL_ASSETS = [
 ]
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_ASSETS)).then(() => self.skipWaiting()))
+  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_ASSETS)))
 })
 
 self.addEventListener('activate', (event) => {

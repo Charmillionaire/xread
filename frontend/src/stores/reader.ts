@@ -178,23 +178,22 @@ export const useReaderStore = defineStore('reader', () => {
     saveConfig()
   }
 
-  const openccConverter = ref<((text: string) => string) | null>(null)
-  let openccLoading: Promise<void> | null = null
+  const chineseConverter = ref<((text: string) => string) | null>(null)
+  let chineseLoading: Promise<void> | null = null
 
-  async function ensureOpenCCLoaded() {
-    if (openccConverter.value || openccLoading) return openccLoading || Promise.resolve()
-    openccLoading = import('opencc-js')
-      .then((OpenCC) => {
-        // @ts-ignore library runtime shape
-        openccConverter.value = OpenCC.Converter({ from: 'cn', to: 't' })
+  async function ensureChineseConverterLoaded() {
+    if (chineseConverter.value || chineseLoading) return chineseLoading || Promise.resolve()
+    chineseLoading = import('../../../web/src/plugins/chinese.js')
+      .then((module) => {
+        chineseConverter.value = module.traditionalized
       })
       .catch(() => {
-        openccConverter.value = null
+        chineseConverter.value = null
       })
       .finally(() => {
-        openccLoading = null
+        chineseLoading = null
       })
-    return openccLoading
+    return chineseLoading
   }
 
   /* ─── Theme ─── */
@@ -271,8 +270,8 @@ export const useReaderStore = defineStore('reader', () => {
   }
 
   function convertContent(text: string) {
-    if (!text || !openccConverter.value) return text
-    return openccConverter.value(text)
+    if (!text || !chineseConverter.value) return text
+    return chineseConverter.value(text)
   }
 
   const displayContent = computed(() => {
@@ -284,7 +283,7 @@ export const useReaderStore = defineStore('reader', () => {
     () => config.chineseMode,
     (mode) => {
       if (mode === 'traditional') {
-        void ensureOpenCCLoaded()
+        void ensureChineseConverterLoaded()
       }
     },
     { immediate: true },

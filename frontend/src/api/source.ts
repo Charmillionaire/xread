@@ -36,6 +36,10 @@ export function deleteBookSources(sources: { bookSourceUrl: string }[]) {
   return http.post<{ deleted: boolean }>('/deleteBookSources', sources).then((r) => r.data)
 }
 
+export function deleteAllBookSources() {
+  return http.post<{ deleted: boolean }>('/deleteAllBookSources').then((r) => r.data)
+}
+
 export function readRemoteSourceFile(url: string) {
   return http.post<string[]>('/readRemoteSourceFile', { url }).then((r) => r.data)
 }

@@ -8,6 +8,7 @@ import {
   saveBookGroupId as apiSaveBookGroupId,
   saveBookGroup as apiSaveBookGroup,
   deleteBookGroup as apiDeleteBookGroup,
+  saveBooks as apiSaveBooks,
 } from '../api/bookshelf'
 import type { Book, BookGroup, SearchBook } from '../types'
 import { deleteBrowserBookCache, listBrowserCacheSummary } from '../utils/browserCache'
@@ -17,6 +18,7 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
   const books = ref<Book[]>([])
   const loading = ref(false)
   const refreshing = ref(false)
+  const sorting = ref(false)
 
   async function fetchBooks() {
     loading.value = true
@@ -162,14 +164,38 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
     clearSelection()
   }
 
+  async function reorderBooks(draggedUrl: string, targetUrl: string) {
+    if (!draggedUrl || !targetUrl || draggedUrl === targetUrl) return
+
+    const snapshot = books.value.slice()
+    const fromIndex = snapshot.findIndex((book) => book.bookUrl === draggedUrl)
+    const toIndex = snapshot.findIndex((book) => book.bookUrl === targetUrl)
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return
+
+    const next = snapshot.slice()
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+
+    books.value = next
+    sorting.value = true
+    try {
+      await apiSaveBooks(next)
+    } catch (error) {
+      books.value = snapshot
+      throw error
+    } finally {
+      sorting.value = false
+    }
+  }
+
   return {
-    books, loading, refreshing,
+    books, loading, refreshing, sorting,
     fetchBooks, refreshBooks, removeBook,
     groups, activeGroupId, displayGroups, filteredBooks,
     fetchGroups, saveGroup, removeGroup,
     searchResults, isSearching, searchKey, clearSearch, isSearchMode,
     editMode,
     selectedBookUrls, toggleSelection, selectAll, clearSelection,
-    bulkDelete, bulkSetGroup,
+    bulkDelete, bulkSetGroup, reorderBooks,
   }
 })

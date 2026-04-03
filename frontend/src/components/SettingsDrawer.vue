@@ -60,6 +60,26 @@
           <section class="drawer-section">
             <h3 class="section-title">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <path d="M7 10l5 5 5-5" />
+                <path d="M12 15V3" />
+              </svg>
+              服务器备份
+            </h3>
+            <div class="status-card">
+              <span>{{ webdavStatusTitle }}</span>
+              <small>{{ webdavStatusMessage }}</small>
+            </div>
+            <div class="btn-group">
+              <button class="action-btn" :disabled="!canOpenWebdav" @click="openWebdavManager">
+                备份与恢复
+              </button>
+            </div>
+          </section>
+
+          <section class="drawer-section">
+            <h3 class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                 <path d="M12 16V4" />
                 <path d="m7 9 5-5 5 5" />
                 <path d="M20 16.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5" />
@@ -176,6 +196,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useAppStore } from '../stores/app'
 import { useBookshelfStore } from '../stores/bookshelf'
 import { logout as apiLogout } from '../api/user'
@@ -190,6 +211,19 @@ const emit = defineEmits<{
 
 const appStore = useAppStore()
 const shelfStore = useBookshelfStore()
+const canOpenWebdav = computed(() => appStore.isSecureMode && appStore.isLoggedIn && !!appStore.userInfo?.enableWebdav)
+const webdavStatusTitle = computed(() => {
+  if (!appStore.isSecureMode) return '仅安全模式支持服务器备份'
+  if (!appStore.isLoggedIn) return '登录后可用'
+  return appStore.userInfo?.enableWebdav ? '当前账号已开启服务器备份' : '当前账号未开启服务器备份'
+})
+const webdavStatusMessage = computed(() => {
+  if (!appStore.isSecureMode) return '为避免共享备份空间，请先开启多用户安全模式。'
+  if (!appStore.isLoggedIn) return '登录并具备备份权限后，可管理服务器中的备份文件。'
+  return appStore.userInfo?.enableWebdav
+    ? '支持将数据备份到服务器、下载备份文件、上传备份文件并执行恢复。'
+    : '请在用户管理中为当前账号开启服务器备份权限。'
+})
 
 function close() {
   emit('update:modelValue', false)
@@ -210,6 +244,11 @@ async function handleLogout() {
 function openSourceManager() {
   close()
   appStore.showSourceManager = true
+}
+
+function openWebdavManager() {
+  close()
+  appStore.showWebdavManager = true
 }
 
 function refreshCache() {

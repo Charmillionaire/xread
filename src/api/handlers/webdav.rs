@@ -182,7 +182,7 @@ async fn require_webdav_user_ns(state: &AppState, access_token: Option<&str>) ->
 
 async fn resolve_webdav_user(state: &AppState, headers: &HeaderMap) -> Result<String, StatusCode> {
     if !state.user_service.secure_enabled() {
-        return Ok("default".to_string());
+        return Err(StatusCode::FORBIDDEN);
     }
     let auth = headers.get("Authorization").and_then(|v| v.to_str().ok()).unwrap_or("");
     if !auth.to_ascii_lowercase().starts_with("basic ") {

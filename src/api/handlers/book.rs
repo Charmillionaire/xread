@@ -610,6 +610,28 @@ pub async fn save_book(State(state): State<AppState>, auth: AuthContext, Json(mu
     Ok(Json(ApiResponse::ok(serde_json::to_value(saved).unwrap_or_default())))
 }
 
+pub async fn save_books(State(state): State<AppState>, auth: AuthContext, Json(mut books): Json<Vec<Book>>) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let user_ns = state.user_service.resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+
+    for book in &mut books {
+        if book.book_url.trim().is_empty() {
+            return Err(AppError::BadRequest("bookUrl required".to_string()));
+        }
+        if book.origin.trim().is_empty() {
+            return Err(AppError::BadRequest("origin required".to_string()));
+        }
+
+        book.book_url = repair_encoded_url(&book.book_url);
+        book.origin = normalize_source_url(&book.origin);
+        if let Some(toc_url) = &book.toc_url {
+            book.toc_url = Some(repair_encoded_url(toc_url));
+        }
+    }
+
+    let saved = state.book_service.save_books(&user_ns, books).await?;
+    Ok(Json(ApiResponse::ok(serde_json::to_value(saved).unwrap_or_default())))
+}
+
 pub async fn set_book_source(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -780,28 +802,58 @@ pub async fn get_shelf_book_with_cache_info(State(state): State<AppState>, auth:
     let user_ns = state.user_service.resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let books = state.book_service.get_bookshelf(&user_ns).await?;
     let mut result: Vec<Value> = Vec::with_capacity(books.len());
+    let mut prefetch_books = Vec::new();
+
     for book in books {
         let mut cached_count = 0usize;
-        if let Ok(Some(source)) = state.book_source_service.get(&user_ns, &book.origin).await {
-            let mut toc_url = book.toc_url.clone();
-            if toc_url.is_none() {
-                if let Ok(info) = state.book_service.get_book_info(&user_ns, &source, &book.book_url).await {
-                    toc_url = info.toc_url.or(Some(book.book_url.clone()));
-                }
-            }
-            if let Some(toc_url) = toc_url.or(Some(book.book_url.clone())) {
-                if let Ok(chapters) = state.book_service.get_chapter_list(&user_ns, &source, &toc_url).await {
-                    let urls: Vec<String> = chapters.into_iter().map(|c| c.url).collect();
-                    cached_count = state.book_service.cached_chapter_count(&user_ns, &book.book_url, &urls).await.unwrap_or(0);
-                }
+
+        let candidate_toc_urls = if let Some(toc_url) = &book.toc_url {
+            vec![toc_url.clone(), book.book_url.clone()]
+        } else {
+            vec![book.book_url.clone()]
+        };
+
+        let mut found_cached_chapters = false;
+        for toc_url in candidate_toc_urls {
+            if let Ok(Some(chapters)) = state.book_service.load_chapter_list_cache(&user_ns, &toc_url).await {
+                let urls: Vec<String> = chapters.into_iter().map(|c| c.url).collect();
+                cached_count = state.book_service.cached_chapter_count(&user_ns, &book.book_url, &urls).await.unwrap_or(0);
+                found_cached_chapters = true;
+                break;
             }
         }
+
+        if !found_cached_chapters {
+            prefetch_books.push(book.clone());
+        }
+
         let mut val = serde_json::to_value(&book).unwrap_or(serde_json::json!({}));
         if let Value::Object(ref mut map) = val {
             map.insert("cachedChapterCount".to_string(), serde_json::json!(cached_count));
         }
         result.push(val);
     }
+
+    if !prefetch_books.is_empty() {
+        let state_clone = state.clone();
+        let user_ns_clone = user_ns.clone();
+        tokio::spawn(async move {
+            for book in prefetch_books {
+                if let Ok(Some(source)) = state_clone.book_source_service.get(&user_ns_clone, &book.origin).await {
+                    let mut toc_url = book.toc_url.clone();
+                    if toc_url.is_none() {
+                        if let Ok(info) = state_clone.book_service.get_book_info(&user_ns_clone, &source, &book.book_url).await {
+                            toc_url = info.toc_url.or(Some(book.book_url.clone()));
+                        }
+                    }
+                    if let Some(toc_url) = toc_url.or(Some(book.book_url.clone())) {
+                        let _ = state_clone.book_service.get_chapter_list(&user_ns_clone, &source, &toc_url).await;
+                    }
+                }
+            }
+        });
+    }
+
     Ok(Json(ApiResponse::ok(serde_json::to_value(result).unwrap_or_default())))
 }
 

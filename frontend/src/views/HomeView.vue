@@ -53,11 +53,13 @@
           :edit-mode="shelfStore.editMode"
           :selected-urls="shelfStore.selectedBookUrls"
           :loading="shelfStore.loading"
+          :sortable="!shelfStore.editMode && !shelfStore.loading && !shelfStore.sorting && !shelfStore.isSearchMode"
           empty-text="书架空空如也，搜索添加新书吧"
           @click="handleBookClick"
           @info="handleBookInfo"
           @delete="handleDeleteBook"
           @select="shelfStore.toggleSelection($event.bookUrl)"
+          @reorder="handleReorderBooks"
         />
       </div>
 
@@ -190,6 +192,13 @@ async function handleSetGroup(groupId: number) {
     appStore.showToast(`成功将 ${count} 本书移至新分组`, 'success')
   } catch (e: any) {
     appStore.showToast(e.message, 'error')
+  }
+}
+async function handleReorderBooks(payload: { draggedUrl: string; targetUrl: string }) {
+  try {
+    await shelfStore.reorderBooks(payload.draggedUrl, payload.targetUrl)
+  } catch (e: any) {
+    appStore.showToast(e.message || '排序失败', 'error')
   }
 }
 </script>

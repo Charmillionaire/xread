@@ -1,7 +1,7 @@
 <template>
   <div
     class="book-card"
-    :class="{ 'edit-mode': editMode, 'selected': selected }"
+    :class="{ 'edit-mode': editMode, 'selected': selected, 'dragging': dragging }"
     @click="handleCardClick"
   >
     <!-- Cover -->
@@ -77,6 +77,7 @@ const props = defineProps<{
   editMode?: boolean
   selected?: boolean
   isSearch?: boolean
+  dragging?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -246,6 +247,12 @@ const serverCachedCount = computed(() => Math.max(0, asBook.value.cachedChapterC
 .book-card.selected {
   border-color: var(--color-primary);
   background: rgba(var(--color-primary-rgb), 0.05);
+}
+
+.book-card.dragging {
+  opacity: 0.55;
+  transform: scale(0.98);
+  box-shadow: none;
 }
 
 .edit-btn {

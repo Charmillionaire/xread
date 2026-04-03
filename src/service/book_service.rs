@@ -593,6 +593,22 @@ impl BookService {
         Ok(book)
     }
 
+    pub async fn save_books(&self, user_ns: &str, books: Vec<Book>) -> Result<Vec<Book>, AppError> {
+        let mut normalized = Vec::with_capacity(books.len());
+        for mut book in books {
+            sanitize_book_urls(&mut book);
+            if book.origin.trim().is_empty() {
+                return Err(AppError::BadRequest("missing origin".to_string()));
+            }
+            if book.book_url.trim().is_empty() {
+                return Err(AppError::BadRequest("bookUrl required".to_string()));
+            }
+            normalized.push(book);
+        }
+        self.write_bookshelf(user_ns, &normalized).await?;
+        Ok(normalized)
+    }
+
     pub async fn delete_book(&self, user_ns: &str, book: &Book) -> Result<bool, AppError> {
         let mut list = self.read_bookshelf(user_ns).await?;
         let orig_len = list.len();

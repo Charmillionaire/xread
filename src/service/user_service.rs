@@ -324,7 +324,7 @@ impl UserService {
 
     pub async fn require_webdav_user(&self, access_token: Option<&str>) -> Result<String, AppError> {
         if !self.cfg.secure {
-            return Ok("default".to_string());
+            return Err(AppError::BadRequest("仅安全模式支持WebDAV功能".to_string()));
         }
         let token = access_token.ok_or_else(|| AppError::BadRequest("NEED_LOGIN".to_string()))?;
         let user = self.check_auth(token).await?
