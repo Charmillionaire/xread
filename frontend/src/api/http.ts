@@ -36,11 +36,21 @@ http.interceptors.response.use(
     return response
   },
   (error) => {
+    const data = error.response?.data as Partial<ApiResponse> | undefined
+    if (data && typeof data === 'object') {
+      if (data.errorMsg === 'NEED_LOGIN' || data.data === 'NEED_LOGIN') {
+        localStorage.removeItem('accessToken')
+        window.dispatchEvent(new CustomEvent('need-login'))
+      }
+      if (typeof data.errorMsg === 'string' && data.errorMsg.trim()) {
+        return Promise.reject(new Error(data.errorMsg))
+      }
+    }
     if (error.response?.status === 401) {
       localStorage.removeItem('accessToken')
       window.dispatchEvent(new CustomEvent('need-login'))
     }
-    return Promise.reject(error)
+    return Promise.reject(new Error(error.message || '请求失败'))
   }
 )
 

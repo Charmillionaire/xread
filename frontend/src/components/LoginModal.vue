@@ -46,6 +46,16 @@
                 autocomplete="current-password"
               />
             </div>
+            <div v-if="!isLogin" class="form-field">
+              <label for="invite-code">邀请码</label>
+              <input
+                id="invite-code"
+                v-model="form.code"
+                type="text"
+                placeholder="没有则留空"
+                autocomplete="off"
+              />
+            </div>
 
             <button type="submit" class="submit-btn" :disabled="submitting">
               <span v-if="submitting" class="btn-spinner"></span>
@@ -87,6 +97,7 @@ const submitting = ref(false)
 const form = reactive({
   username: '',
   password: '',
+  code: '',
 })
 
 function close() {
@@ -99,7 +110,7 @@ async function handleSubmit() {
   try {
     const user = isLogin.value
       ? await login(form.username, form.password)
-      : await register(form.username, form.password)
+      : await register(form.username, form.password, form.code || undefined)
     appStore.setUser(user)
     appStore.showToast(isLogin.value ? '登录成功' : '注册成功', 'success')
     close()

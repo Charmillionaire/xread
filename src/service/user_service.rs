@@ -180,6 +180,30 @@ impl UserService {
         Ok(())
     }
 
+    pub async fn change_password(&self, access_token: &str, old_password: &str, new_password: &str) -> Result<(), AppError> {
+        if new_password.len() < 8 {
+            return Err(AppError::BadRequest("密码不能低于8位".to_string()));
+        }
+        let (username, token) = parse_access_token(access_token)?;
+        let mut users = self.load_users().await?;
+        let user = users.get_mut(&username).ok_or_else(|| AppError::BadRequest("用户不存在".to_string()))?;
+        let encrypted_old = gen_encrypted_password(old_password, &user.salt);
+        if encrypted_old != user.password {
+            return Err(AppError::BadRequest("当前密码错误".to_string()));
+        }
+
+        let salt = random_string(8);
+        let encrypted = gen_encrypted_password(new_password, &salt);
+        user.salt = salt;
+        user.password = encrypted;
+        user.token = token.clone();
+        if let Some(map) = user.token_map.as_mut() {
+            map.retain(|k, v| k == &token && *v > now_ts() * 1000);
+        }
+        self.save_users(&users).await?;
+        Ok(())
+    }
+
     pub async fn delete_users(&self, usernames: &[String]) -> Result<Vec<Value>, AppError> {
         let mut users = self.load_users().await?;
         for u in usernames {

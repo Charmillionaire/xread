@@ -11,6 +11,7 @@ pub use book::*;
 pub use book_source::*;
 pub use user::{
     add_user,
+    change_password,
     delete_file,
     delete_users,
     get_user_config,

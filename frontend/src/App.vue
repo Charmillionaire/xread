@@ -5,6 +5,7 @@
     <SettingsDrawer v-model="appStore.showSettingsDrawer" />
     <LoginModal v-model="appStore.showLoginModal" />
     <SourceManager v-model="appStore.showSourceManager" />
+    <UserManager v-model="appStore.showUserManager" />
     <WebdavManager v-model="appStore.showWebdavManager" />
 
     <!-- Toast notifications -->
@@ -31,6 +32,7 @@ import AppHeader from './components/AppHeader.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
 import LoginModal from './components/LoginModal.vue'
 import SourceManager from './components/SourceManager.vue'
+import UserManager from './components/UserManager.vue'
 import WebdavManager from './components/WebdavManager.vue'
 
 const route = useRoute()

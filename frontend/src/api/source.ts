@@ -40,6 +40,10 @@ export function deleteAllBookSources() {
   return http.post<{ deleted: boolean }>('/deleteAllBookSources').then((r) => r.data)
 }
 
+export function setAsDefaultBookSources(username: string) {
+  return http.post<{ success: boolean; count: number }>('/setAsDefaultBookSources', { username }).then((r) => r.data)
+}
+
 export function readRemoteSourceFile(url: string) {
   return http.post<string[]>('/readRemoteSourceFile', { url }).then((r) => r.data)
 }

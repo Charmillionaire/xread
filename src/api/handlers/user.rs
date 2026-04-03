@@ -36,6 +36,14 @@ pub struct ResetPasswordRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct ChangePasswordRequest {
+    #[serde(rename = "oldPassword")]
+    pub old_password: Option<String>,
+    #[serde(rename = "newPassword")]
+    pub new_password: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct UpdateUserRequest {
     pub username: Option<String>,
     #[serde(rename = "enableWebdav")]
@@ -140,6 +148,20 @@ pub async fn reset_password(State(state): State<AppState>, auth: AuthContext, Js
     let username = req.username.unwrap_or_default();
     let password = req.password.unwrap_or_default();
     state.user_service.reset_password(&username, &password).await?;
+    Ok(Json(ApiResponse::ok(Value::String("".to_string()))))
+}
+
+pub async fn change_password(State(state): State<AppState>, auth: AuthContext, Json(req): Json<ChangePasswordRequest>) -> Result<Json<ApiResponse<Value>>, AppError> {
+    if !state.user_service.secure_enabled() {
+        return Ok(Json(ApiResponse::err("不支持的操作")));
+    }
+    let token = auth.access_token().ok_or_else(|| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+    let old_password = req.old_password.unwrap_or_default();
+    let new_password = req.new_password.unwrap_or_default();
+    if old_password.is_empty() || new_password.is_empty() {
+        return Err(AppError::BadRequest("请填写当前密码和新密码".to_string()));
+    }
+    state.user_service.change_password(token, &old_password, &new_password).await?;
     Ok(Json(ApiResponse::ok(Value::String("".to_string()))))
 }
 

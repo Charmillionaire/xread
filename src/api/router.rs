@@ -85,6 +85,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/reader3/deleteUsers", post(handlers::delete_users))
         .route("/reader3/addUser", post(handlers::add_user))
         .route("/reader3/resetPassword", post(handlers::reset_password))
+        .route("/reader3/changePassword", post(handlers::change_password))
         .route("/reader3/updateUser", post(handlers::update_user))
         .route("/reader3/uploadFile", post(handlers::upload_file))
         .route("/reader3/deleteFile", post(handlers::delete_file))

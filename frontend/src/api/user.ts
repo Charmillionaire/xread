@@ -28,3 +28,30 @@ export function getUserInfo() {
     }>('/getUserInfo')
     .then((r) => r.data)
 }
+
+export function getUserList() {
+  return http.get<UserInfo[]>('/getUserList').then((r) => r.data)
+}
+
+export function addUser(username: string, password: string) {
+  return http.post<UserInfo[]>('/addUser', { username, password }).then((r) => r.data)
+}
+
+export function resetPassword(username: string, password: string) {
+  return http.post<string>('/resetPassword', { username, password }).then((r) => r.data)
+}
+
+export function changePassword(oldPassword: string, newPassword: string) {
+  return http.post<string>('/changePassword', { oldPassword, newPassword }).then((r) => r.data)
+}
+
+export function updateUser(
+  username: string,
+  payload: { enableWebdav?: boolean; enableLocalStore?: boolean },
+) {
+  return http.post<UserInfo[]>('/updateUser', { username, ...payload }).then((r) => r.data)
+}
+
+export function deleteUsers(usernames: string[]) {
+  return http.post<UserInfo[]>('/deleteUsers', usernames).then((r) => r.data)
+}
