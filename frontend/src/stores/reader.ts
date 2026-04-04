@@ -17,6 +17,11 @@ import {
 import { getReplaceRules } from '../api/replaceRule'
 import type { Book, BookChapter, Bookmark, ReplaceRule } from '../types'
 import { getBrowserCachedChapter, setBrowserCachedChapter } from '../utils/browserCache'
+import {
+  DEFAULT_OPENAI_BASE_URL,
+  fetchOpenAISpeechOptions,
+  requestOpenAISpeechAudio,
+} from '../utils/openaiSpeech'
 
 const READER_SESSION_KEY = 'reader-last-session'
 const READER_READ_HISTORY_PREFIX = 'reader-read-history:'
@@ -114,21 +119,40 @@ export const fontPresets = [
 interface TTSOptions {
   onStart?: () => void
   onEnd?: () => void
-  onError?: (event?: SpeechSynthesisErrorEvent) => void
+  onError?: (event?: SpeechSynthesisErrorEvent | Error) => void
 }
 
+interface PreloadedOpenAIAudio {
+  key: string
+  blob: Blob
+}
+
+const OPENAI_AUDIO_PRELOAD_LIMIT = 8
+
+export type SpeechProvider = 'system' | 'openai'
+
 interface SpeechConfig {
+  provider: SpeechProvider
   voiceName: string
   speechRate: number
   speechPitch: number
   stopAfterMinutes: number
+  openaiBaseUrl: string
+  openaiApiKey: string
+  openaiModel: string
+  openaiVoice: string
 }
 
 const defaultSpeechConfig: SpeechConfig = {
+  provider: 'system',
   voiceName: '',
   speechRate: 1,
   speechPitch: 1,
   stopAfterMinutes: 0,
+  openaiBaseUrl: DEFAULT_OPENAI_BASE_URL,
+  openaiApiKey: '',
+  openaiModel: 'qwen-tts',
+  openaiVoice: 'vivian',
 }
 
 function loadSpeechConfig(): SpeechConfig {
@@ -450,14 +474,31 @@ export const useReaderStore = defineStore('reader', () => {
 
   /* ─── TTS (Text To Speech) ─── */
   const isSpeaking = ref(false)
+  const isSpeechLoading = ref(false)
   const isPaused = ref(false)
   const voiceList = ref<SpeechSynthesisVoice[]>([])
   const speechConfig = reactive<SpeechConfig>(loadSpeechConfig())
+  const openAISpeechModels = ref<string[]>(speechConfig.openaiModel ? [speechConfig.openaiModel] : [])
+  const openAISpeechVoices = ref<Array<{ id: string; label: string }>>(
+    speechConfig.openaiVoice ? [{ id: speechConfig.openaiVoice, label: speechConfig.openaiVoice }] : [],
+  )
+  const openAISpeechLoading = ref(false)
+  const openAISpeechConfigured = computed(() => {
+    return !!speechConfig.openaiBaseUrl.trim()
+  })
+  const speechProviderLabel = computed(() => speechConfig.provider === 'openai' ? 'OpenAI Speech' : '系统语音')
   const speechStopAt = ref(0)
   let speechStopTimer: number | null = null
   let synth: SpeechSynthesis | null = typeof window !== 'undefined' ? window.speechSynthesis : null
   let currentUtterance: SpeechSynthesisUtterance | null = null
   let currentTTSOptions: TTSOptions | null = null
+  let currentOpenAIAudio: HTMLAudioElement | null = null
+  let currentOpenAIAudioUrl = ''
+  let currentOpenAIAbortController: AbortController | null = null
+  const preloadedOpenAIAudio = ref<PreloadedOpenAIAudio[]>([])
+  let preloadGeneration = 0
+  const inFlightPreloadKeys = new Set<string>()
+  const inFlightOpenAIAudioRequests = new Map<string, Promise<Blob>>()
   let skipAutoNext = false
 
   function saveSpeechConfig() {
@@ -485,14 +526,176 @@ export const useReaderStore = defineStore('reader', () => {
     saveSpeechConfig()
   }
 
+  function setSpeechProvider(provider: SpeechProvider) {
+    speechConfig.provider = provider
+    clearPreloadedOpenAIAudio()
+    saveSpeechConfig()
+  }
+
+  function setOpenAISpeechBaseUrl(url: string) {
+    speechConfig.openaiBaseUrl = url.trim()
+    clearPreloadedOpenAIAudio()
+    saveSpeechConfig()
+  }
+
+  function setOpenAISpeechApiKey(apiKey: string) {
+    speechConfig.openaiApiKey = apiKey.trim()
+    clearPreloadedOpenAIAudio()
+    saveSpeechConfig()
+  }
+
+  function setOpenAISpeechModel(model: string) {
+    speechConfig.openaiModel = model
+    clearPreloadedOpenAIAudio()
+    saveSpeechConfig()
+  }
+
+  function setOpenAISpeechVoice(voice: string) {
+    speechConfig.openaiVoice = voice
+    clearPreloadedOpenAIAudio()
+    saveSpeechConfig()
+  }
+
+  async function refreshOpenAISpeechOptions() {
+    if (!speechConfig.openaiBaseUrl.trim()) {
+      openAISpeechModels.value = speechConfig.openaiModel ? [speechConfig.openaiModel] : []
+      openAISpeechVoices.value = speechConfig.openaiVoice
+        ? [{ id: speechConfig.openaiVoice, label: speechConfig.openaiVoice }]
+        : []
+      return
+    }
+
+    openAISpeechLoading.value = true
+    try {
+      const data = await fetchOpenAISpeechOptions(speechConfig.openaiBaseUrl, speechConfig.openaiApiKey || undefined)
+      const models = Array.isArray(data.data)
+        ? data.data.map((item) => item.id).filter((item): item is string => typeof item === 'string' && !!item)
+        : []
+      const voices = data.voices && typeof data.voices === 'object'
+        ? Object.entries(data.voices).map(([id, label]) => ({ id, label }))
+        : []
+
+      openAISpeechModels.value = models.length ? models : (speechConfig.openaiModel ? [speechConfig.openaiModel] : [])
+      openAISpeechVoices.value = voices.length
+        ? voices
+        : (speechConfig.openaiVoice ? [{ id: speechConfig.openaiVoice, label: speechConfig.openaiVoice }] : [])
+
+      if (models.length && !models.includes(speechConfig.openaiModel)) {
+        speechConfig.openaiModel = models[0]
+      }
+      if (voices.length && !voices.some((item) => item.id === speechConfig.openaiVoice)) {
+        speechConfig.openaiVoice = voices[0].id
+      }
+      saveSpeechConfig()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '加载语音服务配置失败'
+      appStore.showToast(message, 'warning')
+    } finally {
+      openAISpeechLoading.value = false
+    }
+  }
+
   function setSpeechRate(rate: number) {
     speechConfig.speechRate = rate
+    clearPreloadedOpenAIAudio()
     saveSpeechConfig()
   }
 
   function setSpeechPitch(pitch: number) {
     speechConfig.speechPitch = pitch
     saveSpeechConfig()
+  }
+
+  function buildOpenAIAudioCacheKey(rawText: string) {
+    return [
+      speechConfig.openaiBaseUrl.trim(),
+      speechConfig.openaiApiKey.trim(),
+      speechConfig.openaiModel,
+      speechConfig.openaiVoice,
+      speechConfig.speechRate.toFixed(1),
+      rawText,
+    ].join('::')
+  }
+
+  async function fetchOpenAIAudioBlob(rawText: string, signal?: AbortSignal) {
+    return requestOpenAISpeechAudio({
+      baseUrl: speechConfig.openaiBaseUrl,
+      apiKey: speechConfig.openaiApiKey || undefined,
+      input: rawText.slice(0, 4096),
+      model: speechConfig.openaiModel,
+      voice: speechConfig.openaiVoice,
+      speed: speechConfig.speechRate,
+      signal,
+    })
+  }
+
+  function getOrStartOpenAIAudioRequest(rawText: string, signal?: AbortSignal) {
+    const key = buildOpenAIAudioCacheKey(rawText)
+    const existing = inFlightOpenAIAudioRequests.get(key)
+    if (existing) {
+      return { key, promise: existing }
+    }
+
+    const promise = fetchOpenAIAudioBlob(rawText, signal).finally(() => {
+      if (inFlightOpenAIAudioRequests.get(key) === promise) {
+        inFlightOpenAIAudioRequests.delete(key)
+      }
+    })
+    inFlightOpenAIAudioRequests.set(key, promise)
+    return { key, promise }
+  }
+
+  function clearPreloadedOpenAIAudio() {
+    preloadGeneration += 1
+    inFlightPreloadKeys.clear()
+    inFlightOpenAIAudioRequests.clear()
+    preloadedOpenAIAudio.value = []
+  }
+
+  async function preloadOpenAITTS(rawText?: string | string[] | null) {
+    if (speechConfig.provider !== 'openai' || !openAISpeechConfigured.value) return
+    const texts = Array.isArray(rawText) ? rawText : [rawText || '']
+    const normalizedTexts = texts.map((item) => item.trim()).filter(Boolean)
+    if (!normalizedTexts.length) return
+    const pendingTexts = normalizedTexts.filter((item) => {
+      const key = buildOpenAIAudioCacheKey(item)
+      return !preloadedOpenAIAudio.value.some((entry) => entry.key === key) && !inFlightPreloadKeys.has(key)
+    })
+    if (!pendingTexts.length) return
+
+    const generation = preloadGeneration
+    for (const text of pendingTexts.slice(0, OPENAI_AUDIO_PRELOAD_LIMIT)) {
+      const key = buildOpenAIAudioCacheKey(text)
+      inFlightPreloadKeys.add(key)
+      const { promise } = getOrStartOpenAIAudioRequest(text)
+      void promise
+        .then((blob) => {
+          if (generation !== preloadGeneration) return
+          const nextQueue = preloadedOpenAIAudio.value.filter((entry) => entry.key !== key)
+          nextQueue.push({ key, blob })
+          preloadedOpenAIAudio.value = nextQueue
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          inFlightPreloadKeys.delete(key)
+        })
+    }
+  }
+
+  function stopOpenAIAudioPlayback() {
+    if (currentOpenAIAbortController) {
+      currentOpenAIAbortController.abort()
+      currentOpenAIAbortController = null
+    }
+    if (currentOpenAIAudio) {
+      currentOpenAIAudio.pause()
+      currentOpenAIAudio.src = ''
+      currentOpenAIAudio = null
+    }
+    if (currentOpenAIAudioUrl) {
+      URL.revokeObjectURL(currentOpenAIAudioUrl)
+      currentOpenAIAudioUrl = ''
+    }
   }
 
   function clearSpeechStopTimer(resetConfig = true) {
@@ -526,13 +729,9 @@ export const useReaderStore = defineStore('reader', () => {
     }, normalized * 60 * 1000)
   }
 
-  function startTTS(text?: string, options: TTSOptions = {}) {
+  function startSystemTTS(rawText: string, options: TTSOptions) {
     if (!synth) return
-    stopTTS(false)
-
-    const rawText = text || content.value.replace(/<[^>]+>/g, '') // Strip HTML
-    if (!rawText) return
-
+    isSpeechLoading.value = false
     if (!voiceList.value.length) {
       fetchVoices()
     }
@@ -574,7 +773,141 @@ export const useReaderStore = defineStore('reader', () => {
     synth.speak(currentUtterance)
   }
 
+  function startOpenAITTS(rawText: string, options: TTSOptions) {
+    if (!openAISpeechConfigured.value) {
+      const error = new Error('请先填写 OpenAI Speech 的 URL 和 API Key')
+      appStore.showToast(error.message, 'warning')
+      options.onError?.(error)
+      return
+    }
+
+    isSpeechLoading.value = true
+    const playBlob = (blob: Blob, controller: AbortController) => {
+      if (controller.signal.aborted) return
+      isSpeechLoading.value = false
+      currentOpenAIAudioUrl = URL.createObjectURL(blob)
+      const audio = new Audio(currentOpenAIAudioUrl)
+      currentOpenAIAudio = audio
+      currentOpenAIAbortController = null
+
+      audio.onplay = () => {
+        isSpeaking.value = true
+        isPaused.value = false
+        currentTTSOptions?.onStart?.()
+      }
+
+      audio.onpause = () => {
+        if (!audio.ended) {
+          isPaused.value = true
+          isSpeaking.value = false
+        }
+      }
+
+      audio.onended = () => {
+        const shouldContinue = !skipAutoNext
+        isSpeaking.value = false
+        isPaused.value = false
+        currentOpenAIAudio = null
+        if (currentOpenAIAudioUrl) {
+          URL.revokeObjectURL(currentOpenAIAudioUrl)
+          currentOpenAIAudioUrl = ''
+        }
+        if (shouldContinue) {
+          currentTTSOptions?.onEnd?.()
+        }
+      }
+
+      audio.onerror = () => {
+        isSpeaking.value = false
+        isPaused.value = false
+        currentOpenAIAudio = null
+        const error = new Error('OpenAI Speech 音频播放失败')
+        currentTTSOptions?.onError?.(error)
+      }
+
+      return audio.play().catch((error: Error) => {
+        isSpeechLoading.value = false
+        isSpeaking.value = false
+        isPaused.value = false
+        currentOpenAIAudio = null
+        currentTTSOptions?.onError?.(error)
+      })
+    }
+
+    const controller = new AbortController()
+    currentOpenAIAbortController = controller
+    currentTTSOptions = options
+
+    const key = buildOpenAIAudioCacheKey(rawText)
+    const cached = preloadedOpenAIAudio.value.find((entry) => entry.key === key)
+    if (cached) {
+      void Promise.resolve(playBlob(cached.blob, controller))
+      return
+    }
+
+    const inFlight = inFlightOpenAIAudioRequests.get(key)
+    if (inFlight) {
+      void inFlight.then((blob) => {
+        return playBlob(blob, controller)
+      }).catch((error: Error) => {
+        if (controller.signal.aborted) return
+        isSpeechLoading.value = false
+        isSpeaking.value = false
+        isPaused.value = false
+        currentOpenAIAbortController = null
+        currentOpenAIAudio = null
+        currentTTSOptions?.onError?.(error)
+      })
+      return
+    }
+
+    const started = getOrStartOpenAIAudioRequest(rawText, controller.signal)
+    void started.promise.then((blob) => {
+      return playBlob(blob, controller)
+    }).catch((error: Error) => {
+      if (controller.signal.aborted) return
+      isSpeechLoading.value = false
+      isSpeaking.value = false
+      isPaused.value = false
+      currentOpenAIAbortController = null
+      currentOpenAIAudio = null
+      appStore.showToast(error.message || 'OpenAI Speech 请求失败', 'error')
+      currentTTSOptions?.onError?.(error)
+    })
+  }
+
+  function startTTS(text?: string, options: TTSOptions = {}) {
+    stopTTS(false)
+
+    const rawText = (text || content.value.replace(/<[^>]+>/g, '')).trim()
+    if (!rawText) return
+
+    currentTTSOptions = options
+    skipAutoNext = false
+
+    if (speechConfig.provider === 'openai') {
+      startOpenAITTS(rawText, options)
+      return
+    }
+
+    startSystemTTS(rawText, options)
+  }
+
   function pauseTTS() {
+    if (speechConfig.provider === 'openai') {
+      if (!currentOpenAIAudio) return
+      if (currentOpenAIAudio.paused) {
+        void currentOpenAIAudio.play()
+        isPaused.value = false
+        isSpeaking.value = true
+      } else {
+        currentOpenAIAudio.pause()
+        isPaused.value = true
+        isSpeaking.value = false
+      }
+      return
+    }
+
     if (!synth) return
     if (synth.speaking && !synth.paused) {
       synth.pause()
@@ -589,13 +922,15 @@ export const useReaderStore = defineStore('reader', () => {
     if (synth) {
       skipAutoNext = true
       synth.cancel()
-      isSpeaking.value = false
-      isPaused.value = false
       currentUtterance = null
-      if (resetCallbacks) {
-        currentTTSOptions = null
-        clearSpeechStopTimer()
-      }
+    }
+    stopOpenAIAudioPlayback()
+    isSpeechLoading.value = false
+    isSpeaking.value = false
+    isPaused.value = false
+    if (resetCallbacks) {
+      currentTTSOptions = null
+      clearSpeechStopTimer()
     }
   }
 
@@ -1002,8 +1337,11 @@ export const useReaderStore = defineStore('reader', () => {
     replaceRules, fetchReplaceRules,
     switchSource, preloadNextChapter, preloadAroundChapter,
     refreshChapters,
-    isSpeaking, isPaused, startTTS, pauseTTS, stopTTS,
-    voiceList, speechConfig, speechStopAt, fetchVoices, setVoiceName, setSpeechRate, setSpeechPitch, setSpeechStopTimer, clearSpeechStopTimer,
+    isSpeaking, isSpeechLoading, isPaused, startTTS, pauseTTS, stopTTS,
+    voiceList, speechConfig, speechStopAt, speechProviderLabel, openAISpeechConfigured,
+    openAISpeechModels, openAISpeechVoices, openAISpeechLoading, refreshOpenAISpeechOptions,
+    fetchVoices, setVoiceName, setSpeechProvider, setSpeechRate, setSpeechPitch, setSpeechStopTimer, clearSpeechStopTimer,
+    setOpenAISpeechBaseUrl, setOpenAISpeechApiKey, setOpenAISpeechModel, setOpenAISpeechVoice, preloadOpenAITTS,
     displayContent,
     isAutoScrolling,
   }

@@ -72,19 +72,28 @@
       :show="showTTSPanel"
       :theme="chromeTheme"
       :chapter-title="store.currentChapter?.title"
+      :provider="store.speechConfig.provider"
+      :provider-label="store.speechProviderLabel"
+      :is-speaking="store.isSpeaking"
+      :is-loading="store.isSpeechLoading"
       :is-paused="store.isPaused"
       :voices="store.voiceList"
       :voice-name="store.speechConfig.voiceName"
       :rate="store.speechConfig.speechRate"
       :pitch="store.speechConfig.speechPitch"
+      :supports-pitch="store.speechConfig.provider === 'system'"
+      :openai-model="store.speechConfig.openaiModel"
+      :openai-voice="store.speechConfig.openaiVoice"
+      :openai-voices="store.openAISpeechVoices"
       :stop-after-minutes="store.speechConfig.stopAfterMinutes"
       :timer-text="speechTimerText"
       @close="showTTSPanel = false"
       @prev="speechPrev"
-      @pause="store.pauseTTS()"
+      @toggle-play="toggleSpeechFromPanel"
       @stop="store.stopTTS()"
       @next="speechNext"
       @voice-change="changeVoice"
+      @openai-voice-change="changeOpenAIVoice"
       @rate-change="adjustSpeechRate"
       @pitch-change="adjustSpeechPitch"
       @timer-change="setSpeechTimer"
@@ -1266,11 +1275,18 @@ async function toggleBookmark() {
 
 function handleTTS() {
   showTTSPanel.value = true
-  if (store.isSpeaking) {
-    store.pauseTTS()
-  } else {
-    startSpeech()
+  if (store.speechConfig.provider === 'openai' && store.openAISpeechVoices.length <= 1) {
+    void store.refreshOpenAISpeechOptions()
   }
+}
+
+function toggleSpeechFromPanel() {
+  showTTSPanel.value = true
+  if (!store.isSpeaking) {
+    startSpeech()
+    return
+  }
+  store.pauseTTS()
 }
 
 watch(() => store.isAutoScrolling, (val) => {
@@ -1279,8 +1295,23 @@ watch(() => store.isAutoScrolling, (val) => {
   else stopAutoScroll()
 })
 
+watch(showTTSPanel, (visible) => {
+  if (!visible) return
+  if (store.speechConfig.provider === 'openai' && store.openAISpeechVoices.length <= 1) {
+    void store.refreshOpenAISpeechOptions()
+  }
+})
+
 function changeVoice(name: string) {
   store.setVoiceName(name)
+  showTTSPanel.value = true
+  if (store.isSpeaking && !store.isPaused) {
+    restartSpeechFromCurrentParagraph()
+  }
+}
+
+function changeOpenAIVoice(voiceId: string) {
+  store.setOpenAISpeechVoice(voiceId)
   showTTSPanel.value = true
   if (store.isSpeaking && !store.isPaused) {
     restartSpeechFromCurrentParagraph()
