@@ -1,9 +1,13 @@
-<template>
+﻿<template>
   <Transition name="slide-up">
     <div v-if="show" class="tts-controls" :style="{ background: theme.popup, color: theme.fontColor }">
       <div class="tts-head">
         <div class="tts-info">正在朗读: {{ chapterTitle }}</div>
-        <button class="tts-close" @click="$emit('close')">×</button>
+        <button class="tts-close" @click="$emit('close')" aria-label="close tts panel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
       </div>
       <div class="tts-btns">
         <button @click="$emit('prev')">上一段</button>
@@ -35,9 +39,9 @@
         <span class="tts-label">定时停止</span>
         <div class="tts-timer-actions">
           <button :class="{ active: stopAfterMinutes === 0 }" @click="$emit('timer-change', 0)">关闭</button>
-          <button :class="{ active: stopAfterMinutes === 15 }" @click="$emit('timer-change', 15)">15分</button>
-          <button :class="{ active: stopAfterMinutes === 30 }" @click="$emit('timer-change', 30)">30分</button>
-          <button :class="{ active: stopAfterMinutes === 60 }" @click="$emit('timer-change', 60)">60分</button>
+          <button :class="{ active: stopAfterMinutes === 15 }" @click="$emit('timer-change', 15)">15分钟</button>
+          <button :class="{ active: stopAfterMinutes === 30 }" @click="$emit('timer-change', 30)">30分钟</button>
+          <button :class="{ active: stopAfterMinutes === 60 }" @click="$emit('timer-change', 60)">60分钟</button>
         </div>
         <div v-if="timerText" class="tts-timer-text">{{ timerText }}</div>
       </div>
@@ -80,58 +84,76 @@ defineEmits<{
   bottom: calc(24px + var(--safe-area-bottom));
   left: 50%;
   transform: translateX(-50%);
-  padding: 12px 24px;
-  border-radius: var(--radius-full);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  width: min(720px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  padding: 16px 18px;
+  border-radius: 28px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
+  gap: 12px;
   z-index: 30;
-  min-width: 280px;
+  box-sizing: border-box;
 }
 
 .tts-head {
   width: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
 .tts-info {
-  font-size: 12px;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
   opacity: 0.7;
+  word-break: break-word;
 }
 
 .tts-close {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
-  background: transparent;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.05);
   color: inherit;
-  font-size: 20px;
-  line-height: 1;
-  opacity: 0.6;
   cursor: pointer;
+}
+
+.tts-close svg {
+  width: 20px;
+  height: 20px;
 }
 
 .tts-btns {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
 }
 
 .tts-btns button {
   background: var(--color-primary);
   color: white;
   border: none;
-  padding: 4px 16px;
-  border-radius: 4px;
+  padding: 10px 18px;
+  border-radius: 10px;
   cursor: pointer;
 }
 
 .tts-voice-select {
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: rgba(255, 255, 255, 0.65);
   color: inherit;
@@ -141,25 +163,27 @@ defineEmits<{
   width: 100%;
   display: flex;
   gap: 10px;
+  min-width: 0;
 }
 
 .tts-stepper {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
   background: rgba(0, 0, 0, 0.04);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .tts-stepper button {
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   background: var(--color-primary);
   color: #fff;
   cursor: pointer;
@@ -187,8 +211,8 @@ defineEmits<{
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.04);
   color: inherit;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 
@@ -205,7 +229,24 @@ defineEmits<{
 
 @media (max-width: 768px) {
   .tts-controls {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
     bottom: calc(80px + var(--safe-area-bottom));
+    padding: 14px 14px 16px;
+    border-radius: 24px;
+  }
+
+  .tts-tuning {
+    flex-direction: column;
+  }
+
+  .tts-btns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tts-btns button {
+    width: 100%;
   }
 }
 </style>

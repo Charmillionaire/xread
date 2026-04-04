@@ -5,8 +5,10 @@
         <h3>缓存章节</h3>
         <p v-if="store.book" class="cache-subtitle">{{ store.book.name }}</p>
       </div>
-      <button class="close-btn" @click="store.closePanel()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+      <button class="close-btn" @click="store.backPanel()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="m15 18-6-6 6-6" />
+        </svg>
       </button>
     </div>
 

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="reader-catalog" :style="{ background: theme.popup, color: theme.fontColor }">
     <div class="catalog-header">
       <div class="tabs">
@@ -7,14 +7,14 @@
           :class="{ active: activeTab === 'chapters' }" 
           @click="activeTab = 'chapters'"
         >
-          目录
+          鐩綍
         </div>
         <div 
           class="tab" 
           :class="{ active: activeTab === 'bookmarks' }" 
           @click="activeTab = 'bookmarks'"
         >
-          书签
+          涔︾
         </div>
       </div>
       <div class="header-actions">
@@ -33,35 +33,40 @@
     </div>
 
     <div v-if="activeTab === 'bookmarks'" class="bookmark-toolbar">
-      <button class="bookmark-action primary" @click="addCurrentBookmark">添加当前页书签</button>
+      <button class="bookmark-action primary" @click="addCurrentBookmark">&#x6DFB;&#x52A0;&#x5F53;&#x524D;&#x9875;&#x4E66;&#x7B7E;</button>
       <button
         class="bookmark-action"
         :class="{ danger: bookmarkEditMode && selectedBookmarkKeys.size > 0 }"
         @click="handleBatchAction"
       >
-        {{ bookmarkEditMode ? (selectedBookmarkKeys.size ? `删除选中(${selectedBookmarkKeys.size})` : '完成') : '批量管理' }}
+        {{ bookmarkEditMode ? (selectedBookmarkKeys.size ? `&#x5220;&#x9664;&#x9009;&#x4E2D;(${selectedBookmarkKeys.size})` : "&#x5B8C;&#x6210;") : "&#x6279;&#x91CF;&#x7BA1;&#x7406;" }}
       </button>
     </div>
 
     <!-- Chapters List -->
     <div v-show="activeTab === 'chapters'" class="list-container" ref="listRef">
-      <div v-if="store.chaptersLoading" class="loading">加载目录中...</div>
+      <div v-if="store.chaptersLoading" class="loading">鍔犺浇鐩綍涓?..</div>
       <div
         v-else
         v-for="(chapter, index) in store.chapters"
         :key="index"
         class="list-item"
-        :class="{ active: index === store.currentIndex }"
+        :class="{ active: index === store.currentIndex, read: store.isChapterRead(index) }"
         @click="goToChapter(index)"
       >
         <span class="item-index">{{ index + 1 }}</span>
         <span class="item-title">{{ chapter.title }}</span>
+        <div class="item-status">
+          <span v-if="index === store.currentIndex" class="status-badge current">&#x5F53;&#x524D;</span>
+          <span v-else-if="store.isChapterRead(index)" class="status-badge read">&#x5DF2;&#x8BFB;</span>
+          <span v-if="isChapterCached(chapter.url)" class="status-badge cached">&#x5DF2;&#x7F13;&#x5B58;</span>
+        </div>
       </div>
     </div>
 
     <!-- Bookmarks List -->
     <div v-show="activeTab === 'bookmarks'" class="list-container">
-      <div v-if="!store.bookmarks.length" class="empty">暂无书签</div>
+      <div v-if="!store.bookmarks.length" class="empty">鏆傛棤涔︾</div>
       <div
         v-else
         v-for="(bm, idx) in store.bookmarks"
@@ -76,7 +81,7 @@
           :class="{ checked: isBookmarkSelected(bm) }"
           @click.stop="toggleBookmarkSelection(bm)"
         >
-          ✓
+          鉁?
         </button>
         <div class="bm-header">
           <span class="bm-chapter">{{ bm.chapterName }}</span>
@@ -96,6 +101,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useReaderStore } from '../../stores/reader'
 import { useAppStore } from '../../stores/app'
 import type { Bookmark } from '../../types'
+import { listBrowserCachedChapterUrls } from '../../utils/browserCache'
 
 const props = withDefaults(defineProps<{
   initialTab?: 'chapters' | 'bookmarks'
@@ -110,11 +116,13 @@ const activeTab = ref<'chapters' | 'bookmarks'>(props.initialTab)
 const listRef = ref<HTMLElement>()
 const bookmarkEditMode = ref(false)
 const selectedBookmarkKeys = ref<Set<string>>(new Set())
+const cachedChapterUrls = ref<Set<string>>(new Set())
 
 onMounted(() => {
   activeTab.value = props.initialTab
   scrollToCurrent()
   store.fetchBookmarks()
+  void refreshCachedChapterState()
 })
 
 watch(() => props.initialTab, (tab) => {
@@ -123,7 +131,18 @@ watch(() => props.initialTab, (tab) => {
     bookmarkEditMode.value = false
     selectedBookmarkKeys.value.clear()
   }
+  if (tab === 'chapters') {
+    void refreshCachedChapterState()
+  }
 })
+
+watch(() => store.book?.bookUrl, () => {
+  void refreshCachedChapterState()
+})
+
+watch(() => store.chapters, () => {
+  void refreshCachedChapterState()
+}, { deep: true })
 
 function scrollToCurrent() {
   nextTick(() => {
@@ -141,7 +160,20 @@ async function goToChapter(index: number) {
 
 async function refreshCatalog() {
   await store.refreshChapters()
+  await refreshCachedChapterState()
   scrollToCurrent()
+}
+
+async function refreshCachedChapterState() {
+  if (!store.book || !store.chapters.length) {
+    cachedChapterUrls.value = new Set()
+    return
+  }
+  cachedChapterUrls.value = await listBrowserCachedChapterUrls(store.book.bookUrl).catch(() => new Set())
+}
+
+function isChapterCached(chapterUrl?: string) {
+  return !!chapterUrl && cachedChapterUrls.value.has(chapterUrl)
 }
 
 async function goToBookmark(bm: Bookmark) {
@@ -175,7 +207,7 @@ function toggleBookmarkSelection(bm: Bookmark) {
 
 async function addCurrentBookmark() {
   await store.addBookmark()
-  appStore.showToast('已添加当前页书签', 'success')
+  appStore.showToast('宸叉坊鍔犲綋鍓嶉〉涔︾', 'success')
 }
 
 async function handleBatchAction() {
@@ -191,7 +223,7 @@ async function handleBatchAction() {
   await store.removeBookmarks(items)
   selectedBookmarkKeys.value.clear()
   bookmarkEditMode.value = false
-  appStore.showToast(`已删除 ${items.length} 条书签`, 'success')
+  appStore.showToast(`&#x5DF2;&#x5220;&#x9664; ${items.length} &#x6761;&#x4E66;&#x7B7E;`, 'success')
 }
 
 function formatDate(ts?: number) {
@@ -312,7 +344,7 @@ function formatDate(ts?: number) {
 
 .list-item {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   padding: 12px 20px;
   cursor: pointer;
@@ -329,6 +361,10 @@ function formatDate(ts?: number) {
   background: rgba(201, 127, 58, 0.05);
 }
 
+.list-item.read:not(.active) .item-title {
+  opacity: 0.74;
+}
+
 .item-index {
   font-size: 11px;
   opacity: 0.4;
@@ -339,6 +375,48 @@ function formatDate(ts?: number) {
 .item-title {
   font-size: 14px;
   line-height: 1.4;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.status-badge.current {
+  color: var(--color-primary, #c97f3a);
+  background: rgba(201, 127, 58, 0.12);
+  border-color: rgba(201, 127, 58, 0.2);
+}
+
+.status-badge.read {
+  color: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.05);
+}
+
+.status-badge.cached {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.14);
 }
 
 /* Bookmark items */

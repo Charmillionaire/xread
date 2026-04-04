@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+﻿import { defineStore } from 'pinia'
 import { ref, computed, reactive, watch } from 'vue'
 import { useAppStore } from './app'
 import { useBookshelfStore } from './bookshelf'
@@ -19,6 +19,7 @@ import type { Book, BookChapter, Bookmark, ReplaceRule } from '../types'
 import { getBrowserCachedChapter, setBrowserCachedChapter } from '../utils/browserCache'
 
 const READER_SESSION_KEY = 'reader-last-session'
+const READER_READ_HISTORY_PREFIX = 'reader-read-history:'
 
 interface PersistedReaderSession {
   book: Book
@@ -47,6 +48,7 @@ export interface ReadConfig {
   selectAction: 'popup' | 'ignore'
   chineseMode: 'simplified' | 'traditional'
   specialMode: 'normal' | 'simple'
+  enablePreload: boolean
 }
 
 const defaultConfig: ReadConfig = {
@@ -67,6 +69,7 @@ const defaultConfig: ReadConfig = {
   selectAction: 'ignore',
   chineseMode: 'simplified',
   specialMode: 'normal',
+  enablePreload: false,
 }
 
 function loadConfig(): ReadConfig {
@@ -136,6 +139,7 @@ function loadSpeechConfig(): SpeechConfig {
 }
 
 export const useReaderStore = defineStore('reader', () => {
+  type ReaderPanel = 'catalog' | 'settings' | 'bookshelf' | 'source' | 'bookmark' | 'rule' | 'cache' | null
   const appStore = useAppStore()
   const shelfStore = useBookshelfStore()
   const book = ref<Book | null>(null)
@@ -149,6 +153,7 @@ export const useReaderStore = defineStore('reader', () => {
   const preloadedContent = ref<Map<number, string>>(new Map()) // index -> content
   const isAutoScrolling = ref(false)
   const chapterScrollProgress = ref(0)
+  const readChapterKeys = ref<Set<string>>(new Set())
 
   const currentChapter = computed(() => chapters.value[currentIndex.value] || null)
   const hasNext = computed(() => currentIndex.value < chapters.value.length - 1)
@@ -170,6 +175,9 @@ export const useReaderStore = defineStore('reader', () => {
 
   function updateConfig<K extends keyof ReadConfig>(key: K, value: ReadConfig[K]) {
     config[key] = value
+    if (key === 'enablePreload' && !value) {
+      preloadedContent.value.clear()
+    }
     saveConfig()
   }
 
@@ -323,10 +331,63 @@ export const useReaderStore = defineStore('reader', () => {
       const chapterContent = await fetchChapterContent(nextIndex)
       if (chapterContent == null) return false
       setActiveChapterState(nextIndex, chapterContent, session.chapterScrollProgress || 0)
+      markChapterAsRead(nextIndex)
       return true
     } catch {
       return false
     }
+  }
+
+  function getReadHistoryStorageKey(currentBook?: Book | null) {
+    if (!currentBook?.bookUrl) return ''
+    return `${READER_READ_HISTORY_PREFIX}${currentBook.bookUrl}`
+  }
+
+  function buildReadChapterKey(index: number, chapter?: BookChapter | null, currentBook?: Book | null) {
+    if (!currentBook?.bookUrl) return ''
+    const sourceKey = currentBook.origin || 'default'
+    if (chapter?.url) {
+      return `${currentBook.bookUrl}::${sourceKey}::${chapter.url}`
+    }
+    return `${currentBook.bookUrl}::${sourceKey}::index:${index}`
+  }
+
+  function loadReadChapterHistory(currentBook?: Book | null) {
+    const storageKey = getReadHistoryStorageKey(currentBook)
+    if (!storageKey) {
+      readChapterKeys.value = new Set()
+      return
+    }
+    try {
+      const raw = localStorage.getItem(storageKey)
+      if (!raw) {
+        readChapterKeys.value = new Set()
+        return
+      }
+      const parsed = JSON.parse(raw)
+      readChapterKeys.value = new Set(Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : [])
+    } catch {
+      readChapterKeys.value = new Set()
+    }
+  }
+
+  function persistReadChapterHistory(currentBook?: Book | null) {
+    const storageKey = getReadHistoryStorageKey(currentBook)
+    if (!storageKey) return
+    localStorage.setItem(storageKey, JSON.stringify(Array.from(readChapterKeys.value)))
+  }
+
+  function markChapterAsRead(index: number) {
+    const key = buildReadChapterKey(index, chapters.value[index], book.value)
+    if (!key || readChapterKeys.value.has(key)) return
+    const next = new Set(readChapterKeys.value)
+    next.add(key)
+    readChapterKeys.value = next
+    persistReadChapterHistory(book.value)
+  }
+
+  function isChapterRead(index: number) {
+    return readChapterKeys.value.has(buildReadChapterKey(index, chapters.value[index], book.value))
   }
 
   /* ─── Auto reading ─── */
@@ -500,10 +561,15 @@ export const useReaderStore = defineStore('reader', () => {
 
   /* ─── Book / chapter ops ─── */
   async function loadBook(b: Book) {
+    loading.value = true
     book.value = b
+    chapters.value = []
+    content.value = ''
     appStore.markBookOpened(b.bookUrl)
     currentIndex.value = b.durChapterIndex || 0
+    chapterScrollProgress.value = 0
     preloadedContent.value.clear()
+    loadReadChapterHistory(b)
     chaptersLoading.value = true
     try {
       chapters.value = await getChapterList({
@@ -511,6 +577,9 @@ export const useReaderStore = defineStore('reader', () => {
         bookSourceUrl: b.origin,
       })
       saveReaderSession()
+    } catch (error) {
+      loading.value = false
+      throw error
     } finally {
       chaptersLoading.value = false
     }
@@ -580,6 +649,7 @@ export const useReaderStore = defineStore('reader', () => {
       if (chapterContent == null) return
 
       setActiveChapterState(index, chapterContent, 0)
+      markChapterAsRead(index)
       appStore.markChapterRead(book.value.bookUrl, index, chapters.value.length)
 
       await saveBookProgress({
@@ -587,14 +657,16 @@ export const useReaderStore = defineStore('reader', () => {
         index,
       }).catch(() => { })
 
-      setTimeout(() => preloadAroundChapter(index), forceRefresh ? 1500 : 1000)
+      if (config.enablePreload) {
+        setTimeout(() => preloadAroundChapter(index), forceRefresh ? 1500 : 1000)
+      }
     } finally {
       loading.value = false
     }
   }
 
   async function preloadAroundChapter(index: number) {
-    if (!book.value) return
+    if (!book.value || !config.enablePreload) return
     const targets = [index + 1, index + 2, index - 1]
       .filter((target, pos, list) => target >= 0 && target < chapters.value.length && list.indexOf(target) === pos)
     for (const target of targets) {
@@ -603,7 +675,7 @@ export const useReaderStore = defineStore('reader', () => {
   }
 
   async function preloadNextChapter(index: number) {
-    if (!book.value || index >= chapters.value.length || preloadedContent.value.has(index)) return
+    if (!book.value || !config.enablePreload || index >= chapters.value.length || preloadedContent.value.has(index)) return
     
     // Keep max 3 preloaded chapters
     if (preloadedContent.value.size > 3) {
@@ -622,7 +694,7 @@ export const useReaderStore = defineStore('reader', () => {
   function normalizeChapterTitle(title?: string) {
     return (title || '')
       .replace(/\s+/g, '')
-      .replace(/[：:,.，。！？!?\-—_()（）【】\[\]<>《》'"“”‘’]/g, '')
+      .replace(/[^\p{L}\p{N}]/gu, '')
       .toLowerCase()
   }
 
@@ -777,18 +849,39 @@ export const useReaderStore = defineStore('reader', () => {
     content.value = ''
     currentIndex.value = 0
     chapterScrollProgress.value = 0
+    readChapterKeys.value = new Set()
     stopAutoReading()
   }
 
   /* ─── Panel visibility ─── */
-  const activePanel = ref<'catalog' | 'settings' | 'bookshelf' | 'source' | 'bookmark' | 'rule' | 'cache' | null>(null)
+  const activePanel = ref<ReaderPanel>(null)
+  const panelParent = ref<ReaderPanel>(null)
 
-  function togglePanel(panel: typeof activePanel.value) {
-    activePanel.value = activePanel.value === panel ? null : panel
+  function openPanel(panel: ReaderPanel, parent: ReaderPanel = null) {
+    activePanel.value = panel
+    panelParent.value = parent
+  }
+
+  function togglePanel(panel: ReaderPanel, parent: ReaderPanel = null) {
+    if (activePanel.value === panel) {
+      closePanel()
+      return
+    }
+    openPanel(panel, parent)
+  }
+
+  function backPanel() {
+    if (panelParent.value) {
+      activePanel.value = panelParent.value
+      panelParent.value = null
+      return
+    }
+    activePanel.value = null
   }
 
   function closePanel() {
     activePanel.value = null
+    panelParent.value = null
   }
 
   return {
@@ -800,8 +893,9 @@ export const useReaderStore = defineStore('reader', () => {
     config, updateConfig, resetConfig, saveConfig,
     themeIndex, isNight, currentTheme, setThemeIndex, toggleNight,
     autoReading, autoReadingTimer, toggleAutoReading, stopAutoReading,
-    activePanel, togglePanel, closePanel,
+    activePanel, openPanel, togglePanel, backPanel, closePanel,
     bookmarks, fetchBookmarks, addBookmark, removeBookmark, removeBookmarks,
+    readChapterKeys, isChapterRead,
     replaceRules, fetchReplaceRules,
     switchSource, preloadNextChapter, preloadAroundChapter,
     refreshChapters,

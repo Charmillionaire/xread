@@ -188,6 +188,29 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
     }
   }
 
+  async function moveBookToFront(bookUrl: string) {
+    if (!bookUrl || books.value.length <= 1) return
+
+    const snapshot = books.value.slice()
+    const fromIndex = snapshot.findIndex((book) => book.bookUrl === bookUrl)
+    if (fromIndex <= 0) return
+
+    const next = snapshot.slice()
+    const [moved] = next.splice(fromIndex, 1)
+    next.unshift(moved)
+
+    books.value = next
+    sorting.value = true
+    try {
+      await apiSaveBooks(next)
+    } catch (error) {
+      books.value = snapshot
+      throw error
+    } finally {
+      sorting.value = false
+    }
+  }
+
   return {
     books, loading, refreshing, sorting,
     fetchBooks, refreshBooks, removeBook,
@@ -196,6 +219,6 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
     searchResults, isSearching, searchKey, clearSearch, isSearchMode,
     editMode,
     selectedBookUrls, toggleSelection, selectAll, clearSelection,
-    bulkDelete, bulkSetGroup, reorderBooks,
+    bulkDelete, bulkSetGroup, reorderBooks, moveBookToFront,
   }
 })

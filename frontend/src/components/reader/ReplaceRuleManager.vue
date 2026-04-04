@@ -4,8 +4,10 @@
       <h3>内容净化规则</h3>
       <div class="header-actions">
         <button class="add-btn" @click="openEditModal()">+ 新增规则</button>
-        <button class="close-btn" @click="store.closePanel()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        <button class="close-btn" @click="store.backPanel()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
         </button>
       </div>
     </div>

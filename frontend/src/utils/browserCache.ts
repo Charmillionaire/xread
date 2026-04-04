@@ -112,6 +112,14 @@ export async function countBrowserBookCache(bookUrl: string) {
   return summaries.find((item) => item.bookUrl === bookUrl)?.cachedChapterCount || 0
 }
 
+export async function listBrowserCachedChapterUrls(bookUrl: string) {
+  return withStore('readonly', async (store) => {
+    const index = store.index('bookUrl')
+    const records = await requestToPromise(index.getAll(IDBKeyRange.only(bookUrl)))
+    return new Set((records as BrowserChapterCacheRecord[]).map((record) => record.chapterUrl).filter(Boolean))
+  })
+}
+
 export async function listBrowserCacheSummary(): Promise<BrowserBookCacheSummary[]> {
   return withStore('readonly', async (store) => {
     const records = await requestToPromise(store.getAll())

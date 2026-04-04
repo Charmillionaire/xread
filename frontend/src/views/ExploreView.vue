@@ -79,6 +79,7 @@ const appStore = useAppStore()
 const router = useRouter()
 
 const scrollContainer = ref<HTMLElement>()
+const openingBookUrl = ref('')
 
 onMounted(async () => {
   await store.init()
@@ -106,10 +107,19 @@ function handleScroll() {
 
 async function handleBookClick(book: Book | SearchBook) {
   const b = book as Book
-  if (b.origin && b.bookUrl) {
-    await readerStore.loadBook(b)
-    await readerStore.loadChapter(b.durChapterIndex || 0)
-    router.push('/reader')
+  if (!b.origin || !b.bookUrl) return
+  if (openingBookUrl.value === b.bookUrl) return
+
+  openingBookUrl.value = b.bookUrl
+  const targetIndex = b.durChapterIndex || 0
+
+  try {
+    const loadBookTask = readerStore.loadBook(b)
+    await router.push('/reader')
+    await loadBookTask
+    await readerStore.loadChapter(targetIndex)
+  } finally {
+    openingBookUrl.value = ''
   }
 }
 

@@ -124,6 +124,7 @@ const showGroupSelect = ref(false)
 const showGroupManager = ref(false)
 const showCacheManager = ref(false)
 const selectedBook = ref<Book | SearchBook | null>(null)
+const openingBookUrl = ref('')
 
 onMounted(async () => {
   await appStore.fetchUserInfo()
@@ -142,9 +143,20 @@ onMounted(async () => {
 
 async function handleBookClick(book: Book | SearchBook) {
   const b = book as Book
-  await readerStore.loadBook(b)
-  await readerStore.loadChapter(b.durChapterIndex || 0)
-  router.push('/reader')
+  if (openingBookUrl.value === b.bookUrl) return
+
+  openingBookUrl.value = b.bookUrl
+  const targetIndex = b.durChapterIndex || 0
+
+  try {
+    await shelfStore.moveBookToFront(b.bookUrl).catch(() => undefined)
+    const loadBookTask = readerStore.loadBook(b)
+    await router.push('/reader')
+    await loadBookTask
+    await readerStore.loadChapter(targetIndex)
+  } finally {
+    openingBookUrl.value = ''
+  }
 }
 
 function handleBookInfo(book: Book | SearchBook) {

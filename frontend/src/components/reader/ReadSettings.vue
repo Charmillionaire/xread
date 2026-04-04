@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="read-settings" :style="{ background: theme.popup, color: theme.fontColor }">
     <div class="settings-header">
       <h3 class="settings-title">设置</h3>
@@ -48,7 +48,14 @@
       </div>
 
       <div class="settings-sep"></div>
-
+      <!-- 预加载 -->
+      <div class="setting-row">
+        <label>&#x9884;&#x52A0;&#x8F7D;</label>
+        <div class="btn-group">
+          <button class="opt-btn" :class="{ active: config.enablePreload }" @click="store.updateConfig('enablePreload', true)">&#x5F00;&#x542F;</button>
+          <button class="opt-btn" :class="{ active: !config.enablePreload }" @click="store.updateConfig('enablePreload', false)">&#x5173;&#x95ED;</button>
+        </div>
+      </div>
       <!-- 字体大小 -->
       <div class="setting-row">
         <label>字体大小</label>
@@ -238,12 +245,12 @@
       <!-- 更多操作 -->
       <div class="setting-row">
         <label>离线缓存</label>
-        <button class="opt-btn wide" @click="store.togglePanel('cache')">批量缓存章节</button>
+        <button class="opt-btn wide" @click="store.openPanel('cache', 'settings')">批量缓存章节</button>
       </div>
 
       <div class="setting-row">
         <label>内容净化</label>
-        <button class="opt-btn wide" @click="store.togglePanel('rule')">管理净化规则</button>
+        <button class="opt-btn wide" @click="store.openPanel('rule', 'settings')">管理净化规则</button>
       </div>
     </div>
   </div>

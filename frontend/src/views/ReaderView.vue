@@ -610,7 +610,6 @@ function handleBackgroundClick(e: Event) {
   // If clicked directly on the reader-view wrapper, toggle controls
   if ((e.target as HTMLElement).classList.contains('reader-view')) {
     showControls.value = false
-    stopAutoScroll()
   }
 }
 
@@ -635,6 +634,7 @@ function handleGlobalClick(e: MouseEvent) {
 
   const target = e.target as HTMLElement | null
   if (target?.closest('.tts-controls, .reader-search-panel, .selection-menu')) return
+  if (store.isAutoScrolling) return
   
   if (isHorizontalPageMode.value && isMobile.value) {
     const x = e.clientX / window.innerWidth
@@ -658,6 +658,8 @@ function handleGlobalClick(e: MouseEvent) {
 }
 
 function clickZoneAction(zone: 'prev' | 'menu' | 'next') {
+  if (store.isAutoScrolling) return
+
   if (zone === 'menu') {
     if (isMobile.value) {
       showControls.value = !showControls.value
@@ -751,10 +753,10 @@ function handleScroll() {
       const maxPage = Math.max(0, horizontalPages.value.length - 1)
       horizontalPageIndex.value = Math.max(0, Math.min(maxPage, Math.round(container.scrollLeft / Math.max(1, horizontalPageStep.value))))
       updateHorizontalEndState()
-      if (maxPage > 0 && horizontalPageIndex.value >= maxPage - 1) {
+      if (config.value.enablePreload && maxPage > 0 && horizontalPageIndex.value >= maxPage - 1) {
         store.preloadAroundChapter(store.currentIndex)
       }
-    } else if (container.scrollHeight - (container.scrollTop + container.clientHeight) < container.clientHeight * 1.5) {
+    } else if (config.value.enablePreload && container.scrollHeight - (container.scrollTop + container.clientHeight) < container.clientHeight * 1.5) {
       store.preloadAroundChapter(store.currentIndex)
     }
   }
@@ -1061,7 +1063,7 @@ watch(() => store.currentIndex, async () => {
   if (!store.isSpeaking) {
     clearReadingClass()
   }
-  if (!isContinuousMode.value) {
+  if (!isContinuousMode.value && config.value.enablePreload) {
     store.preloadAroundChapter(store.currentIndex)
   }
   if (isContinuousMode.value && !suppressContinuousSync.value) {
