@@ -200,8 +200,16 @@
 
       <div class="settings-sep"></div>
 
-      <!-- 朗读音源 -->
-      <div class="setting-row setting-row-top">
+      <!-- 朗读引擎 -->
+      <div class="setting-row">
+        <label>朗读引擎</label>
+        <div class="btn-group">
+          <button class="opt-btn" :class="{ active: store.speechConfig.provider === 'system' }" @click="store.setSpeechProvider('system')">系统语音</button>
+          <button class="opt-btn" :class="{ active: store.speechConfig.provider === 'openai' }" @click="store.setSpeechProvider('openai')">OpenAI Speech</button>
+        </div>
+      </div>
+
+      <div v-if="store.speechConfig.provider === 'system'" class="setting-row setting-row-top">
         <label>朗读音源</label>
         <select class="voice-select" :value="store.speechConfig.voiceName" @change="handleVoiceChange">
           <option value="">系统默认</option>
@@ -211,7 +219,57 @@
         </select>
       </div>
 
-      <div class="setting-row">
+      <template v-else>
+        <div class="setting-row setting-row-top">
+          <label>服务地址</label>
+          <input
+            class="voice-select"
+            type="url"
+            :value="store.speechConfig.openaiBaseUrl"
+            placeholder="http://localhost:8825"
+            @change="handleOpenAIBaseUrlChange"
+          >
+          <button class="opt-btn" :disabled="store.openAISpeechLoading" @click="store.refreshOpenAISpeechOptions()">
+            {{ store.openAISpeechLoading ? '加载中' : '刷新配置' }}
+          </button>
+        </div>
+
+        <div class="setting-row setting-row-top">
+          <label>API Key</label>
+          <input
+            class="voice-select"
+            type="password"
+            :value="store.speechConfig.openaiApiKey"
+            placeholder="sk-..."
+            autocomplete="off"
+            @input="store.setOpenAISpeechApiKey(($event.target as HTMLInputElement).value)"
+          >
+        </div>
+
+        <div class="setting-row setting-row-top">
+          <label>语音模型</label>
+          <select class="voice-select" :value="store.speechConfig.openaiModel" @change="store.setOpenAISpeechModel(($event.target as HTMLSelectElement).value)">
+            <option v-for="model in store.openAISpeechModels" :key="model" :value="model">
+              {{ model }}
+            </option>
+          </select>
+        </div>
+
+        <div class="setting-row setting-row-top">
+          <label>语音音色</label>
+          <select class="voice-select" :value="store.speechConfig.openaiVoice" @change="store.setOpenAISpeechVoice(($event.target as HTMLSelectElement).value)">
+            <option v-for="voice in store.openAISpeechVoices" :key="voice.id" :value="voice.id">
+              {{ voice.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="setting-hint">
+          填写服务基地址即可，前端会自动访问 `/v1/models` 和 `/v1/audio/speech`。URL 和 Key 仅保存在当前浏览器。
+        </div>
+      </template>
+
+      <div class="setting-row setting-row-top">
         <label>朗读语速</label>
         <div class="stepper">
           <button class="step-btn" @click="adjustSpeechRate(-0.1)">—</button>
@@ -220,7 +278,7 @@
         </div>
       </div>
 
-      <div class="setting-row">
+      <div v-if="store.speechConfig.provider === 'system'" class="setting-row">
         <label>朗读音调</label>
         <div class="stepper">
           <button class="step-btn" @click="adjustSpeechPitch(-0.1)">—</button>
@@ -289,8 +347,17 @@ function handleVoiceChange(event: Event) {
   store.setVoiceName(target?.value || '')
 }
 
+function handleOpenAIBaseUrlChange(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  store.setOpenAISpeechBaseUrl(target?.value || '')
+  void store.refreshOpenAISpeechOptions()
+}
+
 onMounted(() => {
   store.fetchVoices()
+  if (store.speechConfig.provider === 'openai') {
+    void store.refreshOpenAISpeechOptions()
+  }
 })
 </script>
 
@@ -379,6 +446,14 @@ onMounted(() => {
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: rgba(255, 255, 255, 0.6);
   color: inherit;
+}
+
+.setting-hint {
+  margin-top: -8px;
+  padding-left: 90px;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.65;
 }
 
 /* Theme swatches */
@@ -548,6 +623,11 @@ onMounted(() => {
 
   .voice-select {
     width: auto;
+  }
+
+  .setting-hint {
+    padding-left: 0;
+    margin-top: -12px;
   }
 }
 </style>

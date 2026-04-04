@@ -2,6 +2,8 @@ import type { ComputedRef, Ref } from 'vue'
 import type { useReaderStore } from '../stores/reader'
 
 type ReaderStore = ReturnType<typeof useReaderStore>
+const OPENAI_SPEECH_CHUNK_CHAR_LIMIT = 70
+const OPENAI_PRELOAD_CHUNK_LIMIT = 5
 
 interface AutoPlaybackConfig {
   autoPageMode: string
@@ -27,6 +29,9 @@ export function useReaderAutoPlayback(
   let autoReadingProcessing = false
   let speechRestartTimer: number | null = null
   let isSpeechTransitioning = false
+  let currentSpeechParagraph: HTMLElement | null = null
+  let currentSpeechChunks: string[] = []
+  let currentSpeechChunkIndex = 0
 
   function getFilteredParagraphs() {
     const roots = isContinuousMode.value
@@ -79,6 +84,114 @@ export function useReaderAutoPlayback(
     const index = current ? list.indexOf(current) : -1
     if (index >= 0 && index < list.length - 1) return list[index + 1]
     return null
+  }
+
+  function splitLongSentence(sentence: string) {
+    const chunks: string[] = []
+    let remaining = sentence.trim()
+    while (remaining.length > OPENAI_SPEECH_CHUNK_CHAR_LIMIT) {
+      let splitIndex = Math.max(
+        remaining.lastIndexOf('，', OPENAI_SPEECH_CHUNK_CHAR_LIMIT),
+        remaining.lastIndexOf('、', OPENAI_SPEECH_CHUNK_CHAR_LIMIT),
+        remaining.lastIndexOf(',', OPENAI_SPEECH_CHUNK_CHAR_LIMIT),
+        remaining.lastIndexOf(' ', OPENAI_SPEECH_CHUNK_CHAR_LIMIT),
+      )
+      if (splitIndex <= 0) {
+        splitIndex = OPENAI_SPEECH_CHUNK_CHAR_LIMIT
+      }
+      chunks.push(remaining.slice(0, splitIndex).trim())
+      remaining = remaining.slice(splitIndex).trim()
+    }
+    if (remaining) chunks.push(remaining)
+    return chunks
+  }
+
+  function buildParagraphSpeechChunks(paragraph: HTMLElement | null) {
+    const rawText = paragraph?.innerText.trim() || ''
+    if (!rawText) return [] as string[]
+
+    const sentences = rawText
+      .replace(/\n+/g, '\n')
+      .split(/(?<=[。！？!?；;])/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+
+    const chunks: string[] = []
+    let current = ''
+
+    const pushCurrent = () => {
+      const normalized = current.trim()
+      if (normalized) chunks.push(normalized)
+      current = ''
+    }
+
+    for (const sentence of (sentences.length ? sentences : [rawText])) {
+      if (sentence.length > OPENAI_SPEECH_CHUNK_CHAR_LIMIT) {
+        pushCurrent()
+        chunks.push(...splitLongSentence(sentence))
+        continue
+      }
+      const next = current ? `${current}${sentence}` : sentence
+      if (next.length > OPENAI_SPEECH_CHUNK_CHAR_LIMIT) {
+        pushCurrent()
+        current = sentence
+      } else {
+        current = next
+      }
+    }
+
+    pushCurrent()
+    return chunks.length ? chunks : [rawText]
+  }
+
+  function resetSpeechChunkState() {
+    currentSpeechParagraph = null
+    currentSpeechChunks = []
+    currentSpeechChunkIndex = 0
+  }
+
+  function ensureSpeechChunkState(paragraph: HTMLElement) {
+    if (store.speechConfig.provider !== 'openai') {
+      return {
+        text: paragraph.innerText.trim(),
+        nextParagraph: getNextParagraph(),
+      }
+    }
+
+    if (currentSpeechParagraph !== paragraph) {
+      currentSpeechParagraph = paragraph
+      currentSpeechChunks = buildParagraphSpeechChunks(paragraph)
+      currentSpeechChunkIndex = 0
+    }
+
+    return {
+      text: currentSpeechChunks[currentSpeechChunkIndex] || '',
+      nextParagraph: currentSpeechChunkIndex < currentSpeechChunks.length - 1 ? paragraph : getNextParagraph(),
+    }
+  }
+
+  function getUpcomingSpeechChunks(startParagraph: HTMLElement | null) {
+    const chunks: string[] = []
+
+    if (store.speechConfig.provider === 'openai' && currentSpeechParagraph && currentSpeechChunks.length) {
+      for (let i = currentSpeechChunkIndex + 1; i < currentSpeechChunks.length && chunks.length < OPENAI_PRELOAD_CHUNK_LIMIT; i += 1) {
+        chunks.push(currentSpeechChunks[i])
+      }
+    }
+
+    let cursor = startParagraph
+    while (cursor && chunks.length < OPENAI_PRELOAD_CHUNK_LIMIT) {
+      const paragraphChunks = buildParagraphSpeechChunks(cursor)
+      for (const chunk of paragraphChunks) {
+        if (chunks.length >= OPENAI_PRELOAD_CHUNK_LIMIT) break
+        chunks.push(chunk)
+      }
+      const list = getFilteredParagraphs()
+      const index = list.indexOf(cursor)
+      cursor = index >= 0 ? (list[index + 1] || null) : null
+    }
+
+    return chunks
   }
 
   function clearReadingClass() {
@@ -197,10 +310,12 @@ export function useReaderAutoPlayback(
   function restartSpeechTarget(paragraph: HTMLElement | null) {
     if (!paragraph) {
       store.stopTTS()
+      resetSpeechChunkState()
       return
     }
     if (isSpeechTransitioning) return
     isSpeechTransitioning = true
+    resetSpeechChunkState()
     store.stopTTS(false)
     if (speechRestartTimer) {
       clearTimeout(speechRestartTimer)
@@ -220,17 +335,37 @@ export function useReaderAutoPlayback(
 
     markReadingParagraph(current)
     showParagraph(current)
-    store.startTTS(current.innerText, {
+    const chunk = ensureSpeechChunkState(current)
+    if (!chunk.text.trim()) {
+      speechNext(chunk.nextParagraph)
+      return
+    }
+    const nextParagraph = chunk.nextParagraph
+    store.startTTS(chunk.text, {
       onEnd: () => {
-        speechNext()
+        if (store.speechConfig.provider === 'openai' && currentSpeechParagraph === current && currentSpeechChunkIndex < currentSpeechChunks.length - 1) {
+          currentSpeechChunkIndex += 1
+          startSpeech(current)
+          return
+        }
+        resetSpeechChunkState()
+        speechNext(nextParagraph)
       },
       onError: () => {
+        resetSpeechChunkState()
         clearReadingClass()
       },
     })
+    const preloadTexts = getUpcomingSpeechChunks(nextParagraph)
+    if (preloadTexts.length) {
+      window.setTimeout(() => {
+        void store.preloadOpenAITTS(preloadTexts)
+      }, 0)
+    }
   }
 
   function speechPrev() {
+    resetSpeechChunkState()
     const prev = getPrevParagraph()
     if (prev) {
       restartSpeechTarget(prev)
@@ -249,8 +384,9 @@ export function useReaderAutoPlayback(
     })
   }
 
-  function speechNext() {
-    const next = getNextParagraph()
+  function speechNext(forcedNext?: HTMLElement | null) {
+    resetSpeechChunkState()
+    const next = forcedNext ?? getNextParagraph()
     if (next) {
       restartSpeechTarget(next)
       return
@@ -271,6 +407,7 @@ export function useReaderAutoPlayback(
   function restartSpeechFromCurrentParagraph() {
     if (isSpeechTransitioning) return
     isSpeechTransitioning = true
+    resetSpeechChunkState()
     store.stopTTS(false)
     if (speechRestartTimer) {
       clearTimeout(speechRestartTimer)

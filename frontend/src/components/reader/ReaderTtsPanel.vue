@@ -2,7 +2,10 @@
   <Transition name="slide-up">
     <div v-if="show" class="tts-controls" :style="{ background: theme.popup, color: theme.fontColor }">
       <div class="tts-head">
-        <div class="tts-info">正在朗读: {{ chapterTitle }}</div>
+        <div class="tts-info">
+          <div>正在朗读: {{ chapterTitle }}</div>
+          <div class="tts-mode">当前模式: {{ providerLabel }}<span v-if="provider === 'openai'"> · {{ openaiModel }} / {{ openaiVoice }}</span></div>
+        </div>
         <button class="tts-close" @click="$emit('close')" aria-label="close tts panel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6 6 18M6 6l12 12" />
@@ -11,14 +14,19 @@
       </div>
       <div class="tts-btns">
         <button @click="$emit('prev')">上一段</button>
-        <button @click="$emit('pause')">{{ isPaused ? '恢复' : '暂停' }}</button>
+        <button :disabled="isLoading" @click="$emit('toggle-play')">{{ isLoading ? '加载中' : (!isSpeaking ? '开始' : (isPaused ? '恢复' : '暂停')) }}</button>
         <button @click="$emit('stop')">停止</button>
         <button @click="$emit('next')">下一段</button>
       </div>
-      <select class="tts-voice-select" :value="voiceName" @change="$emit('voice-change', ($event.target as HTMLSelectElement).value)">
+      <select v-if="provider === 'system'" class="tts-voice-select" :value="voiceName" @change="$emit('voice-change', ($event.target as HTMLSelectElement).value)">
         <option value="">系统默认</option>
         <option v-for="voice in voices" :key="voice.name" :value="voice.name">
           {{ voice.name }} ({{ voice.lang }})
+        </option>
+      </select>
+      <select v-else class="tts-voice-select" :value="openaiVoice" @change="$emit('openai-voice-change', ($event.target as HTMLSelectElement).value)">
+        <option v-for="voice in openaiVoices" :key="voice.id" :value="voice.id">
+          {{ voice.label }}
         </option>
       </select>
       <div class="tts-tuning">
@@ -28,7 +36,7 @@
           <span>{{ rate.toFixed(1) }}</span>
           <button @click="$emit('rate-change', 0.1)">+</button>
         </div>
-        <div class="tts-stepper">
+        <div v-if="supportsPitch" class="tts-stepper">
           <span class="tts-label">语调</span>
           <button @click="$emit('pitch-change', -0.1)">-</button>
           <span>{{ pitch.toFixed(1) }}</span>
@@ -56,11 +64,19 @@ defineProps<{
   show: boolean
   theme: ThemePreset | { popup: string; fontColor: string }
   chapterTitle?: string
+  provider: 'system' | 'openai'
+  providerLabel: string
+  isSpeaking: boolean
+  isLoading: boolean
   isPaused: boolean
   voices: SpeechSynthesisVoice[]
   voiceName: string
   rate: number
   pitch: number
+  supportsPitch: boolean
+  openaiModel: string
+  openaiVoice: string
+  openaiVoices: Array<{ id: string; label: string }>
   stopAfterMinutes: number
   timerText: string
 }>()
@@ -68,10 +84,11 @@ defineProps<{
 defineEmits<{
   close: []
   prev: []
-  pause: []
+  'toggle-play': []
   stop: []
   next: []
   'voice-change': [value: string]
+  'openai-voice-change': [value: string]
   'rate-change': [delta: number]
   'pitch-change': [delta: number]
   'timer-change': [minutes: number]
@@ -112,6 +129,12 @@ defineEmits<{
   line-height: 1.5;
   opacity: 0.7;
   word-break: break-word;
+}
+
+.tts-mode {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.6;
 }
 
 .tts-close {
