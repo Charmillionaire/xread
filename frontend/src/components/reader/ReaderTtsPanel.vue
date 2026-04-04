@@ -24,11 +24,14 @@
           {{ voice.name }} ({{ voice.lang }})
         </option>
       </select>
-      <select v-else class="tts-voice-select" :value="openaiVoice" @change="$emit('openai-voice-change', ($event.target as HTMLSelectElement).value)">
-        <option v-for="voice in openaiVoices" :key="voice.id" :value="voice.id">
-          {{ voice.label }}
-        </option>
-      </select>
+      <input
+        v-else
+        class="tts-voice-select"
+        type="text"
+        :value="openaiVoice"
+        placeholder="alloy"
+        @input="$emit('openai-voice-change', ($event.target as HTMLInputElement).value)"
+      >
       <div class="tts-tuning">
         <div class="tts-stepper">
           <span class="tts-label">语速</span>
@@ -76,7 +79,6 @@ defineProps<{
   supportsPitch: boolean
   openaiModel: string
   openaiVoice: string
-  openaiVoices: Array<{ id: string; label: string }>
   stopAfterMinutes: number
   timerText: string
 }>()

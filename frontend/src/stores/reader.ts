@@ -19,7 +19,6 @@ import type { Book, BookChapter, Bookmark, ReplaceRule } from '../types'
 import { getBrowserCachedChapter, setBrowserCachedChapter } from '../utils/browserCache'
 import {
   DEFAULT_OPENAI_BASE_URL,
-  fetchOpenAISpeechOptions,
   requestOpenAISpeechAudio,
 } from '../utils/openaiSpeech'
 
@@ -478,11 +477,6 @@ export const useReaderStore = defineStore('reader', () => {
   const isPaused = ref(false)
   const voiceList = ref<SpeechSynthesisVoice[]>([])
   const speechConfig = reactive<SpeechConfig>(loadSpeechConfig())
-  const openAISpeechModels = ref<string[]>(speechConfig.openaiModel ? [speechConfig.openaiModel] : [])
-  const openAISpeechVoices = ref<Array<{ id: string; label: string }>>(
-    speechConfig.openaiVoice ? [{ id: speechConfig.openaiVoice, label: speechConfig.openaiVoice }] : [],
-  )
-  const openAISpeechLoading = ref(false)
   const openAISpeechConfigured = computed(() => {
     return !!speechConfig.openaiBaseUrl.trim()
   })
@@ -554,45 +548,6 @@ export const useReaderStore = defineStore('reader', () => {
     speechConfig.openaiVoice = voice
     clearPreloadedOpenAIAudio()
     saveSpeechConfig()
-  }
-
-  async function refreshOpenAISpeechOptions() {
-    if (!speechConfig.openaiBaseUrl.trim()) {
-      openAISpeechModels.value = speechConfig.openaiModel ? [speechConfig.openaiModel] : []
-      openAISpeechVoices.value = speechConfig.openaiVoice
-        ? [{ id: speechConfig.openaiVoice, label: speechConfig.openaiVoice }]
-        : []
-      return
-    }
-
-    openAISpeechLoading.value = true
-    try {
-      const data = await fetchOpenAISpeechOptions(speechConfig.openaiBaseUrl, speechConfig.openaiApiKey || undefined)
-      const models = Array.isArray(data.data)
-        ? data.data.map((item) => item.id).filter((item): item is string => typeof item === 'string' && !!item)
-        : []
-      const voices = data.voices && typeof data.voices === 'object'
-        ? Object.entries(data.voices).map(([id, label]) => ({ id, label }))
-        : []
-
-      openAISpeechModels.value = models.length ? models : (speechConfig.openaiModel ? [speechConfig.openaiModel] : [])
-      openAISpeechVoices.value = voices.length
-        ? voices
-        : (speechConfig.openaiVoice ? [{ id: speechConfig.openaiVoice, label: speechConfig.openaiVoice }] : [])
-
-      if (models.length && !models.includes(speechConfig.openaiModel)) {
-        speechConfig.openaiModel = models[0]
-      }
-      if (voices.length && !voices.some((item) => item.id === speechConfig.openaiVoice)) {
-        speechConfig.openaiVoice = voices[0].id
-      }
-      saveSpeechConfig()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '加载语音服务配置失败'
-      appStore.showToast(message, 'warning')
-    } finally {
-      openAISpeechLoading.value = false
-    }
   }
 
   function setSpeechRate(rate: number) {
@@ -1339,7 +1294,6 @@ export const useReaderStore = defineStore('reader', () => {
     refreshChapters,
     isSpeaking, isSpeechLoading, isPaused, startTTS, pauseTTS, stopTTS,
     voiceList, speechConfig, speechStopAt, speechProviderLabel, openAISpeechConfigured,
-    openAISpeechModels, openAISpeechVoices, openAISpeechLoading, refreshOpenAISpeechOptions,
     fetchVoices, setVoiceName, setSpeechProvider, setSpeechRate, setSpeechPitch, setSpeechStopTimer, clearSpeechStopTimer,
     setOpenAISpeechBaseUrl, setOpenAISpeechApiKey, setOpenAISpeechModel, setOpenAISpeechVoice, preloadOpenAITTS,
     displayContent,

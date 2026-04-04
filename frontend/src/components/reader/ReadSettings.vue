@@ -227,11 +227,8 @@
             type="url"
             :value="store.speechConfig.openaiBaseUrl"
             placeholder="http://localhost:8825"
-            @change="handleOpenAIBaseUrlChange"
+            @input="store.setOpenAISpeechBaseUrl(($event.target as HTMLInputElement).value)"
           >
-          <button class="opt-btn" :disabled="store.openAISpeechLoading" @click="store.refreshOpenAISpeechOptions()">
-            {{ store.openAISpeechLoading ? '加载中' : '刷新配置' }}
-          </button>
         </div>
 
         <div class="setting-row setting-row-top">
@@ -248,24 +245,28 @@
 
         <div class="setting-row setting-row-top">
           <label>语音模型</label>
-          <select class="voice-select" :value="store.speechConfig.openaiModel" @change="store.setOpenAISpeechModel(($event.target as HTMLSelectElement).value)">
-            <option v-for="model in store.openAISpeechModels" :key="model" :value="model">
-              {{ model }}
-            </option>
-          </select>
+          <input
+            class="voice-select"
+            type="text"
+            :value="store.speechConfig.openaiModel"
+            placeholder="gpt-4o-mini-tts"
+            @input="store.setOpenAISpeechModel(($event.target as HTMLInputElement).value)"
+          >
         </div>
 
         <div class="setting-row setting-row-top">
           <label>语音音色</label>
-          <select class="voice-select" :value="store.speechConfig.openaiVoice" @change="store.setOpenAISpeechVoice(($event.target as HTMLSelectElement).value)">
-            <option v-for="voice in store.openAISpeechVoices" :key="voice.id" :value="voice.id">
-              {{ voice.label }}
-            </option>
-          </select>
+          <input
+            class="voice-select"
+            type="text"
+            :value="store.speechConfig.openaiVoice"
+            placeholder="alloy"
+            @input="store.setOpenAISpeechVoice(($event.target as HTMLInputElement).value)"
+          >
         </div>
 
         <div class="setting-hint">
-          填写服务基地址即可，前端会自动访问 `/v1/models` 和 `/v1/audio/speech`。URL 和 Key 仅保存在当前浏览器。
+          填写服务基地址、模型名和音色名即可。前端只会请求 `/v1/audio/speech`，URL 和 Key 仅保存在当前浏览器。
         </div>
       </template>
 
@@ -347,17 +348,8 @@ function handleVoiceChange(event: Event) {
   store.setVoiceName(target?.value || '')
 }
 
-function handleOpenAIBaseUrlChange(event: Event) {
-  const target = event.target as HTMLInputElement | null
-  store.setOpenAISpeechBaseUrl(target?.value || '')
-  void store.refreshOpenAISpeechOptions()
-}
-
 onMounted(() => {
   store.fetchVoices()
-  if (store.speechConfig.provider === 'openai') {
-    void store.refreshOpenAISpeechOptions()
-  }
 })
 </script>
 

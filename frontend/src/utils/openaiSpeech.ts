@@ -1,19 +1,7 @@
 export const DEFAULT_OPENAI_BASE_URL = 'http://localhost:8825'
 
-export interface OpenAISpeechOptionsResponse {
-  data?: Array<{
-    id?: string
-  }>
-  voices?: Record<string, string>
-  languages?: Record<string, string>
-}
-
 export function normalizeOpenAIBaseUrl(url: string) {
   return url.trim().replace(/\/+$/, '')
-}
-
-export function buildOpenAIModelsUrl(baseUrl: string) {
-  return `${normalizeOpenAIBaseUrl(baseUrl)}/v1/models`
 }
 
 export function buildOpenAISpeechUrl(baseUrl: string) {
@@ -88,20 +76,4 @@ export async function requestOpenAISpeechAudio({
   }
 
   return response.blob()
-}
-
-export async function fetchOpenAISpeechOptions(baseUrl: string, apiKey?: string, signal?: AbortSignal) {
-  const response = await fetch(buildOpenAIModelsUrl(baseUrl), {
-    method: 'GET',
-    headers: {
-      ...buildAuthHeaders(apiKey),
-    },
-    signal,
-  })
-
-  if (!response.ok) {
-    throw new Error(await readSpeechError(response))
-  }
-
-  return response.json() as Promise<OpenAISpeechOptionsResponse>
 }

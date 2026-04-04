@@ -84,7 +84,6 @@
       :supports-pitch="store.speechConfig.provider === 'system'"
       :openai-model="store.speechConfig.openaiModel"
       :openai-voice="store.speechConfig.openaiVoice"
-      :openai-voices="store.openAISpeechVoices"
       :stop-after-minutes="store.speechConfig.stopAfterMinutes"
       :timer-text="speechTimerText"
       @close="showTTSPanel = false"
@@ -1275,9 +1274,6 @@ async function toggleBookmark() {
 
 function handleTTS() {
   showTTSPanel.value = true
-  if (store.speechConfig.provider === 'openai' && store.openAISpeechVoices.length <= 1) {
-    void store.refreshOpenAISpeechOptions()
-  }
 }
 
 function toggleSpeechFromPanel() {
@@ -1297,9 +1293,6 @@ watch(() => store.isAutoScrolling, (val) => {
 
 watch(showTTSPanel, (visible) => {
   if (!visible) return
-  if (store.speechConfig.provider === 'openai' && store.openAISpeechVoices.length <= 1) {
-    void store.refreshOpenAISpeechOptions()
-  }
 })
 
 function changeVoice(name: string) {
