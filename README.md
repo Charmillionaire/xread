@@ -6,6 +6,28 @@
 
 完整文档见：https://givenge.github.io/reader-rust/
 
+## 使用 Docker 部署
+
+### Linux AMD64
+```bash
+docker pull givenge/reader-rust:latest
+docker run -d \
+  --name reader \
+  -p 8080:8080 \
+  -v $(pwd)/storage:/app/storage \
+  givenge/reader-rust:latest
+```
+
+### Linux ARM64
+```bash
+docker pull givenge/reader-rust:arm64
+docker run -d \
+  --name reader \
+  -p 8080:8080 \
+  -v $(pwd)/storage:/app/storage \
+  givenge/reader-rust:arm64
+```
+
 ## 快速开始
 
 ```bash
