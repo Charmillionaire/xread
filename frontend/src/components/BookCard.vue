@@ -6,6 +6,16 @@
   >
     <!-- Cover -->
     <div class="card-cover" @click.stop="handleCoverClick">
+      <button
+        v-if="showDeleteAction && !editMode"
+        class="card-delete-btn"
+        title="删除最近阅读"
+        @click.stop="$emit('delete', book)"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>
+      </button>
       <img
         v-if="coverSrc"
         :src="coverSrc"
@@ -78,6 +88,7 @@ const props = defineProps<{
   selected?: boolean
   isSearch?: boolean
   dragging?: boolean
+  showDeleteAction?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -128,7 +139,10 @@ const serverCachedCount = computed(() => Math.max(0, asBook.value.cachedChapterC
 <style scoped>
 .book-card {
   display: flex;
+  align-items: stretch;
   gap: var(--space-4);
+  height: 100%;
+  min-height: 164px;
   padding: var(--space-4);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border-light);
@@ -209,6 +223,33 @@ const serverCachedCount = computed(() => Math.max(0, asBook.value.cachedChapterC
   line-height: 16px;
 }
 
+.card-delete-btn {
+  position: absolute;
+  top: var(--space-1);
+  left: var(--space-1);
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 14, 18, 0.58);
+  color: white;
+  backdrop-filter: blur(8px);
+  transition: transform var(--duration-fast), background var(--duration-fast);
+}
+
+.card-delete-btn:hover {
+  background: rgba(185, 44, 44, 0.9);
+  transform: scale(1.06);
+}
+
+.card-delete-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .selection-overlay {
   position: absolute;
   inset: 0;
@@ -285,6 +326,7 @@ const serverCachedCount = computed(() => Math.max(0, asBook.value.cachedChapterC
   min-width: 0;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: var(--space-1);
   padding: var(--space-1) 0;
 }
@@ -304,6 +346,7 @@ const serverCachedCount = computed(() => Math.max(0, asBook.value.cachedChapterC
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  min-height: 18px;
   font-size: var(--text-xs);
   color: var(--color-text-tertiary);
 }
@@ -329,13 +372,15 @@ const serverCachedCount = computed(() => Math.max(0, asBook.value.cachedChapterC
 
 .book-latest {
   color: var(--color-text-tertiary);
+  min-height: 18px;
 }
 
 .book-cache-row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: auto;
+  min-height: 28px;
 }
 
 .cache-chip {

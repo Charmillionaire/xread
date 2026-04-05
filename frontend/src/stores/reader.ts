@@ -17,6 +17,7 @@ import {
 import { getReplaceRules } from '../api/replaceRule'
 import type { Book, BookChapter, Bookmark, ReplaceRule } from '../types'
 import { getBrowserCachedChapter, setBrowserCachedChapter } from '../utils/browserCache'
+import { saveRecentReadBook } from '../utils/recentBooks'
 import {
   DEFAULT_OPENAI_BASE_URL,
   requestOpenAISpeechAudio,
@@ -933,6 +934,9 @@ export const useReaderStore = defineStore('reader', () => {
       }
     }
     syncLocalBookProgress(chapterScrollProgress.value)
+    if (book.value) {
+      saveRecentReadBook(book.value)
+    }
     localStorage.setItem('reader-currentIndex', String(index))
     saveReaderSession()
     markProgressDirty()

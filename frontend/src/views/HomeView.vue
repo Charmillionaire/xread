@@ -19,6 +19,9 @@
             <button class="shelf-btn" @click="shelfStore.selectAll()">全选</button>
             <button class="shelf-btn" @click="shelfStore.clearSelection()">取消全选</button>
           </template>
+          <button class="shelf-btn" @click="handleRefreshBooks" :disabled="shelfStore.refreshing">
+            {{ shelfStore.refreshing ? '刷新中' : '刷新书架' }}
+          </button>
           <button class="shelf-btn" @click="showGroupManager = true">分组管理</button>
           <button class="shelf-btn" @click="showCacheManager = true">缓存管理</button>
           <button
@@ -213,6 +216,14 @@ async function handleReorderBooks(payload: { draggedUrl: string; targetUrl: stri
     appStore.showToast(e.message || '排序失败', 'error')
   }
 }
+
+async function handleRefreshBooks() {
+  try {
+    await shelfStore.refreshBooks()
+  } catch (e: any) {
+    appStore.showToast(e.message || '刷新书架失败', 'error')
+  }
+}
 </script>
 
 <style scoped>
@@ -231,6 +242,7 @@ async function handleReorderBooks(payload: { draggedUrl: string; targetUrl: stri
   margin: 0 auto;
   padding: 0 var(--space-6);
 }
+
 
 .shelf-header {
   display: flex;
