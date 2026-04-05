@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
+  base: '/reader-rust/',
   title: 'Reader 3.0',
   description: '阅读3.0 - Rust版书源阅读服务器',
 
