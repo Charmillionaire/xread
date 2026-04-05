@@ -1,3 +1,7 @@
+---
+ignore: true
+---
+
 # Reader Rust 后端接口文档
 
 基于当前后端代码整理，面向前端重写使用。路由来源见 [src/api/router.rs](/Users/mac/project/reder/reader-rust/src/api/router.rs)。
