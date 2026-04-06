@@ -299,9 +299,9 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 }
 
 .source-select select {
-  width: 10ch;
+  width: 18ch;
   min-width: 10ch;
-  max-width: 10ch;
+  max-width: 18ch;
   border: 1px solid var(--color-border);
   background: var(--color-bg);
   border-radius: 12px;
@@ -613,9 +613,9 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
   }
 
   .source-select select {
-    width: 8ch;
+    width: 18ch;
     min-width: 8ch;
-    max-width: 8ch;
+    max-width: 18ch;
   }
 
   .rss-main {

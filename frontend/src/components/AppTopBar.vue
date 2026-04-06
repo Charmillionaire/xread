@@ -10,7 +10,7 @@
           <span class="logo-text">阅读</span>
         </div>
 
-        <div class="search-box" :class="{ focused: searchFocused }">
+        <div v-if="showGlobalSearch" class="search-box" :class="{ focused: searchFocused }">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.3-4.3" />
@@ -69,11 +69,12 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../stores/app'
 import { useBookshelfStore } from '../stores/bookshelf'
 
 const router = useRouter()
+const route = useRoute()
 const appStore = useAppStore()
 const shelfStore = useBookshelfStore()
 
@@ -83,6 +84,7 @@ const searchValue = ref('')
 const theme = computed(() => appStore.theme)
 const isLoggedIn = computed(() => appStore.isLoggedIn)
 const userInfo = computed(() => appStore.userInfo)
+const showGlobalSearch = computed(() => !route.path.startsWith('/rss') && route.path !== '/recent')
 
 function goHome() {
   shelfStore.clearSearch()

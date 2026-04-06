@@ -14,10 +14,12 @@
 
     <section class="rss-manage-tools">
       <button class="tool-btn" @click="triggerFileImport">本地导入 JSON</button>
-      <button class="tool-btn" @click="importRemoteJson">远程导入 JSON</button>
-      <button class="tool-btn primary" @click="createSource">新增 RSS 源</button>
+      <div class="remote-import-group">
+        <input v-model.trim="remoteJsonUrl" class="remote-input" placeholder="输入 Legado RSS JSON 链接" />
+        <button class="tool-btn" @click="importRemoteJson">远程导入 JSON</button>
+      </div>
+      <button class="tool-btn" :class="{ primary: !editingSource }" @click="createSource">新增 RSS 源</button>
       <input ref="fileInputRef" type="file" accept=".json,.txt" class="hidden-input" @change="handleFileImport" />
-      <input v-model.trim="remoteJsonUrl" class="remote-input" placeholder="输入 Legado RSS JSON 链接" />
     </section>
 
     <section class="rss-manage-layout">
@@ -60,7 +62,7 @@
         <div class="panel-title-row">
           <div class="panel-title">{{ editingSource ? '编辑 RSS 源' : '新增 RSS 源' }}</div>
           <div class="panel-actions">
-            <button class="ghost-btn" @click="formatEditor">格式化</button>
+            <button class="ghost-btn" @click="resetEditor">重置</button>
             <button class="ghost-btn primary" @click="saveEditor">保存</button>
           </div>
         </div>
@@ -68,15 +70,15 @@
         <div class="visual-form">
           <label>
             <span>源名称</span>
-            <input v-model.trim="formSourceName" @input="patchEditorField('sourceName', formSourceName)" placeholder="请输入 RSS 名称" />
+            <input v-model.trim="formState.sourceName" placeholder="请输入 RSS 名称" />
           </label>
           <label>
             <span>源链接</span>
-            <input v-model.trim="formSourceUrl" @input="patchEditorField('sourceUrl', formSourceUrl)" placeholder="请输入 RSS 链接" />
+            <input v-model.trim="formState.sourceUrl" placeholder="请输入 RSS 链接" />
           </label>
           <label class="group-field">
             <span>分组</span>
-            <input v-model.trim="formSourceGroup" @input="patchEditorField('sourceGroup', formSourceGroup)" placeholder="多个分组可用逗号分隔" />
+            <input v-model.trim="formState.sourceGroup" placeholder="多个分组可用逗号分隔" />
           </label>
           <div class="group-chip-row" v-if="groupList.length">
             <button
@@ -89,16 +91,111 @@
               {{ group }}
             </button>
           </div>
-        </div>
 
-        <textarea v-model="editorText" class="editor-textarea" spellcheck="false"></textarea>
+          <label>
+            <span>排序链接</span>
+            <input v-model.trim="formState.sortUrl" placeholder="为空时默认使用源链接" />
+          </label>
+          <label>
+            <span>图标链接</span>
+            <input v-model.trim="formState.sourceIcon" placeholder="可选" />
+          </label>
+          <label class="full-span">
+            <span>备注</span>
+            <textarea v-model.trim="formState.sourceComment" rows="2" placeholder="可选备注"></textarea>
+          </label>
+
+          <label class="switch-field">
+            <span>启用源</span>
+            <input v-model="formState.enabled" type="checkbox" />
+          </label>
+          <label class="switch-field">
+            <span>启用 CookieJar</span>
+            <input v-model="formState.enabledCookieJar" type="checkbox" />
+          </label>
+          <label class="switch-field">
+            <span>启用 JS</span>
+            <input v-model="formState.enableJs" type="checkbox" />
+          </label>
+          <label class="switch-field">
+            <span>单链接模式</span>
+            <input v-model="formState.singleUrl" type="checkbox" />
+          </label>
+          <label class="switch-field">
+            <span>基于源地址补全</span>
+            <input v-model="formState.loadWithBaseUrl" type="checkbox" />
+          </label>
+
+          <label>
+            <span>并发频率</span>
+            <input v-model.trim="formState.concurrentRate" placeholder="可选，如 1/1000" />
+          </label>
+          <label>
+            <span>自定义排序</span>
+            <input v-model.number="formState.customOrder" type="number" placeholder="0" />
+          </label>
+          <label>
+            <span>文章样式</span>
+            <input v-model.number="formState.articleStyle" type="number" placeholder="0" />
+          </label>
+
+          <label class="full-span">
+            <span>请求头</span>
+            <textarea v-model.trim="formState.header" rows="3" placeholder="可选，JSON 字符串"></textarea>
+          </label>
+          <label class="full-span">
+            <span>登录链接</span>
+            <input v-model.trim="formState.loginUrl" placeholder="可选" />
+          </label>
+          <label class="full-span">
+            <span>登录校验 JS</span>
+            <textarea v-model.trim="formState.loginCheckJs" rows="2" placeholder="可选"></textarea>
+          </label>
+
+          <label class="full-span">
+            <span>文章列表规则</span>
+            <textarea v-model.trim="formState.ruleArticles" rows="2" placeholder="ruleArticles"></textarea>
+          </label>
+          <label>
+            <span>下一页规则</span>
+            <input v-model.trim="formState.ruleNextPage" placeholder="ruleNextPage" />
+          </label>
+          <label>
+            <span>标题规则</span>
+            <input v-model.trim="formState.ruleTitle" placeholder="ruleTitle" />
+          </label>
+          <label>
+            <span>时间规则</span>
+            <input v-model.trim="formState.rulePubDate" placeholder="rulePubDate" />
+          </label>
+          <label>
+            <span>摘要规则</span>
+            <input v-model.trim="formState.ruleDescription" placeholder="ruleDescription" />
+          </label>
+          <label>
+            <span>图片规则</span>
+            <input v-model.trim="formState.ruleImage" placeholder="ruleImage" />
+          </label>
+          <label>
+            <span>链接规则</span>
+            <input v-model.trim="formState.ruleLink" placeholder="ruleLink" />
+          </label>
+          <label class="full-span">
+            <span>正文规则</span>
+            <textarea v-model.trim="formState.ruleContent" rows="3" placeholder="ruleContent"></textarea>
+          </label>
+          <label class="full-span">
+            <span>样式</span>
+            <textarea v-model.trim="formState.style" rows="2" placeholder="可选"></textarea>
+          </label>
+        </div>
       </section>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { readRemoteRssSourceFile, readRssSourceFile, saveRssSource } from '../api/rss'
 import { useAppStore } from '../stores/app'
@@ -114,10 +211,7 @@ const remoteJsonUrl = ref('')
 const filterText = ref('')
 const filterGroup = ref('')
 const editingSource = ref<RssSource | null>(null)
-const editorText = ref(JSON.stringify(createEmptySource(), null, 2))
-const formSourceName = ref('')
-const formSourceUrl = ref('')
-const formSourceGroup = ref('')
+const formState = reactive<RssSource>(createEmptySource())
 
 const groupList = computed(() => {
   const groups = new Set<string>()
@@ -132,7 +226,7 @@ const groupList = computed(() => {
   return Array.from(groups).sort()
 })
 
-const currentEditorGroups = computed(() => formSourceGroup.value.split(/[,;，、]/).map((item) => item.trim()).filter(Boolean))
+const currentEditorGroups = computed(() => (formState.sourceGroup || '').split(/[,;，、]/).map((item) => item.trim()).filter(Boolean))
 
 const filteredSources = computed(() => {
   let list = store.sources
@@ -154,7 +248,7 @@ onMounted(async () => {
   if (store.sources.length) {
     editSource(store.sources[0])
   } else {
-    syncFormFromEditor()
+    resetEditor()
   }
 })
 
@@ -175,31 +269,8 @@ function createEmptySource(): RssSource {
   }
 }
 
-function parseEditor() {
-  return JSON.parse(editorText.value) as RssSource
-}
-
-function syncFormFromEditor() {
-  try {
-    const parsed = parseEditor()
-    formSourceName.value = parsed.sourceName || ''
-    formSourceUrl.value = parsed.sourceUrl || ''
-    formSourceGroup.value = parsed.sourceGroup || ''
-  } catch {
-    formSourceName.value = ''
-    formSourceUrl.value = ''
-    formSourceGroup.value = ''
-  }
-}
-
-function patchEditorField(field: keyof RssSource, value: string) {
-  try {
-    const parsed = parseEditor()
-    parsed[field] = value as never
-    editorText.value = JSON.stringify(parsed, null, 2)
-  } catch {
-    // ignore until valid JSON
-  }
+function replaceFormState(next: RssSource) {
+  Object.assign(formState, createEmptySource(), next)
 }
 
 function toggleEditorGroup(group: string) {
@@ -209,8 +280,7 @@ function toggleEditorGroup(group: string) {
   } else {
     groups.add(group)
   }
-  formSourceGroup.value = Array.from(groups).join(', ')
-  patchEditorField('sourceGroup', formSourceGroup.value)
+  formState.sourceGroup = Array.from(groups).join(', ')
 }
 
 async function refreshAll() {
@@ -223,29 +293,46 @@ function goBack() {
 
 function editSource(source: RssSource) {
   editingSource.value = source
-  editorText.value = JSON.stringify(source, null, 2)
-  syncFormFromEditor()
+  replaceFormState(source)
 }
 
 function createSource() {
   editingSource.value = null
-  editorText.value = JSON.stringify(createEmptySource(), null, 2)
-  syncFormFromEditor()
+  replaceFormState(createEmptySource())
 }
 
-function formatEditor() {
-  try {
-    const parsed = parseEditor()
-    editorText.value = JSON.stringify(parsed, null, 2)
-    syncFormFromEditor()
-  } catch {
-    appStore.showToast('JSON 格式错误，无法格式化', 'error')
+function resetEditor() {
+  if (editingSource.value) {
+    replaceFormState(editingSource.value)
+    return
   }
+  createSource()
 }
 
 async function saveEditor() {
   try {
-    const parsed = parseEditor()
+    const parsed = {
+      ...createEmptySource(),
+      ...formState,
+      sourceName: formState.sourceName?.trim() || '',
+      sourceUrl: formState.sourceUrl?.trim() || '',
+      sourceGroup: formState.sourceGroup?.trim() || '',
+      sortUrl: formState.sortUrl?.trim() || '',
+      sourceIcon: formState.sourceIcon?.trim() || '',
+      sourceComment: formState.sourceComment?.trim() || '',
+      header: formState.header?.trim() || '',
+      loginUrl: formState.loginUrl?.trim() || '',
+      loginCheckJs: formState.loginCheckJs?.trim() || '',
+      ruleArticles: formState.ruleArticles?.trim() || '',
+      ruleNextPage: formState.ruleNextPage?.trim() || '',
+      ruleTitle: formState.ruleTitle?.trim() || '',
+      rulePubDate: formState.rulePubDate?.trim() || '',
+      ruleDescription: formState.ruleDescription?.trim() || '',
+      ruleImage: formState.ruleImage?.trim() || '',
+      ruleLink: formState.ruleLink?.trim() || '',
+      ruleContent: formState.ruleContent?.trim() || '',
+      style: formState.style?.trim() || '',
+    } as RssSource
     if (!parsed.sourceName?.trim()) throw new Error('RSS 名称不能为空')
     if (!parsed.sourceUrl?.trim()) throw new Error('RSS 链接不能为空')
     await saveRssSource(parsed)
@@ -335,11 +422,14 @@ function exportSources() {
 
 <style scoped>
 .rss-manage-view {
-  min-height: calc(100dvh - var(--header-height) - var(--safe-area-top));
+  height: calc(100dvh - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
+  min-height: calc(100dvh - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
+  box-sizing: border-box;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow: hidden;
 }
 
 .rss-manage-hero,
@@ -382,10 +472,19 @@ function exportSources() {
   justify-content: flex-start;
 }
 
+.remote-import-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: min(520px, 100%);
+}
+
 .remote-input,
 .filter-row input,
 .filter-row select,
-.visual-form input {
+.visual-form input,
+.visual-form textarea {
   border: 1px solid var(--color-border);
   background: var(--color-bg);
   border-radius: 12px;
@@ -393,8 +492,8 @@ function exportSources() {
 }
 
 .remote-input {
-  min-width: min(420px, 100%);
   flex: 1;
+  min-width: 0;
 }
 
 .rss-manage-layout {
@@ -410,19 +509,78 @@ function exportSources() {
   min-height: 0;
   overflow: auto;
   padding: 16px;
+  box-sizing: border-box;
+}
+
+.visual-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.visual-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.visual-form label > span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.visual-form textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.full-span {
+  grid-column: 1 / -1;
+}
+
+.group-chip-row {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: -2px;
+}
+
+.group-chip-btn {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+}
+
+.group-chip-btn.active {
+  border-color: rgba(201, 127, 58, 0.26);
+  background: rgba(201, 127, 58, 0.1);
+  color: var(--color-primary);
+}
+
+.switch-field {
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 14px;
+  background: var(--color-bg);
+}
+
+.switch-field input {
+  width: 18px;
+  height: 18px;
 }
 
 .panel-title {
   font-size: 14px;
   font-weight: 700;
-  margin-bottom: 12px;
-}
-
-.panel-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   margin-bottom: 12px;
 }
 
@@ -441,12 +599,6 @@ function exportSources() {
 .visual-form span {
   font-size: 13px;
   color: var(--color-text-tertiary);
-}
-
-.group-chip-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 .group-chip-btn,
@@ -522,20 +674,27 @@ function exportSources() {
   align-items: center;
 }
 
-.editor-textarea {
-  width: 100%;
-  min-height: 460px;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg);
-  border-radius: 18px;
-  padding: 14px 16px;
-  resize: vertical;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  line-height: 1.6;
-}
-
 .mini-btn.danger {
   color: var(--color-danger);
+}
+
+@media (max-width: 960px) {
+  .rss-manage-view {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .rss-manage-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .rss-sources {
+    max-height: 32dvh;
+  }
+
+  .remote-import-group {
+    min-width: 100%;
+  }
 }
 
 .empty-box {

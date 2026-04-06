@@ -50,6 +50,31 @@ export const useRssStore = defineStore('rss', () => {
       .trim()
   }
 
+  function normalizeFetchedContent(content?: string | null) {
+    const raw = (content || '').trim()
+    if (!raw) return ''
+
+    const lowered = raw.toLowerCase()
+    const looksLikeWholePage =
+      lowered.includes('<html') ||
+      lowered.includes('<body') ||
+      lowered.includes('<head') ||
+      lowered.includes('<form') ||
+      lowered.includes('搜索') ||
+      lowered.includes('首页') ||
+      lowered.includes('广告拦截器')
+
+    if (looksLikeWholePage) {
+      return ''
+    }
+
+    return raw
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+      .trim()
+  }
+
   function sourceGroups(source: RssSource) {
     return (source.sourceGroup || '')
       .split(/[,;，、]/)
@@ -165,11 +190,12 @@ export const useRssStore = defineStore('rss', () => {
     }
     contentLoading.value = true
     try {
-      activeContent.value = await getRssContent({
+      const fetchedContent = await getRssContent({
         sourceUrl,
         link: article.link,
         origin: article.origin || sourceUrl,
       })
+      activeContent.value = normalizeFetchedContent(fetchedContent) || inlineContent || ''
       saveRecentReadBook({
         name: article.title || 'RSS 文章',
         author: article.origin || 'RSS',

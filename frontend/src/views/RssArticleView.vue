@@ -1,14 +1,16 @@
 ﻿<template>
   <div class="rss-article-view">
-    <header class="article-page-header">
-      <button class="back-btn" @click="goBack">返回文章列表</button>
-      <button class="ghost-btn" @click="goManage">管理订阅源</button>
-    </header>
-
     <article class="article-page-card">
       <template v-if="store.activeArticle">
         <div class="article-page-head">
-          <h1>{{ store.activeArticle.title || '正文' }}</h1>
+          <div class="article-title-row">
+            <button class="back-icon-btn" @click="goBack" aria-label="返回文章列表" title="返回文章列表">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </button>
+            <h1>{{ store.activeArticle.title || '正文' }}</h1>
+          </div>
           <div class="article-page-meta">
             <span v-if="store.activeArticle.pubDate">{{ formatRelativeTime(store.activeArticle.pubDate) }}</span>
             <span v-if="store.activeArticle.origin" class="meta-sep">·</span>
@@ -73,10 +75,6 @@ function goBack() {
   router.push('/rss')
 }
 
-function goManage() {
-  router.push('/rss/manage')
-}
-
 function formatRelativeTime(value?: string) {
   if (!value) return ''
   const timestamp = Date.parse(value)
@@ -102,27 +100,13 @@ function formatRelativeTime(value?: string) {
 
 <style scoped>
 .rss-article-view {
-  min-height: calc(100dvh - var(--header-height) - var(--safe-area-top) - var(--safe-area-bottom));
+  height: calc(100dvh - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
+  min-height: calc(100dvh - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 10px;
   padding: 12px;
-}
-
-.article-page-header,
-.article-page-card {
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-light);
-  border-radius: 24px;
-}
-
-.article-page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
+  overflow: hidden;
 }
 
 .article-page-card {
@@ -132,6 +116,10 @@ function formatRelativeTime(value?: string) {
   flex-direction: column;
   padding: 16px;
   box-sizing: border-box;
+  overflow: hidden;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-light);
+  border-radius: 24px;
 }
 
 .article-page-head {
@@ -139,6 +127,12 @@ function formatRelativeTime(value?: string) {
   flex-direction: column;
   gap: 8px;
   margin-bottom: 14px;
+}
+
+.article-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .article-page-head h1 {
@@ -162,14 +156,22 @@ function formatRelativeTime(value?: string) {
   overflow: auto;
 }
 
-.back-btn,
-.ghost-btn {
-  padding: 8px 14px;
+.back-icon-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   border-radius: 999px;
   border: 1px solid var(--color-border-light);
   background: var(--color-bg);
   color: var(--color-text-secondary);
-  font-size: 14px;
+}
+
+.back-icon-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .content-html {
@@ -215,18 +217,12 @@ function formatRelativeTime(value?: string) {
 
 @media (max-width: 640px) {
   .rss-article-view {
-    box-sizing: border-box;
     padding: 10px;
-    gap: 8px;
-  }
-
-  .article-page-header,
-  .article-page-card {
-    border-radius: 20px;
   }
 
   .article-page-card {
     padding: 14px;
+    border-radius: 20px;
   }
 
   .article-page-head h1 {
