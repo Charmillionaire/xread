@@ -12,7 +12,7 @@ WORKDIR /app
 COPY target/x86_64-unknown-linux-musl/release/reader-rust /app/reader-rust
 
 # Copy frontend dist
-COPY web/dist /app/web/dist
+COPY frontend/dist /app/web/dist
 
 # Create storage directory
 RUN mkdir -p /app/storage/assets
