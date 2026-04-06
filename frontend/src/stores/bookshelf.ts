@@ -12,13 +12,46 @@ import {
 } from '../api/bookshelf'
 import type { Book, BookGroup, SearchBook } from '../types'
 import { deleteBrowserBookCache, listBrowserCacheSummary } from '../utils/browserCache'
+import { clearRecentReadBooks, getRecentReadBookKey, loadRecentReadBooks, removeRecentReadBook } from '../utils/recentBooks'
 
 export const useBookshelfStore = defineStore('bookshelf', () => {
   // ─── Bookshelf ───
   const books = ref<Book[]>([])
+  const recentBooks = ref<Book[]>([])
   const loading = ref(false)
   const refreshing = ref(false)
   const sorting = ref(false)
+
+  async function refreshRecentBooks() {
+    const browserSummaries = await listBrowserCacheSummary().catch(() => [])
+    const browserMap = new Map(browserSummaries.map((item) => [item.bookUrl, item.cachedChapterCount]))
+    const shelfMap = new Map(books.value.map((book) => [getRecentReadBookKey(book), book]))
+    recentBooks.value = loadRecentReadBooks().map((entry) => {
+      const shelfBook = shelfMap.get(getRecentReadBookKey(entry))
+      const merged = shelfBook
+        ? {
+            ...entry,
+            ...shelfBook,
+            recentReadAt: entry.recentReadAt,
+            durChapterTime: entry.recentReadAt,
+          }
+        : entry
+      return {
+        ...merged,
+        browserCachedChapterCount: browserMap.get(merged.bookUrl) || merged.browserCachedChapterCount || 0,
+      }
+    })
+  }
+
+  async function removeRecentBook(book: Pick<Book, 'bookUrl' | 'origin'>) {
+    removeRecentReadBook(book)
+    await refreshRecentBooks()
+  }
+
+  async function clearAllRecentBooks() {
+    clearRecentReadBooks()
+    await refreshRecentBooks()
+  }
 
   async function fetchBooks() {
     loading.value = true
@@ -32,6 +65,7 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
         ...book,
         browserCachedChapterCount: browserMap.get(book.bookUrl) || 0,
       }))
+      await refreshRecentBooks()
     } finally {
       loading.value = false
     }
@@ -49,6 +83,7 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
         ...book,
         browserCachedChapterCount: browserMap.get(book.bookUrl) || 0,
       }))
+      await refreshRecentBooks()
     } finally {
       refreshing.value = false
     }
@@ -58,6 +93,7 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
     await apiDeleteBook(book)
     await deleteBrowserBookCache(book.bookUrl).catch(() => undefined)
     books.value = books.value.filter((b) => b.bookUrl !== book.bookUrl)
+    await refreshRecentBooks()
   }
 
   // ─── Groups ───
@@ -212,8 +248,9 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
   }
 
   return {
-    books, loading, refreshing, sorting,
+    books, recentBooks, loading, refreshing, sorting,
     fetchBooks, refreshBooks, removeBook,
+    refreshRecentBooks, removeRecentBook, clearAllRecentBooks,
     groups, activeGroupId, displayGroups, filteredBooks,
     fetchGroups, saveGroup, removeGroup,
     searchResults, isSearching, searchKey, clearSearch, isSearchMode,
