@@ -96,6 +96,14 @@
         </div>
       </div>
 
+      <div class="setting-row">
+        <label>首行缩进</label>
+        <div class="btn-group">
+          <button class="opt-btn" :class="{ active: config.firstLineIndent }" @click="store.updateConfig('firstLineIndent', true)">开启</button>
+          <button class="opt-btn" :class="{ active: !config.firstLineIndent }" @click="store.updateConfig('firstLineIndent', false)">关闭</button>
+        </div>
+      </div>
+
       <!-- 页面模式 -->
       <div class="setting-row">
         <label>页面模式</label>

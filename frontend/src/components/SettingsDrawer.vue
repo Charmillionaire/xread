@@ -139,6 +139,10 @@
               <span>{{ appStore.isOnline ? '\u5728\u7ebf' : '\u79bb\u7ebf' }}</span>
               <small>{{ appStore.pwaReady ? '\u5df2\u542f\u7528\u79bb\u7ebf\u5916\u58f3\u7f13\u5b58' : '\u79bb\u7ebf\u5916\u58f3\u672a\u542f\u7528' }}</small>
             </div>
+            <div class="status-card">
+              <span>{{ appVersion }}</span>
+              <small>当前应用版本</small>
+            </div>
             <div v-if="appStore.pwaUpdateAvailable" class="status-card accent">
               <span>&#21457;&#29616;&#26032;&#29256;&#26412;</span>
               <small>&#21047;&#26032;&#21518;&#21487;&#20351;&#29992;&#26368;&#26032;&#31163;&#32447;&#36164;&#28304;</small>
@@ -258,6 +262,7 @@ const emit = defineEmits<{
 
 const appStore = useAppStore()
 const shelfStore = useBookshelfStore()
+const appVersion = __APP_VERSION__
 const showPasswordPanel = ref(false)
 const changingPassword = ref(false)
 const passwordForm = reactive({

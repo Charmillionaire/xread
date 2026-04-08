@@ -32,12 +32,12 @@ export function useHorizontalPaging(
     for (const ch of text) {
       current += ch
       if (breakers.has(ch) && current.trim().length >= 10) {
-        result.push(current.trim())
+        result.push(current.trimEnd())
         current = ''
       }
     }
     if (current.trim()) {
-      result.push(current.trim())
+      result.push(current.trimEnd())
     }
     return result.length ? result : [text]
   }
@@ -65,23 +65,33 @@ export function useHorizontalPaging(
       .join('; ')
   }
 
+  function removeIndentClass(className: string) {
+    return className
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((name) => name !== 'reader-indent')
+      .join(' ')
+  }
+
   function splitParagraphHtml(paragraphHtml: string) {
     const wrapper = document.createElement('div')
     wrapper.innerHTML = paragraphHtml
     const paragraph = wrapper.querySelector('p')
     if (!paragraph) return [paragraphHtml]
-    const text = (paragraph.textContent || '').trim()
-    if (!text) return [paragraphHtml]
+    const text = (paragraph.textContent || '').trimEnd()
+    if (!text.trim()) return [paragraphHtml]
     const style = paragraph.getAttribute('style') || ''
+    const className = paragraph.getAttribute('class') || ''
     const baseStyle = parseInlineStyle(style)
     const segments = splitTextByPunctuation(text)
     return segments.map((segment, idx) => {
       const styleObj = { ...baseStyle }
-      if (idx > 0) delete styleObj['text-indent']
       if (idx < segments.length - 1) delete styleObj['margin-bottom']
       const styleText = buildInlineStyle(styleObj)
       const stylePart = styleText ? ` style="${styleText}"` : ''
-      return `<p${stylePart}>${escapeHtml(segment)}</p>`
+      const nextClassName = idx > 0 ? removeIndentClass(className) : className
+      const classPart = nextClassName ? ` class="${nextClassName}"` : ''
+      return `<p${classPart}${stylePart}>${escapeHtml(segment)}</p>`
     })
   }
 
@@ -92,13 +102,15 @@ export function useHorizontalPaging(
     if (!paragraph) return null
     return {
       style: paragraph.getAttribute('style') || '',
-      text: (paragraph.textContent || '').trim(),
+      className: paragraph.getAttribute('class') || '',
+      text: (paragraph.textContent || '').trimEnd(),
     }
   }
 
-  function buildParagraphHtml(style: string, text: string) {
+  function buildParagraphHtml(style: string, text: string, className = '') {
     const stylePart = style ? ` style="${style}"` : ''
-    return `<p${stylePart}>${escapeHtml(text)}</p>`
+    const classPart = className ? ` class="${className}"` : ''
+    return `<p${classPart}${stylePart}>${escapeHtml(text)}</p>`
   }
 
   function buildHorizontalParagraphs() {
@@ -193,18 +205,20 @@ export function useHorizontalPaging(
           const parsed = parseParagraphHtml(pending)
           const canSplit = parsed && parsed.text.length > 1
           if (canSplit) {
-            const { style, text } = parsed
+            const { style, text, className } = parsed
             const styleObj = parseInlineStyle(style)
             const splitPieceStyle = { ...styleObj }
             delete splitPieceStyle['margin-bottom']
             const splitPieceStyleText = buildInlineStyle(splitPieceStyle)
+            const splitPieceClassName = removeIndentClass(className)
             let left = 1
             let right = text.length
             let fitCount = 0
             while (left <= right) {
               const mid = Math.floor((left + right) / 2)
               const tryStyle = mid < text.length ? splitPieceStyleText : style
-              const tryHtml = buildParagraphHtml(tryStyle, text.slice(0, mid))
+              const tryClassName = mid < text.length ? splitPieceClassName : className
+              const tryHtml = buildParagraphHtml(tryStyle, text.slice(0, mid), tryClassName)
               const tryParts = [...currentParts, tryHtml]
               if (!overflows(tryParts)) {
                 fitCount = mid
@@ -216,11 +230,12 @@ export function useHorizontalPaging(
 
             if (fitCount > 0) {
               const fitStyle = fitCount < text.length ? splitPieceStyleText : style
-              const fitHtml = buildParagraphHtml(fitStyle, text.slice(0, fitCount))
+              const fitClassName = fitCount < text.length ? splitPieceClassName : className
+              const fitHtml = buildParagraphHtml(fitStyle, text.slice(0, fitCount), fitClassName)
               currentParts = [...currentParts, fitHtml]
               flushPage()
               const remain = text.slice(fitCount)
-              pending = remain ? buildParagraphHtml(style, remain) : ''
+              pending = remain ? buildParagraphHtml(style, remain, splitPieceClassName) : ''
               continue
             }
           }

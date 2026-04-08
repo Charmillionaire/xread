@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from './stores/app'
 import AppTopBar from './components/AppTopBar.vue'
@@ -49,9 +49,19 @@ onMounted(() => {
   appStore.fetchUserInfo()
 })
 
-// Listen for need-login events from API layer
-window.addEventListener('need-login', () => {
-  appStore.showLoginModal = true
+async function handleNeedLogin() {
+  await appStore.fetchUserInfo()
+  if (!appStore.isLoggedIn) {
+    appStore.showLoginModal = true
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('need-login', handleNeedLogin)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('need-login', handleNeedLogin)
 })
 </script>
 

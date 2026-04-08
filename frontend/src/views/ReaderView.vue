@@ -308,6 +308,8 @@ interface SavedReadingPosition {
   updatedAt: number
 }
 
+const CONTINUOUS_POSITION_ANCHOR_RATIO = 0.12
+
 function debugPositionLog(message: string, payload?: unknown) {
   void message
   void payload
@@ -337,6 +339,8 @@ let persistPositionTimer: number | null = null
 const pendingRestorePosition = ref<SavedReadingPosition | null>(null)
 let pendingRestoreAttempts = 0
 let suppressPositionSaveUntil = 0
+let suppressContinuousScrollSyncUntil = 0
+let suppressContinuousAutoLoadUntil = 0
 const restoreStabilizeTimers: number[] = []
 const isContinuousMode = computed(() =>
   config.value.readMethod === '上下滚动' || config.value.readMethod === '上下滚动2',
@@ -452,10 +456,36 @@ function formatChapterHtml(rawText: string) {
     } catch { /* invalid regex */ }
   }
 
+  const stripLeadingIndent = (line: string) => line.replace(/^[\u3000\u00A0 \t]+/, '')
+
+  if (/<[a-z][\s\S]*>/i.test(text)) {
+    const wrapper = document.createElement('div')
+    wrapper.innerHTML = text
+    const paragraphs = Array.from(wrapper.querySelectorAll('p')) as HTMLParagraphElement[]
+    if (paragraphs.length) {
+      paragraphs.forEach((paragraph) => {
+        const plainText = (paragraph.textContent || '').replace(/^[\u3000\u00A0 \t]+/, '').trim()
+        if (!plainText) {
+          paragraph.remove()
+          return
+        }
+        paragraph.innerHTML = paragraph.innerHTML.replace(/^[\u3000\u00A0 \t]+/, '')
+        paragraph.style.marginTop = '0'
+        paragraph.style.marginBottom = `${config.value.paragraphSpacing}em`
+        paragraph.classList.toggle('reader-indent', config.value.firstLineIndent)
+      })
+      return wrapper.innerHTML
+    }
+  }
+
   return text
     .split(/\n/)
     .filter((line: string) => line.trim())
-    .map((line: string) => `<p style="margin-top: 0; margin-bottom: ${config.value.paragraphSpacing}em; text-indent: 2em;">${line.trim()}</p>`)
+    .map((line: string) => {
+      const shouldIndent = config.value.firstLineIndent
+      const content = stripLeadingIndent(line.trimEnd())
+      return `<p${shouldIndent ? ' class="reader-indent"' : ''} style="margin-top: 0; margin-bottom: ${config.value.paragraphSpacing}em;">${content}</p>`
+    })
     .join('')
 }
 
@@ -495,7 +525,6 @@ const {
   initializeContinuousChapters,
   syncContinuousToStoreState,
   loadContinuousNext,
-  loadContinuousPrev,
   ensureContinuousChapterLoaded,
   getContinuousSections,
   scrollToContinuousChapter,
@@ -588,8 +617,9 @@ async function prevChapter() {
   const chapter = getContinuousChapter(targetIndex)
   if (!chapter) return
   setContinuousActiveChapter(targetIndex, chapter.content, 0)
+  suppressContinuousScrollSyncUntil = Date.now() + 400
   await nextTick()
-  scrollToContinuousChapter(targetIndex)
+  scrollToContinuousChapter(targetIndex, false)
 }
 
 async function nextChapter() {
@@ -606,8 +636,9 @@ async function nextChapter() {
   const chapter = getContinuousChapter(targetIndex)
   if (!chapter) return
   setContinuousActiveChapter(targetIndex, chapter.content, 0)
+  suppressContinuousScrollSyncUntil = Date.now() + 400
   await nextTick()
-  scrollToContinuousChapter(targetIndex)
+  scrollToContinuousChapter(targetIndex, false)
 }
 
 async function jumpFromCatalog(targetIndex: number) {
@@ -622,14 +653,16 @@ async function jumpFromCatalog(targetIndex: number) {
 
   const jumpDistance = Math.abs(targetIndex - store.currentIndex)
   if (jumpDistance > 2) {
+    suppressContinuousScrollSyncUntil = Date.now() + 400
     await initializeContinuousChapters(targetIndex, false)
   } else {
     await ensureContinuousChapterLoaded(targetIndex)
     const chapter = getContinuousChapter(targetIndex)
     if (!chapter) return
     setContinuousActiveChapter(targetIndex, chapter.content, 0)
+    suppressContinuousScrollSyncUntil = Date.now() + 400
     await nextTick()
-    scrollToContinuousChapter(targetIndex)
+    scrollToContinuousChapter(targetIndex, false)
   }
   store.closePanel()
 }
@@ -756,7 +789,8 @@ function saveReadingPosition() {
     updatedAt: Date.now(),
   }
 
-  const anchorViewportY = container.getBoundingClientRect().top + container.clientHeight * 0.3
+  const anchorRatio = isContinuousMode.value ? CONTINUOUS_POSITION_ANCHOR_RATIO : 0.3
+  const anchorViewportY = container.getBoundingClientRect().top + container.clientHeight * anchorRatio
   if (isContinuousMode.value && continuousChapters.value.length) {
     const section = container.querySelector(`.continuous-chapter[data-chapter-index="${store.currentIndex}"]`) as HTMLElement | null
     const paragraphs = Array.from(section?.querySelectorAll('.chapter-text p') || []) as HTMLElement[]
@@ -860,7 +894,7 @@ function restoreReadingPositionInternal(saved: SavedReadingPosition | null, fina
     return true
   }
 
-  const anchorOffset = container.clientHeight * 0.3
+  const anchorOffset = container.clientHeight * (isContinuousMode.value ? CONTINUOUS_POSITION_ANCHOR_RATIO : 0.3)
   let targetTop = 0
 
   if (isContinuousMode.value) {
@@ -892,7 +926,7 @@ function restoreReadingPositionInternal(saved: SavedReadingPosition | null, fina
       const paragraph = paragraphs[Math.max(0, Math.min(paragraphs.length - 1, saved.paragraphIndex))]
       const top = paragraph.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop
       const paragraphProgress = Math.max(0, Math.min(1, saved.paragraphProgress || 0))
-      targetTop = top + paragraph.offsetHeight * paragraphProgress - anchorOffset
+      targetTop = Math.max(section.offsetTop, top + paragraph.offsetHeight * paragraphProgress - anchorOffset)
     } else {
       const nextSection = section.nextElementSibling as HTMLElement | null
       const sectionHeight = Math.max(1, (nextSection ? nextSection.offsetTop : container.scrollHeight) - section.offsetTop)
@@ -904,7 +938,10 @@ function restoreReadingPositionInternal(saved: SavedReadingPosition | null, fina
         })
         return false
       }
-      targetTop = section.offsetTop + sectionHeight * Math.max(0, Math.min(1, saved.progress || 0))
+      targetTop = Math.max(
+        section.offsetTop,
+        section.offsetTop + sectionHeight * Math.max(0, Math.min(1, saved.progress || 0)),
+      )
     }
   } else {
     const paragraphs = Array.from(chapterTextRef.value?.querySelectorAll('p') || []) as HTMLElement[]
@@ -946,6 +983,9 @@ function restoreReadingPositionInternal(saved: SavedReadingPosition | null, fina
   if (finalize) {
     pendingRestorePosition.value = null
     pendingRestoreAttempts = 0
+    const suppressMs = isContinuousMode.value && isIosWebkit.value ? 1600 : 500
+    suppressContinuousScrollSyncUntil = Date.now() + suppressMs
+    suppressContinuousAutoLoadUntil = Date.now() + suppressMs
     scheduleRestoreStabilization(saved)
   }
   suppressPositionSaveUntil = Date.now() + 400
@@ -1117,9 +1157,13 @@ function handleScroll() {
   hideSelectionMenu()
   const container = scrollContainerRef.value
   if (container && isContinuousMode.value && continuousChapters.value.length) {
+    if (Date.now() < suppressContinuousScrollSyncUntil) {
+      scheduleSaveReadingPosition()
+      return
+    }
     const sections = getContinuousSections()
     if (sections.length) {
-      const anchorLine = container.scrollTop + container.clientHeight * 0.3
+      const anchorLine = container.scrollTop + container.clientHeight * CONTINUOUS_POSITION_ANCHOR_RATIO
       let activeSection = sections[0]
       for (const section of sections) {
         if (section.offsetTop <= anchorLine) {
@@ -1146,10 +1190,7 @@ function handleScroll() {
       }
     }
 
-    if (container.scrollTop < 240) {
-      loadContinuousPrev()
-    }
-    if (container.scrollHeight - (container.scrollTop + container.clientHeight) < 480) {
+    if (Date.now() >= suppressContinuousAutoLoadUntil && container.scrollHeight - (container.scrollTop + container.clientHeight) < 480) {
       loadContinuousNext()
     }
   } else if (container) {
@@ -1534,7 +1575,7 @@ watch(() => store.currentIndex, () => {
 })
 
 watch(
-  [() => store.content, () => config.value.fontSize, () => config.value.fontWeight, () => config.value.lineHeight, () => config.value.paragraphSpacing, showSearch, searchQuery],
+  [() => store.content, () => config.value.fontSize, () => config.value.fontWeight, () => config.value.lineHeight, () => config.value.paragraphSpacing, () => config.value.firstLineIndent, showSearch, searchQuery],
   () => {
     if (isHorizontalPageMode.value) {
       horizontalPageIndex.value = 0
@@ -1600,7 +1641,7 @@ watch(() => store.book?.bookUrl, () => {
   void refreshOfflineCacheState()
 })
 
-watch([showSearch, searchQuery, () => config.value.paragraphSpacing], () => {
+watch([showSearch, searchQuery, () => config.value.paragraphSpacing, () => config.value.firstLineIndent], () => {
   if (isContinuousMode.value) {
     syncContinuousChapterHtml()
   }
@@ -1826,7 +1867,12 @@ watch(
   box-shadow: inset 0 0 0 1px rgba(201, 127, 58, 0.18);
 }
 
+:deep(.chapter-text p.reader-indent) {
+  text-indent: 2em !important;
+}
+
 :deep(.chapter-text p) {
+  text-indent: 0;
   user-select: text;
   -webkit-user-select: text;
 }

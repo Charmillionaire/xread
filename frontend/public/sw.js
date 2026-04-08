@@ -1,5 +1,5 @@
-const SHELL_CACHE = 'reader-shell-v1'
-const RUNTIME_CACHE = 'reader-runtime-v1'
+const SHELL_CACHE = 'reader-shell-v1-0-0'
+const RUNTIME_CACHE = 'reader-runtime-v1-0-0'
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -12,7 +12,11 @@ const SHELL_ASSETS = [
 ]
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_ASSETS)))
+  event.waitUntil(
+    caches.open(SHELL_CACHE)
+      .then((cache) => cache.addAll(SHELL_ASSETS))
+      .then(() => self.skipWaiting()),
+  )
 })
 
 self.addEventListener('activate', (event) => {

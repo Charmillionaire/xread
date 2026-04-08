@@ -42,6 +42,7 @@ export interface ReadConfig {
   fontFamily: string
   lineHeight: number
   paragraphSpacing: number
+  firstLineIndent: boolean
   fontColor: string
   pageWidth: number
   pageMode: 'auto' | 'mobile'
@@ -63,6 +64,7 @@ const defaultConfig: ReadConfig = {
   fontFamily: 'system',
   lineHeight: 1.8,
   paragraphSpacing: 0.2,
+  firstLineIndent: true,
   fontColor: '',
   pageWidth: 800,
   pageMode: 'auto',

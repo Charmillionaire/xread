@@ -110,8 +110,6 @@ export function useContinuousReading(
         current.content = store.content
         current.html = formatChapterHtml(store.content)
       }
-      await nextTick()
-      scrollToContinuousChapter(store.currentIndex, false)
       return
     }
 
