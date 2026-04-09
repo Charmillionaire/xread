@@ -33,6 +33,21 @@ export function useReaderAutoPlayback(
   let currentSpeechChunks: string[] = []
   let currentSpeechChunkIndex = 0
 
+  function isSafariSpeechDelayBrowser() {
+    if (typeof navigator === 'undefined') return false
+    const ua = navigator.userAgent || ''
+    return /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg|EdgiOS|Android/i.test(ua)
+  }
+
+  function paragraphPreview(paragraph: HTMLElement | null) {
+    return paragraph?.innerText.trim().slice(0, 40) || ''
+  }
+
+  function logSpeech(message: string, payload?: unknown) {
+    void message
+    void payload
+  }
+
   function getFilteredParagraphs() {
     const roots = isContinuousMode.value
       ? Array.from(scrollContainerRef.value?.querySelectorAll('.chapter-text[data-role="continuous"]') || []) as HTMLElement[]
@@ -72,6 +87,10 @@ export function useReaderAutoPlayback(
 
   function getPrevParagraph() {
     const current = getCurrentParagraph()
+    return getPrevParagraphFrom(current)
+  }
+
+  function getPrevParagraphFrom(current: HTMLElement | null) {
     const list = getFilteredParagraphs()
     const index = current ? list.indexOf(current) : -1
     if (index > 0) return list[index - 1]
@@ -80,6 +99,10 @@ export function useReaderAutoPlayback(
 
   function getNextParagraph() {
     const current = getCurrentParagraph()
+    return getNextParagraphFrom(current)
+  }
+
+  function getNextParagraphFrom(current: HTMLElement | null) {
     const list = getFilteredParagraphs()
     const index = current ? list.indexOf(current) : -1
     if (index >= 0 && index < list.length - 1) return list[index + 1]
@@ -154,7 +177,7 @@ export function useReaderAutoPlayback(
     if (store.speechConfig.provider !== 'openai') {
       return {
         text: paragraph.innerText.trim(),
-        nextParagraph: getNextParagraph(),
+        nextParagraph: getNextParagraphFrom(paragraph),
       }
     }
 
@@ -166,7 +189,7 @@ export function useReaderAutoPlayback(
 
     return {
       text: currentSpeechChunks[currentSpeechChunkIndex] || '',
-      nextParagraph: currentSpeechChunkIndex < currentSpeechChunks.length - 1 ? paragraph : getNextParagraph(),
+      nextParagraph: currentSpeechChunkIndex < currentSpeechChunks.length - 1 ? paragraph : getNextParagraphFrom(paragraph),
     }
   }
 
@@ -307,7 +330,12 @@ export function useReaderAutoPlayback(
     }
   }
 
-  function restartSpeechTarget(paragraph: HTMLElement | null) {
+  function restartSpeechTarget(paragraph: HTMLElement | null, interruptCurrent = true) {
+    logSpeech('restartSpeechTarget', {
+      interruptCurrent,
+      paragraph: paragraphPreview(paragraph),
+      isSpeechTransitioning,
+    })
     if (!paragraph) {
       store.stopTTS()
       resetSpeechChunkState()
@@ -316,20 +344,94 @@ export function useReaderAutoPlayback(
     if (isSpeechTransitioning) return
     isSpeechTransitioning = true
     resetSpeechChunkState()
-    store.stopTTS(false)
+    if (interruptCurrent) {
+      store.stopTTS(false)
+    }
     if (speechRestartTimer) {
       clearTimeout(speechRestartTimer)
     }
+    const restartDelay = !interruptCurrent && store.speechConfig.provider === 'system'
+      ? ((isSafariSpeechDelayBrowser() && !store.systemTtsNativeEventsReliable) ? 160 : 40)
+      : 150
     speechRestartTimer = window.setTimeout(() => {
+      if (store.isPaused) {
+        isSpeechTransitioning = false
+        return
+      }
       isSpeechTransitioning = false
-      startSpeech(paragraph)
-    }, 150)
+      startSpeech(paragraph, interruptCurrent)
+    }, restartDelay)
   }
 
-  function startSpeech(paragraph?: HTMLElement | null) {
+  function continueSpeechTarget(paragraph: HTMLElement | null, resetChunks = true) {
+    logSpeech('continueSpeechTarget', {
+      resetChunks,
+      paragraph: paragraphPreview(paragraph),
+      hasNextChapter: store.hasNext,
+    })
+    if (speechRestartTimer) {
+      clearTimeout(speechRestartTimer)
+    }
+
+    const continueDelay = store.speechConfig.provider === 'system'
+      ? ((isSafariSpeechDelayBrowser() && !store.systemTtsNativeEventsReliable) ? 160 : 40)
+      : 120
+
+    if (paragraph) {
+      isSpeechTransitioning = true
+      if (resetChunks) {
+        resetSpeechChunkState()
+      }
+      speechRestartTimer = window.setTimeout(() => {
+        if (store.isPaused) {
+          isSpeechTransitioning = false
+          return
+        }
+        isSpeechTransitioning = false
+        startSpeech(paragraph, false)
+      }, continueDelay)
+      return
+    }
+
+    if (!store.hasNext) {
+      store.stopTTS()
+      clearReadingClass()
+      return
+    }
+
+    isSpeechTransitioning = true
+    if (resetChunks) {
+      resetSpeechChunkState()
+    }
+    Promise.resolve(nextChapter())
+      .then(() => {
+        speechRestartTimer = window.setTimeout(() => {
+          if (store.isPaused) {
+            isSpeechTransitioning = false
+            return
+          }
+          isSpeechTransitioning = false
+          startSpeech(getFilteredParagraphs()[0] || null, false)
+        }, continueDelay)
+      })
+      .catch(() => {
+        isSpeechTransitioning = false
+      })
+  }
+
+  function startSpeech(paragraph?: HTMLElement | null, interruptCurrent = true) {
     const current = paragraph || getCurrentParagraph()
+    logSpeech('startSpeech', {
+      interruptCurrent,
+      paragraph: paragraphPreview(current),
+      currentIndex: store.currentIndex,
+    })
     if (!current?.innerText.trim()) {
-      speechNext()
+      if (interruptCurrent) {
+        speechNext()
+      } else {
+        continueSpeechTarget(getNextParagraph())
+      }
       return
     }
 
@@ -337,25 +439,47 @@ export function useReaderAutoPlayback(
     showParagraph(current)
     const chunk = ensureSpeechChunkState(current)
     if (!chunk.text.trim()) {
-      speechNext(chunk.nextParagraph)
+      if (interruptCurrent) {
+        speechNext(chunk.nextParagraph)
+      } else {
+        continueSpeechTarget(chunk.nextParagraph)
+      }
       return
     }
     const nextParagraph = chunk.nextParagraph
+    logSpeech('speak chunk', {
+      interruptCurrent,
+      provider: store.speechConfig.provider,
+      text: chunk.text.slice(0, 60),
+      nextParagraph: paragraphPreview(nextParagraph),
+      chunkIndex: currentSpeechChunkIndex,
+      chunkCount: currentSpeechChunks.length,
+    })
     store.startTTS(chunk.text, {
       onEnd: () => {
+        logSpeech('chunk onEnd', {
+          provider: store.speechConfig.provider,
+          currentParagraph: paragraphPreview(current),
+          nextParagraph: paragraphPreview(nextParagraph),
+          chunkIndex: currentSpeechChunkIndex,
+          chunkCount: currentSpeechChunks.length,
+        })
         if (store.speechConfig.provider === 'openai' && currentSpeechParagraph === current && currentSpeechChunkIndex < currentSpeechChunks.length - 1) {
           currentSpeechChunkIndex += 1
-          startSpeech(current)
+          continueSpeechTarget(current, false)
           return
         }
-        resetSpeechChunkState()
-        speechNext(nextParagraph)
+        continueSpeechTarget(nextParagraph)
       },
       onError: () => {
+        logSpeech('chunk onError', {
+          currentParagraph: paragraphPreview(current),
+          nextParagraph: paragraphPreview(nextParagraph),
+        })
         resetSpeechChunkState()
         clearReadingClass()
       },
-    })
+    }, interruptCurrent)
     const preloadTexts = getUpcomingSpeechChunks(nextParagraph)
     if (preloadTexts.length) {
       window.setTimeout(() => {
@@ -365,6 +489,10 @@ export function useReaderAutoPlayback(
   }
 
   function speechPrev() {
+    logSpeech('speechPrev', {
+      currentParagraph: paragraphPreview(getCurrentParagraph()),
+      hasPrevChapter: store.hasPrev,
+    })
     resetSpeechChunkState()
     const prev = getPrevParagraph()
     if (prev) {
@@ -384,11 +512,17 @@ export function useReaderAutoPlayback(
     })
   }
 
-  function speechNext(forcedNext?: HTMLElement | null) {
+  function speechNext(forcedNext?: HTMLElement | null, interruptCurrent = true) {
+    logSpeech('speechNext', {
+      interruptCurrent,
+      forcedNext: paragraphPreview(forcedNext || null),
+      currentParagraph: paragraphPreview(getCurrentParagraph()),
+      hasNextChapter: store.hasNext,
+    })
     resetSpeechChunkState()
     const next = forcedNext ?? getNextParagraph()
     if (next) {
-      restartSpeechTarget(next)
+      restartSpeechTarget(next, interruptCurrent)
       return
     }
     if (!store.hasNext) {
@@ -396,7 +530,9 @@ export function useReaderAutoPlayback(
       clearReadingClass()
       return
     }
-    store.stopTTS(false)
+    if (interruptCurrent) {
+      store.stopTTS(false)
+    }
     Promise.resolve(nextChapter()).then(() => {
       window.setTimeout(() => {
         restartSpeechTarget(getFilteredParagraphs()[0] || null)
@@ -405,6 +541,10 @@ export function useReaderAutoPlayback(
   }
 
   function restartSpeechFromCurrentParagraph() {
+    logSpeech('restartSpeechFromCurrentParagraph', {
+      currentParagraph: paragraphPreview(getCurrentParagraph()),
+      isSpeechTransitioning,
+    })
     if (isSpeechTransitioning) return
     isSpeechTransitioning = true
     resetSpeechChunkState()
@@ -413,9 +553,21 @@ export function useReaderAutoPlayback(
       clearTimeout(speechRestartTimer)
     }
     speechRestartTimer = window.setTimeout(() => {
+      if (store.isPaused) {
+        isSpeechTransitioning = false
+        return
+      }
       isSpeechTransitioning = false
       startSpeech()
     }, 150)
+  }
+
+  function cancelSpeechTransition() {
+    if (speechRestartTimer) {
+      clearTimeout(speechRestartTimer)
+      speechRestartTimer = null
+    }
+    isSpeechTransitioning = false
   }
 
   function resetAutoParagraphIndex() {
@@ -438,7 +590,7 @@ export function useReaderAutoPlayback(
   }
 
   function disposeAutoPlayback() {
-    if (speechRestartTimer) clearTimeout(speechRestartTimer)
+    cancelSpeechTransition()
     stopAutoScroll()
   }
 
@@ -451,6 +603,7 @@ export function useReaderAutoPlayback(
     speechPrev,
     speechNext,
     restartSpeechFromCurrentParagraph,
+    cancelSpeechTransition,
     resetAutoParagraphIndex,
     handleContentChanged,
     disposeAutoPlayback,

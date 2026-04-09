@@ -121,7 +121,7 @@ async function deleteGroup(groupId: number, groupName: string) {
   border-radius: 24px;
   box-shadow: var(--shadow-xl);
   overflow: hidden;
-  max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 32px);
+  max-height: calc(var(--app-height, 100dvh) - var(--safe-area-top) - var(--safe-area-bottom) - 32px);
   display: flex;
   flex-direction: column;
 }

@@ -97,7 +97,7 @@ async function handleCreate() {
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-2xl);
   overflow: hidden;
-  max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 32px);
+  max-height: calc(var(--app-height, 100dvh) - var(--safe-area-top) - var(--safe-area-bottom) - 32px);
   display: flex;
   flex-direction: column;
 }

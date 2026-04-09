@@ -86,10 +86,10 @@
       :openai-voice="store.speechConfig.openaiVoice"
       :stop-after-minutes="store.speechConfig.stopAfterMinutes"
       :timer-text="speechTimerText"
-      @close="showTTSPanel = false"
+      @close="closeTTSPanel"
       @prev="speechPrev"
       @toggle-play="toggleSpeechFromPanel"
-      @stop="store.stopTTS()"
+      @stop="handleStopTTS"
       @next="speechNext"
       @voice-change="changeVoice"
       @openai-voice-change="changeOpenAIVoice"
@@ -274,6 +274,7 @@ import { useAppStore } from '../stores/app'
 import { getBookInfo } from '../api/bookshelf'
 import { applySystemTheme } from '../utils/systemUi'
 import { countBrowserBookCache } from '../utils/browserCache'
+import { APP_VIEWPORT_CHANGE_EVENT, syncViewportSize } from '../utils/viewport'
 import type { Book } from '../types'
 
 import ReaderSidebar from '../components/reader/ReaderSidebar.vue'
@@ -364,6 +365,7 @@ const touchState = ref({
 const showBookInfo = ref(false)
 const bookInfoBook = ref<Book | null>(null)
 const showTTSPanel = ref(false)
+const ttsPanelDismissed = ref(false)
 const offlineCachedCount = ref(0)
 const speechTimerNow = ref(Date.now())
 const speechTimerText = computed(() => {
@@ -438,6 +440,12 @@ function checkMedia() {
       rebuildHorizontalPages()
     }
   }, 0)
+}
+
+function handleViewportChange() {
+  syncViewportSize()
+  checkMedia()
+  scheduleRestoreReadingPosition()
 }
 
 const currentFontFamily = computed(() => {
@@ -1037,6 +1045,7 @@ const {
   speechPrev,
   speechNext,
   restartSpeechFromCurrentParagraph,
+  cancelSpeechTransition,
   resetAutoParagraphIndex,
   handleContentChanged,
   disposeAutoPlayback,
@@ -1321,7 +1330,7 @@ function handleKeydown(e: KeyboardEvent) {
       return
     }
     if (showTTSPanel.value) {
-      showTTSPanel.value = false
+      closeTTSPanel()
       return
     }
     if (showBookInfo.value) {
@@ -1394,16 +1403,29 @@ async function toggleBookmark() {
 }
 
 function handleTTS() {
+  ttsPanelDismissed.value = false
   showTTSPanel.value = true
 }
 
+function closeTTSPanel() {
+  showTTSPanel.value = false
+  ttsPanelDismissed.value = true
+}
+
 function toggleSpeechFromPanel() {
+  ttsPanelDismissed.value = false
   showTTSPanel.value = true
   if (!store.isSpeaking) {
     startSpeech()
     return
   }
+  cancelSpeechTransition()
   store.pauseTTS()
+}
+
+function handleStopTTS() {
+  cancelSpeechTransition()
+  store.stopTTS()
 }
 
 watch(() => store.isAutoScrolling, (val) => {
@@ -1418,6 +1440,7 @@ watch(showTTSPanel, (visible) => {
 
 function changeVoice(name: string) {
   store.setVoiceName(name)
+  ttsPanelDismissed.value = false
   showTTSPanel.value = true
   if (store.isSpeaking && !store.isPaused) {
     restartSpeechFromCurrentParagraph()
@@ -1426,6 +1449,7 @@ function changeVoice(name: string) {
 
 function changeOpenAIVoice(voiceId: string) {
   store.setOpenAISpeechVoice(voiceId)
+  ttsPanelDismissed.value = false
   showTTSPanel.value = true
   if (store.isSpeaking && !store.isPaused) {
     restartSpeechFromCurrentParagraph()
@@ -1435,6 +1459,7 @@ function changeOpenAIVoice(voiceId: string) {
 function adjustSpeechRate(delta: number) {
   const next = Math.max(0.5, Math.min(3, parseFloat((store.speechConfig.speechRate + delta).toFixed(1))))
   store.setSpeechRate(next)
+  ttsPanelDismissed.value = false
   showTTSPanel.value = true
   if (store.isSpeaking && !store.isPaused) {
     restartSpeechFromCurrentParagraph()
@@ -1444,6 +1469,7 @@ function adjustSpeechRate(delta: number) {
 function adjustSpeechPitch(delta: number) {
   const next = Math.max(0.5, Math.min(2, parseFloat((store.speechConfig.speechPitch + delta).toFixed(1))))
   store.setSpeechPitch(next)
+  ttsPanelDismissed.value = false
   showTTSPanel.value = true
   if (store.isSpeaking && !store.isPaused) {
     restartSpeechFromCurrentParagraph()
@@ -1452,6 +1478,7 @@ function adjustSpeechPitch(delta: number) {
 
 function setSpeechTimer(minutes: number) {
   store.setSpeechStopTimer(minutes)
+  ttsPanelDismissed.value = false
   showTTSPanel.value = true
 }
 async function openInfo() {
@@ -1476,6 +1503,7 @@ async function openInfo() {
 }
 
 onMounted(async () => {
+  syncViewportSize()
   appStore.startReadingSession()
   if (!store.book) {
     const restored = await store.restorePersistedSession()
@@ -1492,6 +1520,7 @@ onMounted(async () => {
     document.addEventListener('selectionchange', handleSelectionChange)
     checkMedia()
     window.addEventListener('resize', checkMedia)
+    window.addEventListener(APP_VIEWPORT_CHANGE_EVENT, handleViewportChange)
     window.addEventListener('pagehide', handlePageHide)
     window.addEventListener('beforeunload', handleBeforeUnload)
     store.fetchVoices()
@@ -1524,6 +1553,7 @@ onUnmounted(() => {
   document.removeEventListener('touchend', handleTouchEndSelection)
     document.removeEventListener('selectionchange', handleSelectionChange)
     window.removeEventListener('resize', checkMedia)
+    window.removeEventListener(APP_VIEWPORT_CHANGE_EVENT, handleViewportChange)
     window.removeEventListener('pagehide', handlePageHide)
     window.removeEventListener('beforeunload', handleBeforeUnload)
   if (speechTimerTicker) clearInterval(speechTimerTicker)
@@ -1655,7 +1685,7 @@ watch(() => config.value.selectAction, (value) => {
 })
 
 watch(() => store.isSpeaking, (speaking) => {
-  if (speaking) {
+  if (speaking && !ttsPanelDismissed.value) {
     showTTSPanel.value = true
   }
   if (!speaking && !store.isAutoScrolling) {
@@ -1676,7 +1706,8 @@ watch(
 .reader-view {
   height: 100vh;
   height: 100dvh;
-  width: 100vw;
+  height: var(--app-height, 100dvh);
+  width: 100%;
   display: flex;
   position: relative;
   overflow: hidden;

@@ -2,6 +2,22 @@ import type { useAppStore } from '../stores/app'
 
 type AppStore = ReturnType<typeof useAppStore>
 
+function isLocalhostEnv() {
+  if (typeof window === 'undefined') return false
+  const hostname = window.location.hostname
+  return hostname === 'localhost' || hostname === '127.0.0.1'
+}
+
+async function clearServiceWorkerCaches() {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  const registrations = await navigator.serviceWorker.getRegistrations()
+  await Promise.all(registrations.map((registration) => registration.unregister()))
+  if (typeof window !== 'undefined' && 'caches' in window) {
+    const keys = await caches.keys()
+    await Promise.all(keys.map((key) => caches.delete(key)))
+  }
+}
+
 export function registerPwa(appStore: AppStore) {
   if (typeof window === 'undefined') return
 
@@ -28,6 +44,15 @@ export function registerPwa(appStore: AppStore) {
   })
 
   if (!('serviceWorker' in navigator)) return
+
+  if (isLocalhostEnv()) {
+    window.addEventListener('load', () => {
+      void clearServiceWorkerCaches().finally(() => {
+        appStore.setPwaReady(false)
+      })
+    })
+    return
+  }
 
   function bindWaitingWorker(worker: ServiceWorker | null | undefined) {
     if (!worker) return

@@ -6,7 +6,7 @@ use crate::parser::js::{eval_js, eval_js_search_with_source};
 use crate::storage::cache::file_cache::FileCache;
 use tokio::fs;
 use std::path::PathBuf;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use urlencoding::encode;
@@ -788,8 +788,20 @@ impl BookService {
         }
         let data = fs::read_to_string(&path).await
             .map_err(|e| AppError::Internal(e.into()))?;
-        let mut list: Vec<Book> = serde_json::from_str(&data)
-            .map_err(|e| AppError::BadRequest(e.to_string()))?;
+        let mut list: Vec<Book> = match serde_json::from_str(&data) {
+            Ok(list) => list,
+            Err(primary_err) => {
+                let recovered = recover_bookshelf_entries(&data).ok_or_else(|| AppError::BadRequest(primary_err.to_string()))?;
+                tracing::warn!(
+                    "recovered malformed bookshelf for user_ns={}, path={}, entries={}",
+                    user_ns,
+                    path.display(),
+                    recovered.len()
+                );
+                self.write_bookshelf(user_ns, &recovered).await?;
+                recovered
+            }
+        };
         for book in &mut list {
             sanitize_book_urls(book);
         }
@@ -875,6 +887,51 @@ fn sanitize_book_urls(book: &mut Book) {
     }
     if let Some(cover_url) = &book.cover_url {
         book.cover_url = Some(repair_encoded_url(cover_url));
+    }
+}
+
+fn recover_bookshelf_entries(data: &str) -> Option<Vec<Book>> {
+    let mut recovered = Vec::new();
+    let mut seen = HashSet::new();
+    let stream = serde_json::Deserializer::from_str(data).into_iter::<serde_json::Value>();
+
+    for item in stream {
+        let value = match item {
+            Ok(value) => value,
+            Err(err) => {
+                tracing::warn!("bookshelf recovery stream stopped: {}", err);
+                break;
+            }
+        };
+        match value {
+            serde_json::Value::Array(items) => {
+                for entry in items {
+                    if let Ok(book) = serde_json::from_value::<Book>(entry) {
+                        push_recovered_book(&mut recovered, &mut seen, book);
+                    }
+                }
+            }
+            serde_json::Value::Object(_) => {
+                if let Ok(book) = serde_json::from_value::<Book>(value) {
+                    push_recovered_book(&mut recovered, &mut seen, book);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if recovered.is_empty() {
+        None
+    } else {
+        Some(recovered)
+    }
+}
+
+fn push_recovered_book(recovered: &mut Vec<Book>, seen: &mut HashSet<String>, mut book: Book) {
+    sanitize_book_urls(&mut book);
+    let key = format!("{}::{}", book.book_url, book.origin);
+    if seen.insert(key) {
+        recovered.push(book);
     }
 }
 

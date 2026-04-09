@@ -200,7 +200,7 @@ async function readChapter(index: number) {
 .detail-modal {
   width: 100%;
   max-width: 600px;
-  max-height: min(85vh, calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 32px));
+  max-height: min(85vh, calc(var(--app-height, 100dvh) - var(--safe-area-top) - var(--safe-area-bottom) - 32px));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   background: var(--color-bg-elevated);

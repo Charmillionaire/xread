@@ -422,8 +422,8 @@ function exportSources() {
 
 <style scoped>
 .rss-manage-view {
-  height: calc(100dvh - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
-  min-height: calc(100dvh - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
+  height: calc(var(--app-height, 100dvh) - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
+  min-height: calc(var(--app-height, 100dvh) - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
   box-sizing: border-box;
   padding: 24px;
   display: flex;

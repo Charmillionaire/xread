@@ -172,6 +172,7 @@ defineEmits<{
   padding: 10px 18px;
   border-radius: 10px;
   cursor: pointer;
+  min-width: 0;
 }
 
 .tts-voice-select {
@@ -261,17 +262,46 @@ defineEmits<{
     border-radius: 24px;
   }
 
-  .tts-tuning {
-    flex-direction: column;
-  }
-
   .tts-btns {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .tts-btns button {
     width: 100%;
+    padding: 9px 0;
+    min-height: 40px;
+    border-radius: 10px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  .tts-tuning {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .tts-stepper {
+    padding: 8px 10px;
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  .tts-stepper button {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    font-size: 18px;
+  }
+
+  .tts-stepper:only-child {
+    grid-column: 1 / -1;
+  }
+
+  .tts-label {
+    font-size: 13px;
   }
 }
 </style>

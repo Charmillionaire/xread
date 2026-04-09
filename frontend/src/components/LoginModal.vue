@@ -155,7 +155,7 @@ async function handleSubmit() {
   padding: var(--space-8);
   position: relative;
   box-shadow: var(--shadow-xl);
-  max-height: min(720px, calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 32px));
+  max-height: min(720px, calc(var(--app-height, 100dvh) - var(--safe-area-top) - var(--safe-area-bottom) - 32px));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }

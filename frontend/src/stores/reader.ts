@@ -165,6 +165,14 @@ function loadSpeechConfig(): SpeechConfig {
   return { ...defaultSpeechConfig }
 }
 
+function isSafariSpeechFallbackMode() {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  const vendor = navigator.vendor || ''
+  const isAppleEngine = /Apple/i.test(vendor) || /iPhone|iPad|iPod/i.test(ua)
+  return isAppleEngine && /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg|EdgiOS|Firefox|FxiOS|OPR|OPT|SamsungBrowser|Android/i.test(ua)
+}
+
 export const useReaderStore = defineStore('reader', () => {
   type ReaderPanel = 'catalog' | 'settings' | 'bookshelf' | 'source' | 'bookmark' | 'rule' | 'cache' | null
   const appStore = useAppStore()
@@ -478,6 +486,7 @@ export const useReaderStore = defineStore('reader', () => {
   const isSpeaking = ref(false)
   const isSpeechLoading = ref(false)
   const isPaused = ref(false)
+  const systemTtsNativeEventsReliable = ref(false)
   const voiceList = ref<SpeechSynthesisVoice[]>([])
   const speechConfig = reactive<SpeechConfig>(loadSpeechConfig())
   const openAISpeechConfigured = computed(() => {
@@ -488,7 +497,6 @@ export const useReaderStore = defineStore('reader', () => {
   let speechStopTimer: number | null = null
   let synth: SpeechSynthesis | null = typeof window !== 'undefined' ? window.speechSynthesis : null
   let currentUtterance: SpeechSynthesisUtterance | null = null
-  let currentTTSOptions: TTSOptions | null = null
   let currentOpenAIAudio: HTMLAudioElement | null = null
   let currentOpenAIAudioUrl = ''
   let currentOpenAIAbortController: AbortController | null = null
@@ -496,7 +504,35 @@ export const useReaderStore = defineStore('reader', () => {
   let preloadGeneration = 0
   const inFlightPreloadKeys = new Set<string>()
   const inFlightOpenAIAudioRequests = new Map<string, Promise<Blob>>()
-  let skipAutoNext = false
+  let currentTTSSessionId = 0
+
+  function logTTS(message: string, payload?: unknown) {
+    void message
+    void payload
+  }
+
+  function captureTTSCaller() {
+    try {
+      const stack = new Error().stack || ''
+      return stack
+        .split('\n')
+        .slice(2, 5)
+        .map((line) => line.trim())
+        .join(' | ')
+    } catch {
+      return ''
+    }
+  }
+
+  function beginTTSSession() {
+    currentTTSSessionId += 1
+    logTTS('begin session', { sessionId: currentTTSSessionId })
+    return currentTTSSessionId
+  }
+
+  function isCurrentTTSSession(sessionId: number) {
+    return sessionId === currentTTSSessionId
+  }
 
   function saveSpeechConfig() {
     localStorage.setItem('reader-speechConfig', JSON.stringify(speechConfig))
@@ -646,6 +682,10 @@ export const useReaderStore = defineStore('reader', () => {
       currentOpenAIAbortController = null
     }
     if (currentOpenAIAudio) {
+      currentOpenAIAudio.onplay = null
+      currentOpenAIAudio.onpause = null
+      currentOpenAIAudio.onended = null
+      currentOpenAIAudio.onerror = null
       currentOpenAIAudio.pause()
       currentOpenAIAudio.src = ''
       currentOpenAIAudio = null
@@ -687,51 +727,191 @@ export const useReaderStore = defineStore('reader', () => {
     }, normalized * 60 * 1000)
   }
 
-  function startSystemTTS(rawText: string, options: TTSOptions) {
+  function startSystemTTS(rawText: string, options: TTSOptions, sessionId: number) {
     if (!synth) return
     isSpeechLoading.value = false
     if (!voiceList.value.length) {
       fetchVoices()
     }
 
-    currentUtterance = new SpeechSynthesisUtterance(rawText)
-    currentTTSOptions = options
-    skipAutoNext = false
+    const utterance = new SpeechSynthesisUtterance(rawText)
+    currentUtterance = utterance
+    const safariSpeechFallback = isSafariSpeechFallbackMode() && !systemTtsNativeEventsReliable.value
 
     const selectedVoice = voiceList.value.find((voice) => voice.name === speechConfig.voiceName)
-    currentUtterance.lang = selectedVoice?.lang || 'zh-CN'
-    currentUtterance.voice = selectedVoice || null
-    currentUtterance.rate = speechConfig.speechRate
-    currentUtterance.pitch = speechConfig.speechPitch
+    utterance.lang = selectedVoice?.lang || 'zh-CN'
+    utterance.voice = selectedVoice || null
+    utterance.rate = speechConfig.speechRate
+    utterance.pitch = speechConfig.speechPitch
+    logTTS('system speak queued', {
+      sessionId,
+      voice: utterance.voice?.name || utterance.lang,
+      rate: utterance.rate,
+      pitch: utterance.pitch,
+      text: rawText.slice(0, 80),
+    })
 
-    currentUtterance.onstart = () => {
+    let completed = false
+    let finishWatchdog: number | null = null
+    const startedAt = Date.now()
+    let lastProgressAt = startedAt
+    let sawStart = false
+    let sawBoundary = false
+    let pausedStartedAt: number | null = null
+    let pausedAccumulatedMs = 0
+
+    const clearFinishWatchdog = () => {
+      if (finishWatchdog) {
+        clearTimeout(finishWatchdog)
+        finishWatchdog = null
+      }
+    }
+
+    const effectiveElapsed = () => {
+      const now = Date.now()
+      const currentPaused = pausedStartedAt ? now - pausedStartedAt : 0
+      return now - startedAt - pausedAccumulatedMs - currentPaused
+    }
+
+    const finalizePlayback = (kind: 'end' | 'error' | 'interrupted', event?: SpeechSynthesisErrorEvent) => {
+      if (completed) return
+      completed = true
+      clearFinishWatchdog()
+      if (currentUtterance === utterance) {
+        currentUtterance = null
+      }
+      if (!isCurrentTTSSession(sessionId)) return
+      isSpeaking.value = false
+      isPaused.value = false
+      logTTS('system finalize', {
+        sessionId,
+        kind,
+        error: event?.error,
+        speaking: synth?.speaking,
+        pending: synth?.pending,
+      })
+      if (kind === 'end') {
+        options.onEnd?.()
+        return
+      }
+      if (kind === 'error') {
+        options.onError?.(event)
+      }
+    }
+
+    const forceFinalizeEnd = (reason: string) => {
+      logTTS('system watchdog force end', {
+        sessionId,
+        reason,
+        speaking: synth?.speaking,
+        pending: synth?.pending,
+        elapsed: effectiveElapsed(),
+        text: rawText.slice(0, 40),
+      })
+      finalizePlayback('end')
+      window.setTimeout(() => {
+        if (!isCurrentTTSSession(sessionId)) return
+        try {
+          synth?.cancel()
+        } catch {
+          // ignore platform-specific cancel errors
+        }
+      }, 0)
+    }
+
+    const scheduleFinishWatchdog = () => {
+      clearFinishWatchdog()
+      const estimatedMs = safariSpeechFallback
+        ? Math.max(2400, Math.ceil((rawText.length / Math.max(0.6, speechConfig.speechRate)) * 235))
+        : Math.max(2800, Math.ceil((rawText.length / Math.max(0.6, speechConfig.speechRate)) * 280))
+      const noStartTimeoutMs = safariSpeechFallback
+        ? estimatedMs + Math.max(400, Math.ceil(rawText.length * 22))
+        : 0
+      const hardTimeoutMs = safariSpeechFallback
+        ? estimatedMs + Math.max(1800, Math.ceil(rawText.length * 80))
+        : Math.min(120000, estimatedMs + Math.max(4000, Math.ceil(rawText.length * 120)))
+      logTTS('system watchdog scheduled', {
+        sessionId,
+        estimatedMs,
+        noStartTimeoutMs,
+        hardTimeoutMs,
+        safariSpeechFallback,
+        text: rawText.slice(0, 40),
+      })
+      const checkFinish = () => {
+        if (completed || !isCurrentTTSSession(sessionId) || currentUtterance !== utterance) return
+        if (synth?.paused || isPaused.value) {
+          if (pausedStartedAt == null) {
+            pausedStartedAt = Date.now()
+          }
+          lastProgressAt = Date.now()
+          finishWatchdog = window.setTimeout(checkFinish, 600)
+          return
+        }
+        if (pausedStartedAt != null) {
+          pausedAccumulatedMs += Date.now() - pausedStartedAt
+          pausedStartedAt = null
+        }
+        const elapsed = effectiveElapsed()
+        const idleMs = Date.now() - lastProgressAt
+        if (!synth?.speaking && !synth?.pending) {
+          logTTS('system watchdog finalize end', { sessionId })
+          finalizePlayback('end')
+          return
+        }
+        if (sawBoundary && idleMs > 1800 && elapsed > Math.max(2200, estimatedMs * 0.75)) {
+          forceFinalizeEnd('boundary-idle')
+          return
+        }
+        if (safariSpeechFallback && !sawStart && elapsed > noStartTimeoutMs) {
+          forceFinalizeEnd('no-start-timeout')
+          return
+        }
+        if (elapsed > hardTimeoutMs) {
+          forceFinalizeEnd('hard-timeout')
+          return
+        }
+        finishWatchdog = window.setTimeout(checkFinish, 600)
+      }
+      finishWatchdog = window.setTimeout(checkFinish, safariSpeechFallback ? Math.min(estimatedMs, 1200) : estimatedMs)
+    }
+
+    utterance.onstart = () => {
+      if (!isCurrentTTSSession(sessionId) || currentUtterance !== utterance) return
       isSpeaking.value = true
       isPaused.value = false
-      currentTTSOptions?.onStart?.()
+      sawStart = true
+      systemTtsNativeEventsReliable.value = true
+      lastProgressAt = Date.now()
+      logTTS('system onstart', { sessionId, text: rawText.slice(0, 40) })
+      options.onStart?.()
     }
-    currentUtterance.onend = () => {
-      isSpeaking.value = false
-      isPaused.value = false
-      const shouldContinue = !skipAutoNext
-      currentUtterance = null
-      if (shouldContinue) {
-        currentTTSOptions?.onEnd?.()
-      }
+    utterance.onboundary = () => {
+      if (!isCurrentTTSSession(sessionId) || currentUtterance !== utterance) return
+      sawBoundary = true
+      lastProgressAt = Date.now()
     }
-    currentUtterance.onerror = (event) => {
-      isSpeaking.value = false
-      isPaused.value = false
+    utterance.onend = () => {
+      logTTS('system onend', { sessionId, text: rawText.slice(0, 40) })
+      finalizePlayback('end')
+    }
+    utterance.onerror = (event) => {
       const interrupted = event.error === 'interrupted' || event.error === 'canceled'
-      currentUtterance = null
-      if (!interrupted) {
-        currentTTSOptions?.onError?.(event)
-      }
+      logTTS('system onerror', { sessionId, error: event.error, interrupted, text: rawText.slice(0, 40) })
+      finalizePlayback(interrupted ? 'interrupted' : 'error', event)
     }
 
-    synth.speak(currentUtterance)
+    synth.speak(utterance)
+    logTTS('system speak invoked', {
+      sessionId,
+      speaking: synth.speaking,
+      pending: synth.pending,
+      text: rawText.slice(0, 40),
+    })
+    scheduleFinishWatchdog()
   }
 
-  function startOpenAITTS(rawText: string, options: TTSOptions) {
+  function startOpenAITTS(rawText: string, options: TTSOptions, sessionId: number) {
     if (!openAISpeechConfigured.value) {
       const error = new Error('请先填写 OpenAI Speech 的 URL 和 API Key')
       appStore.showToast(error.message, 'warning')
@@ -740,8 +920,15 @@ export const useReaderStore = defineStore('reader', () => {
     }
 
     isSpeechLoading.value = true
+    logTTS('openai speak queued', {
+      sessionId,
+      model: speechConfig.openaiModel,
+      voice: speechConfig.openaiVoice,
+      text: rawText.slice(0, 80),
+    })
     const playBlob = (blob: Blob, controller: AbortController) => {
       if (controller.signal.aborted) return
+      if (!isCurrentTTSSession(sessionId)) return
       isSpeechLoading.value = false
       currentOpenAIAudioUrl = URL.createObjectURL(blob)
       const audio = new Audio(currentOpenAIAudioUrl)
@@ -749,12 +936,15 @@ export const useReaderStore = defineStore('reader', () => {
       currentOpenAIAbortController = null
 
       audio.onplay = () => {
+        if (!isCurrentTTSSession(sessionId) || currentOpenAIAudio !== audio) return
         isSpeaking.value = true
         isPaused.value = false
-        currentTTSOptions?.onStart?.()
+        logTTS('openai onplay', { sessionId, text: rawText.slice(0, 40) })
+        options.onStart?.()
       }
 
       audio.onpause = () => {
+        if (!isCurrentTTSSession(sessionId) || currentOpenAIAudio !== audio) return
         if (!audio.ended) {
           isPaused.value = true
           isSpeaking.value = false
@@ -762,39 +952,45 @@ export const useReaderStore = defineStore('reader', () => {
       }
 
       audio.onended = () => {
-        const shouldContinue = !skipAutoNext
+        if (currentOpenAIAudio === audio) {
+          currentOpenAIAudio = null
+        }
+        if (!isCurrentTTSSession(sessionId)) return
         isSpeaking.value = false
         isPaused.value = false
-        currentOpenAIAudio = null
+        logTTS('openai onended', { sessionId, text: rawText.slice(0, 40) })
         if (currentOpenAIAudioUrl) {
           URL.revokeObjectURL(currentOpenAIAudioUrl)
           currentOpenAIAudioUrl = ''
         }
-        if (shouldContinue) {
-          currentTTSOptions?.onEnd?.()
-        }
+        options.onEnd?.()
       }
 
       audio.onerror = () => {
+        if (currentOpenAIAudio === audio) {
+          currentOpenAIAudio = null
+        }
+        if (!isCurrentTTSSession(sessionId)) return
         isSpeaking.value = false
         isPaused.value = false
-        currentOpenAIAudio = null
         const error = new Error('OpenAI Speech 音频播放失败')
-        currentTTSOptions?.onError?.(error)
+        logTTS('openai onerror', { sessionId, text: rawText.slice(0, 40) })
+        options.onError?.(error)
       }
 
       return audio.play().catch((error: Error) => {
+        if (!isCurrentTTSSession(sessionId)) return
         isSpeechLoading.value = false
         isSpeaking.value = false
         isPaused.value = false
         currentOpenAIAudio = null
-        currentTTSOptions?.onError?.(error)
+        logTTS('openai play catch', { sessionId, message: error.message, text: rawText.slice(0, 40) })
+        options.onError?.(error)
       })
     }
 
     const controller = new AbortController()
     currentOpenAIAbortController = controller
-    currentTTSOptions = options
 
     const key = buildOpenAIAudioCacheKey(rawText)
     const cached = preloadedOpenAIAudio.value.find((entry) => entry.key === key)
@@ -808,13 +1004,14 @@ export const useReaderStore = defineStore('reader', () => {
       void inFlight.then((blob) => {
         return playBlob(blob, controller)
       }).catch((error: Error) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || !isCurrentTTSSession(sessionId)) return
         isSpeechLoading.value = false
         isSpeaking.value = false
         isPaused.value = false
         currentOpenAIAbortController = null
         currentOpenAIAudio = null
-        currentTTSOptions?.onError?.(error)
+        logTTS('openai inflight catch', { sessionId, message: error.message, text: rawText.slice(0, 40) })
+        options.onError?.(error)
       })
       return
     }
@@ -823,32 +1020,59 @@ export const useReaderStore = defineStore('reader', () => {
     void started.promise.then((blob) => {
       return playBlob(blob, controller)
     }).catch((error: Error) => {
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted || !isCurrentTTSSession(sessionId)) return
       isSpeechLoading.value = false
       isSpeaking.value = false
       isPaused.value = false
       currentOpenAIAbortController = null
       currentOpenAIAudio = null
+      logTTS('openai request catch', { sessionId, message: error.message, text: rawText.slice(0, 40) })
       appStore.showToast(error.message || 'OpenAI Speech 请求失败', 'error')
-      currentTTSOptions?.onError?.(error)
+      options.onError?.(error)
     })
   }
 
-  function startTTS(text?: string, options: TTSOptions = {}) {
-    stopTTS(false)
+  function startTTS(text?: string, options: TTSOptions = {}, interruptCurrent = true) {
+    const hasActiveSystemSpeech = !!synth && (synth.speaking || synth.pending || !!currentUtterance)
+    const hasActiveOpenAISpeech = !!currentOpenAIAudio || !!currentOpenAIAbortController
+
+    if (interruptCurrent && (hasActiveSystemSpeech || hasActiveOpenAISpeech || isSpeaking.value || isSpeechLoading.value)) {
+      stopTTS(false)
+    }
 
     const rawText = (text || content.value.replace(/<[^>]+>/g, '')).trim()
     if (!rawText) return
 
-    currentTTSOptions = options
-    skipAutoNext = false
+    const sessionId = beginTTSSession()
+    logTTS('startTTS', {
+      sessionId,
+      provider: speechConfig.provider,
+      interruptCurrent,
+      text: rawText.slice(0, 80),
+    })
+
+    if (
+      !interruptCurrent &&
+      speechConfig.provider === 'system' &&
+      synth &&
+      !synth.speaking &&
+      isSafariSpeechFallbackMode() &&
+      !systemTtsNativeEventsReliable.value
+    ) {
+      try {
+        logTTS('startTTS cleanup idle system synth', { sessionId })
+        synth.cancel()
+      } catch {
+        // ignore platform-specific cancel errors
+      }
+    }
 
     if (speechConfig.provider === 'openai') {
-      startOpenAITTS(rawText, options)
+      startOpenAITTS(rawText, options, sessionId)
       return
     }
 
-    startSystemTTS(rawText, options)
+    startSystemTTS(rawText, options, sessionId)
   }
 
   function pauseTTS() {
@@ -877,8 +1101,14 @@ export const useReaderStore = defineStore('reader', () => {
   }
 
   function stopTTS(resetCallbacks = true) {
+    const sessionId = beginTTSSession()
+    logTTS('stopTTS', {
+      sessionId,
+      resetCallbacks,
+      provider: speechConfig.provider,
+      caller: captureTTSCaller(),
+    })
     if (synth) {
-      skipAutoNext = true
       synth.cancel()
       currentUtterance = null
     }
@@ -887,7 +1117,6 @@ export const useReaderStore = defineStore('reader', () => {
     isSpeaking.value = false
     isPaused.value = false
     if (resetCallbacks) {
-      currentTTSOptions = null
       clearSpeechStopTimer()
     }
   }
@@ -1083,7 +1312,6 @@ export const useReaderStore = defineStore('reader', () => {
       const res = await fetchChapterContent(index)
       if (!res) return
       preloadedContent.value.set(index, res)
-      console.log(`[Reader] Preloaded chapter ${index}`)
     } catch { /* ignore */ }
   }
 
@@ -1300,6 +1528,7 @@ export const useReaderStore = defineStore('reader', () => {
     refreshChapters,
     isSpeaking, isSpeechLoading, isPaused, startTTS, pauseTTS, stopTTS,
     voiceList, speechConfig, speechStopAt, speechProviderLabel, openAISpeechConfigured,
+    systemTtsNativeEventsReliable,
     fetchVoices, setVoiceName, setSpeechProvider, setSpeechRate, setSpeechPitch, setSpeechStopTimer, clearSpeechStopTimer,
     setOpenAISpeechBaseUrl, setOpenAISpeechApiKey, setOpenAISpeechModel, setOpenAISpeechVoice, preloadOpenAITTS,
     displayContent,

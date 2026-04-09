@@ -1,5 +1,13 @@
 /* ─── Design Tokens ─── */
 :root {
+  --app-height: 100vh;
+  --app-width: 100vw;
+  --app-visual-height: 100vh;
+  --app-visual-width: 100vw;
+  --viewport-offset-top: 0px;
+  --viewport-offset-right: 0px;
+  --viewport-offset-bottom: 0px;
+  --viewport-offset-left: 0px;
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-right: env(safe-area-inset-right, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);

@@ -40,6 +40,7 @@ body::-webkit-scrollbar {
 html, body, #app {
   min-height: 100vh;
   min-height: 100dvh;
+  min-height: var(--app-height, 100dvh);
   background-color: var(--color-bg);
 }
 

@@ -100,8 +100,8 @@ function formatRelativeTime(value?: string) {
 
 <style scoped>
 .rss-article-view {
-  height: calc(100dvh - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
-  min-height: calc(100dvh - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
+  height: calc(var(--app-height, 100dvh) - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
+  min-height: calc(var(--app-height, 100dvh) - var(--header-height) - 104px - var(--safe-area-top) - var(--safe-area-bottom));
   box-sizing: border-box;
   display: flex;
   flex-direction: column;

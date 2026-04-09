@@ -68,27 +68,27 @@ onUnmounted(() => {
 <style>
 html,
 body {
-  height: 100%;
+  height: var(--app-height, 100dvh);
   overflow: hidden;
 }
 
 #app {
-  height: 100vh;
+  height: var(--app-height, 100dvh);
   overflow: hidden;
 }
 
 .app-main {
-  height: calc(100vh - var(--header-height) - var(--safe-area-top));
+  height: calc(var(--app-height, 100dvh) - var(--header-height) - var(--safe-area-top));
   min-height: 0;
   overflow: hidden;
 }
 
 .app-main.without-header {
-  height: 100vh;
+  height: var(--app-height, 100dvh);
 }
 
 .app-main.with-bottom-nav {
   padding-bottom: calc(104px + var(--safe-area-bottom));
-  height: calc(100vh - var(--header-height) - var(--safe-area-top));
+  height: calc(var(--app-height, 100dvh) - var(--header-height) - var(--safe-area-top));
 }
 </style>
