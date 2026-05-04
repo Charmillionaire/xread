@@ -13,7 +13,7 @@ export interface ContinuousChapterItem {
 
 export function useContinuousReading(
   store: ReaderStore,
-  formatChapterHtml: (rawText: string) => string,
+  renderChapterHtml: (rawText: string) => string,
   isContinuousMode: ComputedRef<boolean>,
   hideReadChaptersMode: ComputedRef<boolean>,
   scrollContainerRef: Ref<HTMLElement | undefined>,
@@ -53,14 +53,14 @@ export function useContinuousReading(
       index,
       title: chapter.title,
       content: chapterContent,
-      html: formatChapterHtml(chapterContent),
+      html: renderChapterHtml(chapterContent),
     } satisfies ContinuousChapterItem
   }
 
   function syncContinuousChapterHtml() {
     continuousChapters.value = continuousChapters.value.map((chapter) => ({
       ...chapter,
-      html: formatChapterHtml(chapter.content),
+      html: renderChapterHtml(chapter.content),
     }))
   }
 
@@ -87,17 +87,23 @@ export function useContinuousReading(
     const current = await buildContinuousChapter(targetIndex)
     if (!current) return
 
-    const list: ContinuousChapterItem[] = [current]
-    const nextIndex = hideReadChaptersMode.value ? findNextVisibleIndex(targetIndex + 1, targetIndex) : targetIndex + 1
-    const next = nextIndex >= 0 ? await buildContinuousChapter(nextIndex) : null
-    if (next) {
-      list.push(next)
-    }
-    continuousChapters.value = list
+    continuousChapters.value = [current]
     setContinuousActiveChapter(targetIndex, current.content, 0)
 
     await nextTick()
     scrollToContinuousChapter(targetIndex, smooth)
+
+    const nextIndex = hideReadChaptersMode.value
+      ? findNextVisibleIndex(targetIndex + 1, targetIndex)
+      : targetIndex + 1
+    if (nextIndex < 0) return
+
+    void (async () => {
+      const next = await buildContinuousChapter(nextIndex)
+      if (!next) return
+      if (continuousChapters.value.some((chapter) => chapter.index === next.index)) return
+      continuousChapters.value = [...continuousChapters.value, next]
+    })()
   }
 
   async function syncContinuousToStoreState() {
@@ -108,7 +114,7 @@ export function useContinuousReading(
     if (current) {
       if (current.content !== store.content) {
         current.content = store.content
-        current.html = formatChapterHtml(store.content)
+        current.html = renderChapterHtml(store.content)
       }
       return
     }

@@ -434,6 +434,15 @@ async function refreshOfflineCacheState() {
   offlineCachedCount.value = await countBrowserBookCache(store.book.bookUrl).catch(() => 0)
 }
 
+let refreshOfflineCacheStateTimer: number | null = null
+
+function scheduleRefreshOfflineCacheState() {
+  if (refreshOfflineCacheStateTimer) clearTimeout(refreshOfflineCacheStateTimer)
+  refreshOfflineCacheStateTimer = window.setTimeout(() => {
+    void refreshOfflineCacheState()
+  }, 120)
+}
+
 function checkMedia() {
   isMobile.value = window.innerWidth <= 768
   window.setTimeout(() => {
@@ -499,6 +508,10 @@ function formatChapterHtml(rawText: string) {
     .join('')
 }
 
+function renderChapterHtml(rawText: string) {
+  return formatChapterHtml(store.processContentForDisplay(rawText || ''))
+}
+
 const formattedContent = computed(() => formatChapterHtml(store.displayContent || ''))
 
 const {
@@ -535,15 +548,13 @@ const {
   initializeContinuousChapters,
   syncContinuousToStoreState,
   loadContinuousNext,
-  ensureContinuousChapterLoaded,
   getContinuousSections,
-  scrollToContinuousChapter,
   pruneReadChapters,
   clearContinuousChapters,
   disposeContinuousReading,
 } = useContinuousReading(
   store,
-  formatChapterHtml,
+  renderChapterHtml,
   isContinuousMode,
   hideReadChaptersMode,
   scrollContainerRef,
@@ -623,13 +634,7 @@ async function prevChapter() {
     return
   }
 
-  await ensureContinuousChapterLoaded(targetIndex)
-  const chapter = getContinuousChapter(targetIndex)
-  if (!chapter) return
-  setContinuousActiveChapter(targetIndex, chapter.content, 0)
-  suppressContinuousScrollSyncUntil = Date.now() + 400
-  await nextTick()
-  scrollToContinuousChapter(targetIndex, false)
+  await rebuildContinuousAtChapter(targetIndex)
 }
 
 async function nextChapter() {
@@ -642,13 +647,7 @@ async function nextChapter() {
     return
   }
 
-  await ensureContinuousChapterLoaded(targetIndex)
-  const chapter = getContinuousChapter(targetIndex)
-  if (!chapter) return
-  setContinuousActiveChapter(targetIndex, chapter.content, 0)
-  suppressContinuousScrollSyncUntil = Date.now() + 400
-  await nextTick()
-  scrollToContinuousChapter(targetIndex, false)
+  await rebuildContinuousAtChapter(targetIndex)
 }
 
 async function jumpFromCatalog(targetIndex: number) {
@@ -661,20 +660,14 @@ async function jumpFromCatalog(targetIndex: number) {
     return
   }
 
-  const jumpDistance = Math.abs(targetIndex - store.currentIndex)
-  if (jumpDistance > 2) {
-    suppressContinuousScrollSyncUntil = Date.now() + 400
-    await initializeContinuousChapters(targetIndex, false)
-  } else {
-    await ensureContinuousChapterLoaded(targetIndex)
-    const chapter = getContinuousChapter(targetIndex)
-    if (!chapter) return
-    setContinuousActiveChapter(targetIndex, chapter.content, 0)
-    suppressContinuousScrollSyncUntil = Date.now() + 400
-    await nextTick()
-    scrollToContinuousChapter(targetIndex, false)
-  }
+  await rebuildContinuousAtChapter(targetIndex)
   store.closePanel()
+}
+
+async function rebuildContinuousAtChapter(targetIndex: number) {
+  suppressContinuousScrollSyncUntil = Date.now() + 500
+  suppressContinuousAutoLoadUntil = Date.now() + 500
+  await initializeContinuousChapters(targetIndex, false)
 }
 
 function scrollToTop() {
@@ -1545,7 +1538,7 @@ onMounted(async () => {
     store.fetchBookmarks(),
     store.fetchReplaceRules(),
   ])
-  await refreshOfflineCacheState()
+  scheduleRefreshOfflineCacheState()
   updateHorizontalMetrics()
   await rebuildHorizontalPages()
   if (isContinuousMode.value) {
@@ -1569,6 +1562,7 @@ onUnmounted(() => {
   if (speechTimerTicker) clearInterval(speechTimerTicker)
   if (restorePositionTimer) clearTimeout(restorePositionTimer)
   if (persistPositionTimer) clearTimeout(persistPositionTimer)
+  if (refreshOfflineCacheStateTimer) clearTimeout(refreshOfflineCacheStateTimer)
   clearRestoreStabilizers()
   disposeSelection()
   disposeContinuousReading()
@@ -1639,7 +1633,7 @@ watch(() => store.currentIndex, async () => {
   if (isContinuousMode.value && !suppressContinuousSync.value) {
     await syncContinuousToStoreState()
   }
-  void refreshOfflineCacheState()
+  scheduleRefreshOfflineCacheState()
   scheduleRestoreReadingPosition()
 })
 
@@ -1659,14 +1653,14 @@ watch(() => store.content, () => {
     const current = getContinuousChapter(store.currentIndex)
     if (current) {
       current.content = store.content
-      current.html = formatChapterHtml(store.content)
+      current.html = renderChapterHtml(store.content)
     } else if (store.content) {
       void initializeContinuousChapters(store.currentIndex, false)
     }
   }
   handleContentChanged()
   handleContentUpdated()
-  void refreshOfflineCacheState()
+  scheduleRefreshOfflineCacheState()
   scheduleRestoreReadingPosition()
 })
 
@@ -1678,10 +1672,10 @@ watch(() => store.loading, (loading) => {
 
 watch(() => store.book?.bookUrl, () => {
   loadSavedReadingPosition()
-  void refreshOfflineCacheState()
+  scheduleRefreshOfflineCacheState()
 })
 
-watch([showSearch, searchQuery, () => config.value.paragraphSpacing, () => config.value.firstLineIndent], () => {
+watch([showSearch, searchQuery, () => config.value.paragraphSpacing, () => config.value.firstLineIndent, () => config.value.chineseMode, () => store.replaceRules], () => {
   if (isContinuousMode.value) {
     syncContinuousChapterHtml()
   }
