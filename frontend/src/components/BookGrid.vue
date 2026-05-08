@@ -506,13 +506,16 @@ const ghostStyle = computed(() => {
 
 .book-grid-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 420px));
+  justify-content: start;
   gap: var(--space-4);
   padding: var(--space-4) 0;
 }
 
 .book-grid-item {
   min-width: 0;
+  width: 100%;
+  max-width: 420px;
   height: 100%;
   transition:
     transform 820ms cubic-bezier(0.16, 0.84, 0.2, 1),
@@ -649,8 +652,12 @@ const ghostStyle = computed(() => {
 }
 
 @media (max-width: 640px) {
-  .book-grid {
+  .book-grid-list {
     grid-template-columns: 1fr;
+  }
+
+  .book-grid-item {
+    max-width: none;
   }
 }
 </style>

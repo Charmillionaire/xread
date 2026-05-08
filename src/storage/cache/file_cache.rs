@@ -1,6 +1,6 @@
+use crate::util::hash::md5_hex;
 use std::path::{Path, PathBuf};
 use tokio::fs;
-use crate::util::hash::md5_hex;
 
 #[derive(Clone)]
 pub struct FileCache {
@@ -9,11 +9,18 @@ pub struct FileCache {
 
 impl FileCache {
     pub fn new(root: impl AsRef<Path>) -> Self {
-        Self { root: root.as_ref().to_path_buf() }
+        Self {
+            root: root.as_ref().to_path_buf(),
+        }
     }
 
     /// Get cached content for a specific book
-    pub async fn get(&self, user_ns: &str, book_key: &str, chapter_key: &str) -> anyhow::Result<Option<String>> {
+    pub async fn get(
+        &self,
+        user_ns: &str,
+        book_key: &str,
+        chapter_key: &str,
+    ) -> anyhow::Result<Option<String>> {
         let path = self.chapter_path(user_ns, book_key, chapter_key);
         if !path.exists() {
             return Ok(None);
@@ -23,7 +30,13 @@ impl FileCache {
     }
 
     /// Put cached content for a specific book
-    pub async fn put(&self, user_ns: &str, book_key: &str, chapter_key: &str, value: &str) -> anyhow::Result<()> {
+    pub async fn put(
+        &self,
+        user_ns: &str,
+        book_key: &str,
+        chapter_key: &str,
+        value: &str,
+    ) -> anyhow::Result<()> {
         let path = self.chapter_path(user_ns, book_key, chapter_key);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).await?;
@@ -33,7 +46,12 @@ impl FileCache {
     }
 
     /// Remove a single chapter cache
-    pub async fn remove(&self, user_ns: &str, book_key: &str, chapter_key: &str) -> anyhow::Result<()> {
+    pub async fn remove(
+        &self,
+        user_ns: &str,
+        book_key: &str,
+        chapter_key: &str,
+    ) -> anyhow::Result<()> {
         let path = self.chapter_path(user_ns, book_key, chapter_key);
         if path.exists() {
             fs::remove_file(path).await?;
@@ -66,6 +84,8 @@ impl FileCache {
     /// Get the file path for a specific chapter
     fn chapter_path(&self, user_ns: &str, book_key: &str, chapter_key: &str) -> PathBuf {
         let name = md5_hex(chapter_key);
-        self.book_path(user_ns, book_key).join(name).with_extension("txt")
+        self.book_path(user_ns, book_key)
+            .join(name)
+            .with_extension("txt")
     }
 }

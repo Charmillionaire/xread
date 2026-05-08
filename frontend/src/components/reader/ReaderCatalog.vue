@@ -43,9 +43,7 @@
       </button>
     </div>
 
-    <!-- Chapters List -->
-    <div v-show="activeTab === 'chapters'" class="list-container" ref="listRef">
-      <!-- Chapter Search -->
+    <div v-show="activeTab === 'chapters'" class="chapter-toolbar">
       <div class="search-box">
         <input
           v-model="chapterSearch"
@@ -57,6 +55,34 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </button>
       </div>
+      <div class="chapter-jump-actions">
+        <button
+          class="jump-btn"
+          title="跳到目录顶部"
+          :disabled="!filteredChapters.length"
+          @click="scrollCatalogTo('top')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m18 15-6-6-6 6" />
+            <path d="M5 5h14" />
+          </svg>
+        </button>
+        <button
+          class="jump-btn"
+          title="跳到目录底部"
+          :disabled="!filteredChapters.length"
+          @click="scrollCatalogTo('bottom')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+            <path d="M5 19h14" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Chapters List -->
+    <div v-show="activeTab === 'chapters'" class="list-container" ref="listRef">
       <div v-if="store.chaptersLoading" class="loading">加载目录中...</div>
       <div v-else-if="filteredChapters.length === 0" class="empty">未找到匹配的章节</div>
       <div
@@ -79,7 +105,7 @@
 
     <!-- Bookmarks List -->
     <div v-show="activeTab === 'bookmarks'" class="list-container">
-      <div v-if="!store.bookmarks.length" class="empty">鏆傛棤涔︾</div>
+      <div v-if="!store.bookmarks.length" class="empty">暂无书签</div>
       <div
         v-else
         v-for="(bm, idx) in store.bookmarks"
@@ -178,6 +204,15 @@ function scrollToCurrent() {
     if (activeEl) {
       activeEl.scrollIntoView({ block: 'center' })
     }
+  })
+}
+
+function scrollCatalogTo(position: 'top' | 'bottom') {
+  const el = listRef.value
+  if (!el) return
+  el.scrollTo({
+    top: position === 'top' ? 0 : el.scrollHeight,
+    behavior: 'smooth',
   })
 }
 
@@ -330,15 +365,24 @@ function formatDate(ts?: number) {
 .list-container {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
+  padding: 4px 0 8px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
-.search-box {
-  position: relative;
-  padding: 8px 16px;
+.chapter-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
   border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+
+.search-box {
+  flex: 1;
+  min-width: 0;
+  position: relative;
 }
 
 .search-input {
@@ -360,7 +404,7 @@ function formatDate(ts?: number) {
 
 .search-clear {
   position: absolute;
-  right: 20px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
   width: 20px;
@@ -384,6 +428,45 @@ function formatDate(ts?: number) {
 .search-clear svg {
   width: 12px;
   height: 12px;
+}
+
+.chapter-jump-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.jump-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(0,0,0,0.025);
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.jump-btn:hover:not(:disabled) {
+  opacity: 1;
+  border-color: rgba(201, 127, 58, 0.35);
+  background: rgba(201, 127, 58, 0.08);
+  color: var(--color-primary, #c97f3a);
+}
+
+.jump-btn:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.jump-btn svg {
+  width: 17px;
+  height: 17px;
 }
 
 .bookmark-toolbar {

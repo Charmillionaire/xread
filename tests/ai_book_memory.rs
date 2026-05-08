@@ -1,5 +1,6 @@
 use reader_rust::model::ai_book::{AiBookMap, AiBookMemory, AiBookNote};
 use reader_rust::service::ai_book_service::AiBookService;
+use reader_rust::storage::db;
 
 fn temp_storage_dir(name: &str) -> String {
     let path = std::env::temp_dir().join(format!(
@@ -10,13 +11,25 @@ fn temp_storage_dir(name: &str) -> String {
     if path.exists() {
         std::fs::remove_dir_all(&path).unwrap();
     }
+    std::fs::create_dir_all(&path).unwrap();
     path.to_string_lossy().to_string()
+}
+
+async fn create_service(name: &str) -> (AiBookService, String) {
+    let storage_dir = temp_storage_dir(name);
+    let database_url = format!(
+        "sqlite:{}?mode=rwc",
+        std::path::Path::new(&storage_dir)
+            .join("reader.db")
+            .display()
+    );
+    let pool = db::init_pool(&database_url).await.unwrap();
+    (AiBookService::new(pool, &storage_dir), storage_dir)
 }
 
 #[tokio::test]
 async fn ai_book_memory_round_trips_and_isolated_by_user() {
-    let storage_dir = temp_storage_dir("round-trip");
-    let service = AiBookService::new(&storage_dir);
+    let (service, storage_dir) = create_service("round-trip").await;
     let memory = AiBookMemory {
         book_url: "https://example.test/book/1".to_string(),
         book_name: Some("山海旧事".to_string()),
@@ -61,7 +74,10 @@ async fn ai_book_memory_round_trips_and_isolated_by_user() {
         .unwrap();
     assert!(bob.is_none(), "memory must be isolated by user namespace");
 
-    assert!(service.delete("alice", "https://example.test/book/1").await.unwrap());
+    assert!(service
+        .delete("alice", "https://example.test/book/1")
+        .await
+        .unwrap());
     assert!(service
         .get("alice", "https://example.test/book/1")
         .await
@@ -73,8 +89,7 @@ async fn ai_book_memory_round_trips_and_isolated_by_user() {
 
 #[tokio::test]
 async fn ai_book_memory_rejects_mismatched_book_url_on_save() {
-    let storage_dir = temp_storage_dir("mismatch");
-    let service = AiBookService::new(&storage_dir);
+    let (service, storage_dir) = create_service("mismatch").await;
 
     let mut memory = AiBookMemory::default();
     memory.book_url = "https://example.test/book/1".to_string();

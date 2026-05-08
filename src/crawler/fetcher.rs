@@ -1,7 +1,7 @@
+use crate::crawler::http_client::HttpClient;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::sleep;
-use crate::crawler::http_client::HttpClient;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HttpMethod {
@@ -45,24 +45,43 @@ pub async fn fetch(client: &HttpClient, req: RequestSpec) -> anyhow::Result<Fetc
 
         if let Some(body) = req.body {
             if matches!(req.method, HttpMethod::POST) && !has_content_type {
-                builder = builder.header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded");
+                builder = builder.header(
+                    reqwest::header::CONTENT_TYPE,
+                    "application/x-www-form-urlencoded",
+                );
             }
             println!("DEBUG: fetch sending body: {}", body);
             builder = builder.body(body);
         }
 
-        println!("DEBUG: fetch executing {} request to: {}", match req.method { HttpMethod::GET => "GET", HttpMethod::POST => "POST" }, req.url);
+        println!(
+            "DEBUG: fetch executing {} request to: {}",
+            match req.method {
+                HttpMethod::GET => "GET",
+                HttpMethod::POST => "POST",
+            },
+            req.url
+        );
         match builder.send().await {
             Ok(res) => {
                 let status = res.status().as_u16();
                 println!("DEBUG: fetch response status: {}", status);
                 let url = res.url().to_string();
-                let content_type = res.headers().get(reqwest::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+                let content_type = res
+                    .headers()
+                    .get(reqwest::header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string());
                 let body = res.text().await?;
                 if status >= 500 && attempt < MAX_RETRIES {
                     last_err = Some(anyhow::anyhow!("server error status {}", status));
                 } else {
-                    return Ok(FetchResponse { url, status, body, content_type });
+                    return Ok(FetchResponse {
+                        url,
+                        status,
+                        body,
+                        content_type,
+                    });
                 }
             }
             Err(e) => {

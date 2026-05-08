@@ -86,6 +86,7 @@
       :supports-pitch="store.speechConfig.provider === 'system'"
       :openai-model="store.speechConfig.openaiModel"
       :openai-voice="store.speechConfig.openaiVoice"
+      :openai-source="store.speechConfig.openaiSource"
       :stop-after-minutes="store.speechConfig.stopAfterMinutes"
       :timer-text="speechTimerText"
       @close="closeTTSPanel"
@@ -277,6 +278,7 @@ import { getBookInfo } from '../api/bookshelf'
 import { applySystemTheme } from '../utils/systemUi'
 import { countBrowserBookCache } from '../utils/browserCache'
 import { APP_VIEWPORT_CHANGE_EVENT, syncViewportSize } from '../utils/viewport'
+import { isReaderInteractiveClickTarget } from '../utils/readerClick'
 import type { Book } from '../types'
 
 import ReaderSidebar from '../components/reader/ReaderSidebar.vue'
@@ -1089,7 +1091,7 @@ function handleGlobalClick(e: MouseEvent) {
   if (window.getSelection?.()?.toString().trim()) return
 
   const target = e.target as HTMLElement | null
-  if (target?.closest('.tts-controls, .reader-search-panel, .selection-menu')) return
+  if (isReaderInteractiveClickTarget(target)) return
   if (store.isAutoScrolling) return
   
   if (isHorizontalPageMode.value && isMobile.value) {
@@ -1443,6 +1445,7 @@ function changeVoice(name: string) {
 }
 
 function changeOpenAIVoice(voiceId: string) {
+  if (store.speechConfig.openaiSource === 'server') return
   store.setOpenAISpeechVoice(voiceId)
   ttsPanelDismissed.value = false
   showTTSPanel.value = true

@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { getAiModelConfig } from '../api/aiModel'
 import { deleteAiBookMemory, getAiBookMemory, saveAiBookMemory } from '../api/aiBook'
-import type { AiBookMemory, Book, BookChapter } from '../types'
+import type { AiBookMemory, AiServerModelConfigResponse, Book, BookChapter } from '../types'
 import { useAppStore } from './app'
 import { getAiBookConfig, saveAiBookConfig } from '../utils/aiBookConfig'
 import type { AiBookConfig } from '../types'
 import {
+  applyMapFallbackToMemory,
   applyMapToMemory,
   createEmptyAiBookMemory,
   requestAiBookMapImage,
@@ -13,6 +15,7 @@ import {
   shouldRunAiBookAutoUpdate,
   uploadGeneratedMap,
 } from '../utils/aiBookGeneration'
+import { shouldSkipAiBookChapter } from '../utils/aiBookChapterFilter'
 
 type GenerationPhase = 'idle' | 'loading' | 'text' | 'map' | 'saving' | 'error'
 
@@ -26,7 +29,15 @@ export const useAiBookStore = defineStore('aiBook', () => {
 
   const username = computed(() => appStore.userInfo?.username || 'default')
   const config = ref<AiBookConfig>(getAiBookConfig(username.value))
+  const serverModelConfig = ref<AiServerModelConfigResponse | null>(null)
   const isBusy = computed(() => loading.value || phase.value !== 'idle')
+  const canUseServerModel = computed(() => Boolean(serverModelConfig.value?.canUseServerModel))
+  const isServerModelAdmin = computed(() => Boolean(serverModelConfig.value?.isAdmin))
+
+  async function loadServerModelConfig() {
+    serverModelConfig.value = await getAiModelConfig().catch(() => null)
+    return serverModelConfig.value
+  }
 
   function refreshConfig() {
     config.value = getAiBookConfig(username.value)
@@ -85,6 +96,7 @@ export const useAiBookStore = defineStore('aiBook', () => {
     book: Book
     chapter: BookChapter
     chapterContent: string
+    chapters?: BookChapter[]
   }) {
     const current = memory.value?.bookUrl === params.book.bookUrl
       ? memory.value
@@ -104,11 +116,16 @@ export const useAiBookStore = defineStore('aiBook', () => {
     chapterContent: string
     current?: AiBookMemory
     allowSkip?: boolean
+    chapters?: BookChapter[]
   }) {
     const currentConfig = refreshConfig()
     const current = params.current || (memory.value?.bookUrl === params.book.bookUrl ? memory.value : await load(params.book))
     if (params.allowSkip && !shouldRunAiBookAutoUpdate(current, params.chapter.index, currentConfig)) {
       return current
+    }
+
+    if (shouldSkipAiBookChapter(params.chapter, params.chapters || [])) {
+      return saveSkippedChapterMemory(params.book, params.chapter, current)
     }
 
     const key = `${params.book.bookUrl}::${params.chapter.index}`
@@ -162,6 +179,21 @@ export const useAiBookStore = defineStore('aiBook', () => {
     }
   }
 
+  async function saveSkippedChapterMemory(book: Book, chapter: BookChapter, current: AiBookMemory) {
+    const next: AiBookMemory = {
+      ...current,
+      bookUrl: book.bookUrl,
+      bookName: book.name,
+      author: book.author,
+      processedChapterIndex: Math.max(current.processedChapterIndex ?? -1, chapter.index),
+      processedChapterTitle: chapter.title,
+      lastError: undefined,
+      updatedAt: Date.now(),
+    }
+    memory.value = await saveAiBookMemory(next).catch(() => next)
+    return memory.value
+  }
+
   async function redrawMap(book: Book, prompt?: string, sourceChapterIndex?: number, currentMemory?: AiBookMemory) {
     const currentConfig = refreshConfig()
     const current = currentMemory || memory.value || await load(book)
@@ -177,6 +209,7 @@ export const useAiBookStore = defineStore('aiBook', () => {
         b64Json: image.b64Json,
         imageUrl: image.imageUrl,
         filename: `${Date.now()}-${slugify(book.name || 'map')}.png`,
+        useBackendProxy: currentConfig.useBackendProxy || currentConfig.modelSource === 'server',
       })
       const next = applyMapToMemory(current, {
         imageUrl,
@@ -190,15 +223,19 @@ export const useAiBookStore = defineStore('aiBook', () => {
       return memory.value
     } catch (error) {
       const message = (error as Error).message || '地图生成失败'
-      const failed: AiBookMemory = {
-        ...current,
-        mapDirty: true,
-        lastError: message,
-        updatedAt: Date.now(),
-      }
-      memory.value = await saveAiBookMemory(failed).catch(() => failed)
-      phase.value = 'error'
-      statusText.value = message
+      const fallback = applyMapFallbackToMemory(current, {
+        prompt: resolvedPrompt,
+        reason: `${message}，已显示关系图`,
+        sourceChapterIndex,
+      })
+      memory.value = await saveAiBookMemory(fallback).catch(() => fallback)
+      phase.value = 'idle'
+      statusText.value = '图片地图不可用，已显示关系图'
+      window.setTimeout(() => {
+        if (statusText.value === '图片地图不可用，已显示关系图') {
+          statusText.value = ''
+        }
+      }, 3000)
       return memory.value
     }
   }
@@ -210,6 +247,10 @@ export const useAiBookStore = defineStore('aiBook', () => {
     statusText,
     isBusy,
     config,
+    serverModelConfig,
+    canUseServerModel,
+    isServerModelAdmin,
+    loadServerModelConfig,
     refreshConfig,
     persistConfig,
     load,
@@ -223,10 +264,13 @@ export const useAiBookStore = defineStore('aiBook', () => {
 })
 
 function buildFallbackMapPrompt(memory: AiBookMemory, book: Book) {
-  const locations = memory.locations.map((item) => `${item.name}: ${item.description}`).join('\n')
+  const locations = memory.locations
+    .map((item) => `${item.parentName ? `${item.parentName} > ` : ''}${item.name}${item.kind ? `（${item.kind}）` : ''}: ${item.description}`)
+    .join('\n')
   return [
     `为小说《${book.name}》绘制一张不剧透的世界地图。`,
     '只包含已读进度中出现的地点和势力范围。',
+    '优先表现地点层级、区域边界、路线连接、图例和地点标签，避免画成建筑外观或场景照片。',
     locations || memory.summary || '保留未知区域，以卷轴地图风格呈现。',
   ].join('\n')
 }

@@ -47,7 +47,7 @@ export function changePassword(oldPassword: string, newPassword: string) {
 
 export function updateUser(
   username: string,
-  payload: { enableWebdav?: boolean; enableLocalStore?: boolean },
+  payload: { enableWebdav?: boolean; enableLocalStore?: boolean; enableAiModel?: boolean },
 ) {
   return http.post<UserInfo[]>('/updateUser', { username, ...payload }).then((r) => r.data)
 }

@@ -4,7 +4,10 @@
       <div class="tts-head">
         <div class="tts-info">
           <div>正在朗读: {{ chapterTitle }}</div>
-          <div class="tts-mode">当前模式: {{ providerLabel }}<span v-if="provider === 'openai'"> · {{ openaiModel }} / {{ openaiVoice }}</span></div>
+          <div class="tts-mode">
+            当前模式: {{ providerLabel }}
+            <span v-if="provider === 'openai'"> · {{ openaiSource === 'server' ? '后端配置' : `${openaiModel} / ${openaiVoice}` }}</span>
+          </div>
         </div>
         <button class="tts-close" @click="$emit('close')" aria-label="close tts panel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -24,6 +27,9 @@
           {{ voice.name }} ({{ voice.lang }})
         </option>
       </select>
+      <div v-else-if="openaiSource === 'server'" class="tts-source-note">
+        OpenAI Speech 使用后端配置
+      </div>
       <input
         v-else
         class="tts-voice-select"
@@ -79,6 +85,7 @@ defineProps<{
   supportsPitch: boolean
   openaiModel: string
   openaiVoice: string
+  openaiSource: 'browser' | 'server'
   stopAfterMinutes: number
   timerText: string
 }>()
@@ -183,6 +190,18 @@ defineEmits<{
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: rgba(255, 255, 255, 0.65);
   color: inherit;
+}
+
+.tts-source-note {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.04);
+  color: inherit;
+  font-size: 13px;
+  opacity: 0.75;
+  box-sizing: border-box;
 }
 
 .tts-tuning {

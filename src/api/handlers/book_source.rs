@@ -1,3 +1,8 @@
+use crate::api::auth::AuthContext;
+use crate::api::AppState;
+use crate::error::error::{ApiResponse, AppError};
+use crate::model::book_source::BookSource;
+use crate::util::text::{normalize_source_url, repair_encoded_url};
 use axum::{
     body::Bytes,
     extract::{Query, State},
@@ -11,11 +16,6 @@ use axum::{
 use regex::{Captures, Regex};
 use serde::Deserialize;
 use url::Url;
-use crate::api::AppState;
-use crate::api::auth::AuthContext;
-use crate::error::error::{ApiResponse, AppError};
-use crate::model::book_source::BookSource;
-use crate::util::text::{normalize_source_url, repair_encoded_url};
 
 #[derive(Debug, Deserialize)]
 pub struct BookSourceUrlParam {
@@ -28,36 +28,82 @@ pub struct UsernameParam {
     pub username: Option<String>,
 }
 
-pub async fn save_book_source(State(state): State<AppState>, auth: AuthContext, Json(source): Json<BookSource>) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let user_ns = state.user_service.resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+pub async fn save_book_source(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(source): Json<BookSource>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     state.book_source_service.save(&user_ns, source).await?;
     Ok(Json(ApiResponse::ok(serde_json::json!({"saved": true}))))
 }
 
-pub async fn save_book_sources(State(state): State<AppState>, auth: AuthContext, Json(payload): Json<serde_json::Value>) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let user_ns = state.user_service.resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+pub async fn save_book_sources(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let sources = extract_sources(payload)?;
     if sources.is_empty() {
         return Err(AppError::BadRequest("empty book sources".to_string()));
     }
     let count = sources.len();
-    state.book_source_service.save_many(&user_ns, sources).await?;
-    Ok(Json(ApiResponse::ok(serde_json::json!({"saved": true, "count": count}))))
+    state
+        .book_source_service
+        .save_many(&user_ns, sources)
+        .await?;
+    Ok(Json(ApiResponse::ok(
+        serde_json::json!({"saved": true, "count": count}),
+    )))
 }
 
-pub async fn get_book_source(State(state): State<AppState>, auth: AuthContext, Query(q): Query<BookSourceUrlParam>, body: Option<Json<BookSourceUrlParam>>) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let user_ns = state.user_service.resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
-    let url = q.book_source_url.or_else(|| body.map(|b| b.0.book_source_url).flatten());
+pub async fn get_book_source(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(q): Query<BookSourceUrlParam>,
+    body: Option<Json<BookSourceUrlParam>>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+    let url = q
+        .book_source_url
+        .or_else(|| body.map(|b| b.0.book_source_url).flatten());
     let url = url.ok_or_else(|| AppError::BadRequest("bookSourceUrl required".to_string()))?;
-    let source = state.book_source_service.get(&user_ns, &url).await?
+    let source = state
+        .book_source_service
+        .get(&user_ns, &url)
+        .await?
         .ok_or_else(|| AppError::NotFound("bookSource not found".to_string()))?;
-    Ok(Json(ApiResponse::ok(serde_json::to_value(source).unwrap_or_default())))
+    Ok(Json(ApiResponse::ok(
+        serde_json::to_value(source).unwrap_or_default(),
+    )))
 }
 
-pub async fn get_book_sources(State(state): State<AppState>, auth: AuthContext) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let user_ns = state.user_service.resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+pub async fn get_book_sources(
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let list = state.book_source_service.list(&user_ns).await?;
-    Ok(Json(ApiResponse::ok(serde_json::to_value(list).unwrap_or_default())))
+    Ok(Json(ApiResponse::ok(
+        serde_json::to_value(list).unwrap_or_default(),
+    )))
 }
 
 pub async fn get_default_book_source_owner(
@@ -65,20 +111,43 @@ pub async fn get_default_book_source_owner(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     if !state.user_service.secure_enabled() {
-        return Ok(Json(ApiResponse::ok(serde_json::json!({ "username": null }))));
+        return Ok(Json(ApiResponse::ok(
+            serde_json::json!({ "username": null }),
+        )));
     }
-    let is_admin = state.user_service.is_admin(auth.access_token(), auth.secure_key()).await?;
+    let is_admin = state
+        .user_service
+        .is_admin(auth.access_token(), auth.secure_key())
+        .await?;
     if !is_admin {
-        return Ok(Json(ApiResponse::err_with_data("请输入管理密码", serde_json::Value::String("NEED_SECURE_KEY".to_string()))));
+        return Ok(Json(ApiResponse::err_with_data(
+            "请输入管理密码",
+            serde_json::Value::String("NEED_SECURE_KEY".to_string()),
+        )));
     }
     let username = state.book_source_service.get_default_owner().await?;
-    Ok(Json(ApiResponse::ok(serde_json::json!({ "username": username }))))
+    Ok(Json(ApiResponse::ok(
+        serde_json::json!({ "username": username }),
+    )))
 }
 
-pub async fn login_book_source(State(state): State<AppState>, auth: AuthContext, Json(param): Json<BookSourceUrlParam>) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let user_ns = state.user_service.resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
-    let url = param.book_source_url.ok_or_else(|| AppError::BadRequest("bookSourceUrl required".to_string()))?;
-    let source = state.book_source_service.get(&user_ns, &url).await?
+pub async fn login_book_source(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(param): Json<BookSourceUrlParam>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+    let url = param
+        .book_source_url
+        .ok_or_else(|| AppError::BadRequest("bookSourceUrl required".to_string()))?;
+    let source = state
+        .book_source_service
+        .get(&user_ns, &url)
+        .await?
         .ok_or_else(|| AppError::NotFound("bookSource not found".to_string()))?;
     let result = state.book_service.login_book_source(&source).await?;
     Ok(Json(ApiResponse::ok(result)))
@@ -119,7 +188,10 @@ pub async fn book_source_proxy(
         .ok_or_else(|| AppError::NotFound("bookSource not found".to_string()))?;
 
     if let Some(cookie) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) {
-        state.book_service.set_source_cookie(&user_ns, &source.book_source_url, cookie).await;
+        state
+            .book_service
+            .set_source_cookie(&user_ns, &source.book_source_url, cookie)
+            .await;
     }
 
     let target_url = resolve_proxy_target_url(&raw_target_url, &source.book_source_url)?;
@@ -162,21 +234,35 @@ pub async fn book_source_client_log(
     Json(ApiResponse::ok(serde_json::json!({ "logged": true })))
 }
 
-pub async fn delete_book_source(State(state): State<AppState>, auth: AuthContext, Json(param): Json<BookSourceUrlParam>) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let user_ns = state.user_service.resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
-    let url = param.book_source_url.ok_or_else(|| AppError::BadRequest("bookSourceUrl required".to_string()))?;
+pub async fn delete_book_source(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(param): Json<BookSourceUrlParam>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+    let url = param
+        .book_source_url
+        .ok_or_else(|| AppError::BadRequest("bookSourceUrl required".to_string()))?;
     state.book_source_service.delete(&user_ns, &url).await?;
     Ok(Json(ApiResponse::ok(serde_json::json!({"deleted": true}))))
 }
 
-fn resolve_proxy_target_url(raw_target_url: &str, book_source_url: &str) -> Result<String, AppError> {
+fn resolve_proxy_target_url(
+    raw_target_url: &str,
+    book_source_url: &str,
+) -> Result<String, AppError> {
     let repaired = repair_encoded_url(raw_target_url);
     if let Ok(url) = Url::parse(&repaired) {
         return Ok(url.to_string());
     }
 
     let base = normalize_source_url(book_source_url);
-    let base = Url::parse(&base).map_err(|e| AppError::BadRequest(format!("invalid bookSourceUrl: {}", e)))?;
+    let base = Url::parse(&base)
+        .map_err(|e| AppError::BadRequest(format!("invalid bookSourceUrl: {}", e)))?;
     base.join(&repaired)
         .map(|u| u.to_string())
         .map_err(|e| AppError::BadRequest(format!("invalid proxy target url: {}", e)))
@@ -210,7 +296,9 @@ async fn forward_book_source_request(
     let mut builder = client.request(req_method, target_url);
 
     if let Some(header_str) = &source.header {
-        if let Ok(source_headers) = serde_json::from_str::<std::collections::HashMap<String, String>>(header_str) {
+        if let Ok(source_headers) =
+            serde_json::from_str::<std::collections::HashMap<String, String>>(header_str)
+        {
             for (k, v) in source_headers {
                 builder = builder.header(k, v);
             }
@@ -243,7 +331,10 @@ async fn forward_book_source_request(
     }
 
     if method == Method::POST && !has_content_type {
-        builder = builder.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded; charset=UTF-8");
+        builder = builder.header(
+            header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded; charset=UTF-8",
+        );
     }
     if is_ajax_api_target(target_url) && !has_x_requested_with {
         builder = builder.header("X-Requested-With", "XMLHttpRequest");
@@ -318,13 +409,7 @@ async fn forward_book_source_request(
 
     let body = if is_html_response(content_type.as_deref(), &bytes) {
         let text = String::from_utf8_lossy(&bytes).to_string();
-        rewrite_login_html(
-            &text,
-            &final_url,
-            &source.book_source_url,
-            access_token,
-        )
-        .into_bytes()
+        rewrite_login_html(&text, &final_url, &source.book_source_url, access_token).into_bytes()
     } else {
         bytes.to_vec()
     };
@@ -335,12 +420,7 @@ async fn forward_book_source_request(
 fn should_forward_request_header(name: &str) -> bool {
     !matches!(
         name.to_ascii_lowercase().as_str(),
-        "host"
-            | "content-length"
-            | "authorization"
-            | "referer"
-            | "origin"
-            | "connection"
+        "host" | "content-length" | "authorization" | "referer" | "origin" | "connection"
     )
 }
 
@@ -382,14 +462,20 @@ fn rewrite_login_html(
     };
 
     output = rewrite_proxy_actions(&output, upstream_url, book_source_url, access_token);
-    output = rewrite_script_root_relative_urls(&output, upstream_url, book_source_url, access_token);
+    output =
+        rewrite_script_root_relative_urls(&output, upstream_url, book_source_url, access_token);
     output
 }
 
-fn build_proxy_script(upstream_url: &str, book_source_url: &str, access_token: Option<&str>) -> String {
+fn build_proxy_script(
+    upstream_url: &str,
+    book_source_url: &str,
+    access_token: Option<&str>,
+) -> String {
     let upstream_json = serde_json::to_string(upstream_url).unwrap_or_else(|_| "\"\"".to_string());
     let source_json = serde_json::to_string(book_source_url).unwrap_or_else(|_| "\"\"".to_string());
-    let token_json = serde_json::to_string(access_token.unwrap_or("")).unwrap_or_else(|_| "\"\"".to_string());
+    let token_json =
+        serde_json::to_string(access_token.unwrap_or("")).unwrap_or_else(|_| "\"\"".to_string());
     format!(
         r#"<script>
 (function() {{
@@ -571,7 +657,13 @@ fn rewrite_script_root_relative_urls(
             });
             single_quoted
                 .replace_all(&output, |caps: &Captures| {
-                    rewrite_script_url_literal(&caps, upstream_url, book_source_url, access_token, "'")
+                    rewrite_script_url_literal(
+                        &caps,
+                        upstream_url,
+                        book_source_url,
+                        access_token,
+                        "'",
+                    )
                 })
                 .into_owned()
         })
@@ -609,13 +701,13 @@ fn rewrite_set_cookie_for_proxy(raw: &str) -> Option<String> {
         return None;
     }
 
-    let mut attrs = vec![first.to_string(), "Path=/reader3/bookSourceProxy".to_string()];
+    let mut attrs = vec![
+        first.to_string(),
+        "Path=/reader3/bookSourceProxy".to_string(),
+    ];
     for attr in parts {
         let lower = attr.to_ascii_lowercase();
-        if lower.starts_with("domain=")
-            || lower.starts_with("path=")
-            || lower == "secure"
-        {
+        if lower.starts_with("domain=") || lower.starts_with("path=") || lower == "secure" {
             continue;
         }
         attrs.push(attr.to_string());
@@ -623,8 +715,16 @@ fn rewrite_set_cookie_for_proxy(raw: &str) -> Option<String> {
     Some(attrs.join("; "))
 }
 
-pub async fn delete_book_sources(State(state): State<AppState>, auth: AuthContext, Json(list): Json<Vec<BookSourceUrlParam>>) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let user_ns = state.user_service.resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+pub async fn delete_book_sources(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(list): Json<Vec<BookSourceUrlParam>>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     for item in list {
         if let Some(url) = item.book_source_url {
             state.book_source_service.delete(&user_ns, &url).await?;
@@ -633,8 +733,15 @@ pub async fn delete_book_sources(State(state): State<AppState>, auth: AuthContex
     Ok(Json(ApiResponse::ok(serde_json::json!({"deleted": true}))))
 }
 
-pub async fn delete_all_book_sources(State(state): State<AppState>, auth: AuthContext) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let user_ns = state.user_service.resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns()).await.map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+pub async fn delete_all_book_sources(
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     state.book_source_service.delete_all(&user_ns).await?;
     Ok(Json(ApiResponse::ok(serde_json::json!({"deleted": true}))))
 }
@@ -654,7 +761,9 @@ fn extract_sources(payload: serde_json::Value) -> Result<Vec<BookSource>, AppErr
             }
         }
     }
-    Err(AppError::BadRequest("invalid book sources payload".to_string()))
+    Err(AppError::BadRequest(
+        "invalid book sources payload".to_string(),
+    ))
 }
 
 #[derive(Debug, Deserialize)]
@@ -672,28 +781,35 @@ pub async fn read_remote_source_file(
         .build()
         .map_err(|e| AppError::Internal(e.into()))?;
 
-    let text = client.get(&param.url)
-        .send().await
+    let text = client
+        .get(&param.url)
+        .send()
+        .await
         .map_err(|e| {
             tracing::error!("Failed to fetch remote source from {}: {:?}", param.url, e);
             AppError::BadRequest(format!("网络请求失败: {}", e))
         })?
-        .text().await
+        .text()
+        .await
         .map_err(|e| AppError::BadRequest(format!("读取响应失败: {}", e)))?;
 
     println!("DEBUG: remote source file length: {}", text.len());
-    println!("DEBUG: remote source file preview: {}", &text.chars().take(500).collect::<String>());
+    println!(
+        "DEBUG: remote source file preview: {}",
+        &text.chars().take(500).collect::<String>()
+    );
 
-    let sources: Vec<BookSource> = serde_json::from_str(&text)
-        .or_else(|e| {
-            println!("DEBUG: direct parse failed: {:?}", e);
-            // some sources are wrapped in a list or object
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
-                extract_sources(v)
-            } else {
-                Err(AppError::BadRequest("invalid book sources json format".to_string()))
-            }
-        })?;
+    let sources: Vec<BookSource> = serde_json::from_str(&text).or_else(|e| {
+        println!("DEBUG: direct parse failed: {:?}", e);
+        // some sources are wrapped in a list or object
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+            extract_sources(v)
+        } else {
+            Err(AppError::BadRequest(
+                "invalid book sources json format".to_string(),
+            ))
+        }
+    })?;
 
     println!("DEBUG: parsed {} book sources", sources.len());
 
@@ -709,19 +825,27 @@ use axum::extract::Multipart;
 pub async fn read_source_file(
     mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?
+    {
         if let Some(file_name) = field.file_name() {
             if file_name.ends_with(".json") || file_name.ends_with(".txt") {
-                let bytes = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
+                let bytes = field
+                    .bytes()
+                    .await
+                    .map_err(|e| AppError::BadRequest(e.to_string()))?;
                 let text = String::from_utf8_lossy(&bytes);
-                let sources: Vec<BookSource> = serde_json::from_str(&text)
-                    .or_else(|_| {
-                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
-                            extract_sources(v)
-                        } else {
-                            Err(AppError::BadRequest("invalid book sources json format".to_string()))
-                        }
-                    })?;
+                let sources: Vec<BookSource> = serde_json::from_str(&text).or_else(|_| {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                        extract_sources(v)
+                    } else {
+                        Err(AppError::BadRequest(
+                            "invalid book sources json format".to_string(),
+                        ))
+                    }
+                })?;
                 return Ok(Json(serde_json::to_value(sources).unwrap_or_default()));
             }
         }
@@ -735,11 +859,21 @@ pub async fn set_as_default_book_sources(
     Json(param): Json<UsernameParam>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // Check if admin
-    let is_admin = state.user_service.is_admin(auth.access_token(), auth.secure_key()).await?;
+    let is_admin = state
+        .user_service
+        .is_admin(auth.access_token(), auth.secure_key())
+        .await?;
     if !is_admin {
-        return Ok(Json(ApiResponse::err_with_data("请输入管理密码", serde_json::Value::String("NEED_SECURE_KEY".to_string()))));
+        return Ok(Json(ApiResponse::err_with_data(
+            "请输入管理密码",
+            serde_json::Value::String("NEED_SECURE_KEY".to_string()),
+        )));
     }
-    let username = param.username.ok_or_else(|| AppError::BadRequest("username required".to_string()))?;
+    let username = param
+        .username
+        .ok_or_else(|| AppError::BadRequest("username required".to_string()))?;
     let count = state.book_source_service.set_as_default(&username).await?;
-    Ok(Json(ApiResponse::ok(serde_json::json!({"success": true, "count": count}))))
+    Ok(Json(ApiResponse::ok(
+        serde_json::json!({"success": true, "count": count}),
+    )))
 }

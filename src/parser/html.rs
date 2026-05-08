@@ -1,4 +1,4 @@
-use scraper::{Html, Selector, ElementRef};
+use scraper::{ElementRef, Html, Selector};
 use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -17,7 +17,11 @@ enum IndexMode {
 #[derive(Clone, Debug, PartialEq)]
 enum IndexItem {
     Single(i32),
-    Range { start: Option<i32>, end: Option<i32>, step: i32 },
+    Range {
+        start: Option<i32>,
+        end: Option<i32>,
+        step: i32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,7 +77,12 @@ fn legado_to_css(selector: &str) -> String {
     }
 
     // Default: treat as class if it doesn't look like a tag
-    if selector.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false) {
+    if selector
+        .chars()
+        .next()
+        .map(|c| c.is_alphabetic())
+        .unwrap_or(false)
+    {
         let parts: Vec<&str> = selector.split_whitespace().collect();
         if parts.len() > 1 {
             return format!(".{}", parts.join("."));
@@ -216,7 +225,10 @@ fn collect_matches<'a>(doc: &'a Html, selector: &ParsedSelector) -> Vec<ElementR
     apply_indices(matches, selector)
 }
 
-fn collect_matches_from_element<'a>(el: ElementRef<'a>, selector: &ParsedSelector) -> Vec<ElementRef<'a>> {
+fn collect_matches_from_element<'a>(
+    el: ElementRef<'a>,
+    selector: &ParsedSelector,
+) -> Vec<ElementRef<'a>> {
     let matches = match &selector.base {
         SelectorBase::Css(css_selector) => select_css_from_element(el, css_selector),
         SelectorBase::Children => child_elements(el),
@@ -258,7 +270,10 @@ fn select_by_text_from_element<'a>(el: ElementRef<'a>, needle: &str) -> Vec<Elem
         matches.push(el);
     }
     if let Ok(sel) = Selector::parse("*") {
-        matches.extend(el.select(&sel).filter(|candidate| own_text(candidate).contains(needle)));
+        matches.extend(
+            el.select(&sel)
+                .filter(|candidate| own_text(candidate).contains(needle)),
+        );
     }
     matches
 }
@@ -273,7 +288,10 @@ fn own_text(el: &ElementRef) -> String {
     text
 }
 
-fn apply_indices<'a>(matches: Vec<ElementRef<'a>>, selector: &ParsedSelector) -> Vec<ElementRef<'a>> {
+fn apply_indices<'a>(
+    matches: Vec<ElementRef<'a>>,
+    selector: &ParsedSelector,
+) -> Vec<ElementRef<'a>> {
     if !selector.explicit_index {
         return matches;
     }
@@ -483,11 +501,19 @@ pub fn extract_text(el: &ElementRef, extractor: &str) -> Option<String> {
         "text" | "@text" => {
             let text = el.text().collect::<Vec<_>>().join(" ");
             let text = text.trim().to_string();
-            if text.is_empty() { None } else { Some(text) }
+            if text.is_empty() {
+                None
+            } else {
+                Some(text)
+            }
         }
         "textNodes" | "@textNodes" => {
             let text = get_text_nodes(el);
-            if text.is_empty() { None } else { Some(text) }
+            if text.is_empty() {
+                None
+            } else {
+                Some(text)
+            }
         }
         "ownText" | "@ownText" => {
             let mut own_text = String::new();
@@ -498,14 +524,14 @@ pub fn extract_text(el: &ElementRef, extractor: &str) -> Option<String> {
                 }
             }
             let text = own_text.trim().to_string();
-            if text.is_empty() { None } else { Some(text) }
+            if text.is_empty() {
+                None
+            } else {
+                Some(text)
+            }
         }
-        "html" | "@html" => {
-            Some(el.html())
-        }
-        "all" | "@all" => {
-            Some(el.html())
-        }
+        "html" | "@html" => Some(el.html()),
+        "all" | "@all" => Some(el.html()),
         _ => {
             if let Some(attr_name) = parse_attr_extractor(extractor) {
                 return el.value().attr(attr_name).map(|v| v.to_string());
@@ -556,10 +582,14 @@ pub fn select_text_from_element(el: &ElementRef, rule: &str) -> Option<String> {
 
     for i in 0..parts.len() {
         let part = parts[i].trim();
-        if part.is_empty() { continue; }
+        if part.is_empty() {
+            continue;
+        }
 
         if i == parts.len() - 1 {
-            return current_matches.into_iter().find_map(|current| extract_text(&current, part));
+            return current_matches
+                .into_iter()
+                .find_map(|current| extract_text(&current, part));
         }
 
         let parsed = parse_selector_with_index(part);
@@ -574,17 +604,23 @@ pub fn select_text_from_element(el: &ElementRef, rule: &str) -> Option<String> {
         current_matches = next_matches;
     }
 
-    current_matches.into_iter().find_map(|current| extract_text(&current, "text"))
+    current_matches
+        .into_iter()
+        .find_map(|current| extract_text(&current, "text"))
 }
 
 /// Select all matching elements and collect their text, joined by newlines
 pub fn select_all_text(doc: &Html, rule: &str) -> Option<String> {
     let parts: Vec<&str> = rule.split('@').collect();
-    if parts.is_empty() { return None; }
+    if parts.is_empty() {
+        return None;
+    }
 
     let first_part = parts[0].trim();
     let roots = collect_matches(doc, &parse_selector_with_index(first_part));
-    if roots.is_empty() { return None; }
+    if roots.is_empty() {
+        return None;
+    }
 
     if parts.len() > 1 {
         let mut all_texts = Vec::new();
@@ -601,15 +637,17 @@ pub fn select_all_text(doc: &Html, rule: &str) -> Option<String> {
 
             let parsed = parse_selector_with_index(sub_rule.trim());
             for el in collect_matches_from_element(root, &parsed) {
-                    if let Some(text) = extract_text(&el, "text") {
-                        if !text.is_empty() {
-                            all_texts.push(text);
-                        }
+                if let Some(text) = extract_text(&el, "text") {
+                    if !text.is_empty() {
+                        all_texts.push(text);
                     }
+                }
             }
         }
 
-        if all_texts.is_empty() { return None; }
+        if all_texts.is_empty() {
+            return None;
+        }
         return Some(all_texts.join("\n"));
     }
 
@@ -621,7 +659,9 @@ pub fn select_all_text(doc: &Html, rule: &str) -> Option<String> {
             }
         }
     }
-    if texts.is_empty() { return None; }
+    if texts.is_empty() {
+        return None;
+    }
     Some(texts.join("\n"))
 }
 
@@ -657,12 +697,16 @@ pub fn select_text_list(doc: &Html, rule: &str) -> Vec<String> {
     }
 
     let parts: Vec<&str> = rule.split('@').collect();
-    if parts.is_empty() { return vec![]; }
+    if parts.is_empty() {
+        return vec![];
+    }
 
     let first_part = parts[0].trim();
 
     let matches = collect_matches(doc, &parse_selector_with_index(first_part));
-    if matches.is_empty() { return vec![]; }
+    if matches.is_empty() {
+        return vec![];
+    }
 
     let mut results = Vec::new();
     for el in matches {
@@ -689,23 +733,15 @@ pub fn select_xpath(html: &str, xpath: &str) -> Vec<String> {
     let context = sxd_xpath::Context::new();
 
     match sxd_xpath::Factory::new().build(xpath) {
-        Ok(Some(xpath_expr)) => {
-            match xpath_expr.evaluate(&context, document.root()) {
-                Ok(value) => {
-                    match value {
-                        sxd_xpath::Value::Nodeset(ns) => {
-                            ns.into_iter()
-                                .map(|n| n.string_value())
-                                .collect()
-                        }
-                        sxd_xpath::Value::String(s) => vec![s],
-                        sxd_xpath::Value::Number(n) => vec![n.to_string()],
-                        sxd_xpath::Value::Boolean(b) => vec![b.to_string()],
-                    }
-                }
-                Err(_) => vec![],
-            }
-        }
+        Ok(Some(xpath_expr)) => match xpath_expr.evaluate(&context, document.root()) {
+            Ok(value) => match value {
+                sxd_xpath::Value::Nodeset(ns) => ns.into_iter().map(|n| n.string_value()).collect(),
+                sxd_xpath::Value::String(s) => vec![s],
+                sxd_xpath::Value::Number(n) => vec![n.to_string()],
+                sxd_xpath::Value::Boolean(b) => vec![b.to_string()],
+            },
+            Err(_) => vec![],
+        },
         _ => vec![],
     }
 }
@@ -760,17 +796,37 @@ mod tests {
             r#"<div><a href="/1">A</a><a href="/2">B</a><a href="/3">C</a><a href="/4">D</a></div>"#,
         );
 
-        assert_eq!(select_text_list(&doc, "a[1:2]@text"), vec!["B".to_string(), "C".to_string()]);
-        assert_eq!(select_text_list(&doc, "a[!1,2]@text"), vec!["A".to_string(), "D".to_string()]);
-        assert_eq!(select_text_list(&doc, "a[-1:0]@text"), vec!["D".to_string(), "C".to_string(), "B".to_string(), "A".to_string()]);
+        assert_eq!(
+            select_text_list(&doc, "a[1:2]@text"),
+            vec!["B".to_string(), "C".to_string()]
+        );
+        assert_eq!(
+            select_text_list(&doc, "a[!1,2]@text"),
+            vec!["A".to_string(), "D".to_string()]
+        );
+        assert_eq!(
+            select_text_list(&doc, "a[-1:0]@text"),
+            vec![
+                "D".to_string(),
+                "C".to_string(),
+                "B".to_string(),
+                "A".to_string()
+            ]
+        );
     }
 
     #[test]
     fn test_extract_attr_bracket_syntax() {
         let doc = parse_document(r#"<div><a href="/book/1" data-id="abc">Book</a></div>"#);
 
-        assert_eq!(select_text(&doc, "a@attr[href]"), Some("/book/1".to_string()));
-        assert_eq!(select_text(&doc, "a@attr[data-id]"), Some("abc".to_string()));
+        assert_eq!(
+            select_text(&doc, "a@attr[href]"),
+            Some("/book/1".to_string())
+        );
+        assert_eq!(
+            select_text(&doc, "a@attr[data-id]"),
+            Some("abc".to_string())
+        );
         assert_eq!(select_text(&doc, "a@href"), Some("/book/1".to_string()));
     }
 }

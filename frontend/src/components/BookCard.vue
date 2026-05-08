@@ -46,44 +46,55 @@
 
     <!-- Info -->
     <div class="card-info">
-      <h3 class="book-name">{{ book.name }}</h3>
-      <div class="book-meta">
-        <span class="book-author">{{ book.author || '未知作者' }}</span>
-        <span v-if="asBook.totalChapterNum" class="meta-dot">·</span>
-        <span v-if="asBook.totalChapterNum" class="book-chapters">共{{ asBook.totalChapterNum }}章</span>
+      <div class="card-topline">
+        <div class="title-block">
+          <h3 class="book-name">{{ book.name }}</h3>
+          <div class="book-meta">
+            <span class="book-author">{{ book.author || '未知作者' }}</span>
+            <span v-if="asBook.totalChapterNum" class="meta-dot">·</span>
+            <span v-if="asBook.totalChapterNum" class="book-chapters">共{{ asBook.totalChapterNum }}章</span>
+          </div>
+        </div>
+        <button
+          v-if="showAiEntry"
+          class="ai-entry-btn"
+          @click.stop="$emit('ai', book)"
+        >
+          AI资料
+        </button>
       </div>
+
       <div v-if="isSearch && (sourceName || sourceGroup)" class="book-source-row">
         <span v-if="sourceName" class="source-chip source-name">{{ sourceName }}</span>
         <span v-if="sourceGroup" class="source-chip source-group">{{ sourceGroup }}</span>
       </div>
-      <p v-if="asBook.durChapterTitle && !isSearch" class="book-progress">
-        已读：{{ asBook.durChapterTitle }}
-      </p>
-      <p v-if="latestChapterText" class="book-latest">
-        最新：{{ latestChapterText }}
-      </p>
-      <div v-if="!isSearch && (browserCachedCount > 0 || serverCachedCount > 0)" class="book-cache-row">
-        <span v-if="browserCachedCount > 0" class="cache-chip primary">离线 {{ browserCachedCount }} 章</span>
-        <span v-if="serverCachedCount > 0" class="cache-chip">服务端 {{ serverCachedCount }} 章</span>
+
+      <div class="chapter-lines">
+        <p v-if="asBook.durChapterTitle && !isSearch" class="book-progress">
+          已读：{{ asBook.durChapterTitle }}
+        </p>
+        <p v-if="latestChapterText" class="book-latest">
+          最新：{{ latestChapterText }}
+        </p>
       </div>
-      <button
-        v-if="showAiEntry"
-        class="ai-entry-btn"
-        @click.stop="$emit('ai', book)"
-      >
-        AI资料
-      </button>
-      <!-- Search mode: add to shelf -->
-      <button
-        v-if="isSearch"
-        class="add-shelf-btn"
-        @click.stop="$emit('addToShelf', book)"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        加入书架
-      </button>
+
+      <div class="card-footer">
+        <div v-if="!isSearch && (browserCachedCount > 0 || serverCachedCount > 0)" class="book-cache-row">
+          <span v-if="browserCachedCount > 0" class="cache-chip primary">离线 {{ browserCachedCount }} 章</span>
+          <span v-if="serverCachedCount > 0" class="cache-chip">服务端 {{ serverCachedCount }} 章</span>
+        </div>
+        <!-- Search mode: add to shelf -->
+        <button
+          v-if="isSearch"
+          class="add-shelf-btn"
+          @click.stop="$emit('addToShelf', book)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          加入书架
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -170,25 +181,48 @@ const showAiEntry = computed(() => {
 
 <style scoped>
 .book-card {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-4);
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  align-items: center;
+  gap: 15px;
   height: 100%;
-  min-height: 164px;
-  padding: var(--space-4);
-  border-radius: var(--radius-lg);
+  min-height: 148px;
+  padding: 13px 14px;
+  border-radius: 8px;
   border: 1px solid var(--color-border-light);
   background: var(--color-bg-elevated);
   cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-out);
+  transition:
+    background var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
   position: relative;
   overflow: hidden;
 }
 
+.book-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 0 0, rgba(201, 127, 58, 0.08), transparent 34%),
+    linear-gradient(90deg, rgba(201, 127, 58, 0.035), transparent 42%);
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-out);
+  pointer-events: none;
+}
+
 .book-card:hover {
   border-color: var(--color-primary-border);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  box-shadow:
+    0 12px 26px rgba(39, 32, 22, 0.09),
+    0 1px 7px rgba(39, 32, 22, 0.04);
+  transform: translateY(-1px);
+}
+
+.book-card:hover::before {
+  opacity: 1;
 }
 
 .book-card:active {
@@ -196,13 +230,25 @@ const showAiEntry = computed(() => {
 }
 
 .card-cover {
-  width: 90px;
-  height: 120px;
+  width: 86px;
+  height: 118px;
   flex-shrink: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   overflow: hidden;
   position: relative;
   background: var(--color-bg-sunken);
+  box-shadow:
+    0 10px 18px rgba(48, 35, 20, 0.16),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.card-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 13px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.16), transparent);
+  pointer-events: none;
 }
 
 .cover-img {
@@ -219,7 +265,9 @@ const showAiEntry = computed(() => {
   align-items: center;
   justify-content: center;
   padding: var(--space-2);
-  background: linear-gradient(135deg, var(--color-primary-bg), var(--color-bg-sunken));
+  background:
+    linear-gradient(160deg, rgba(212, 129, 42, 0.12), rgba(70, 134, 121, 0.08)),
+    var(--color-bg-sunken);
   text-align: center;
   gap: var(--space-1);
 }
@@ -242,17 +290,19 @@ const showAiEntry = computed(() => {
 
 .unread-badge {
   position: absolute;
-  top: var(--space-1);
-  right: var(--space-1);
-  background: var(--color-primary);
+  top: 8px;
+  right: 8px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
   color: white;
   font-size: 10px;
-  font-weight: 600;
-  padding: 1px 5px;
+  font-weight: 800;
+  padding: 2px 7px;
   border-radius: var(--radius-full);
   min-width: 18px;
   text-align: center;
-  line-height: 16px;
+  line-height: 15px;
+  box-shadow: 0 6px 14px rgba(201, 127, 58, 0.28);
+  z-index: 1;
 }
 
 .card-delete-btn {
@@ -354,21 +404,46 @@ const showAiEntry = computed(() => {
 }
 
 .card-info {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: var(--space-1);
-  padding: var(--space-1) 0;
+  justify-content: center;
+  gap: 8px;
+  align-self: stretch;
+  padding: 2px 0;
+  position: relative;
+  z-index: 1;
+}
+
+.card-topline {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.title-block {
+  min-width: 0;
+  flex: 1;
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  min-height: 25px;
 }
 
 .book-name {
-  font-size: var(--text-base);
-  font-weight: 600;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
   color: var(--color-text);
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   line-height: var(--leading-tight);
@@ -379,12 +454,18 @@ const showAiEntry = computed(() => {
   align-items: center;
   gap: var(--space-1);
   min-height: 18px;
-  font-size: var(--text-xs);
+  font-size: 12px;
   color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  margin-top: 4px;
 }
 
 .book-author {
   font-size: var(--text-xs);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .meta-dot {
@@ -393,7 +474,8 @@ const showAiEntry = computed(() => {
 
 .book-progress,
 .book-latest {
-  font-size: var(--text-xs);
+  margin: 0;
+  font-size: 12px;
   color: var(--color-text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -404,7 +486,12 @@ const showAiEntry = computed(() => {
 
 .book-latest {
   color: var(--color-text-tertiary);
-  min-height: 18px;
+}
+
+.chapter-lines {
+  display: grid;
+  gap: 3px;
+  min-height: 35px;
 }
 
 .book-source-row {
@@ -441,23 +528,25 @@ const showAiEntry = computed(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: auto;
-  min-height: 28px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .cache-chip {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  min-height: 25px;
+  padding: 0 10px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.04);
   color: var(--color-text-secondary);
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 11.5px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .cache-chip.primary {
-  background: rgba(201, 127, 58, 0.12);
+  background: rgba(201, 127, 58, 0.13);
   color: var(--color-primary);
 }
 
@@ -465,34 +554,38 @@ const showAiEntry = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  margin-top: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  background: rgba(201, 127, 58, 0.12);
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 10px;
+  margin-left: auto;
+  background: rgba(212, 129, 42, 0.075);
   color: var(--color-primary);
-  border: 1px solid rgba(201, 127, 58, 0.2);
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-weight: 600;
+  border: 1px solid rgba(212, 129, 42, 0.24);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 800;
   transition: all var(--duration-fast);
-  align-self: flex-start;
+  white-space: nowrap;
 }
 
 .ai-entry-btn:hover {
-  background: rgba(201, 127, 58, 0.18);
-  border-color: rgba(201, 127, 58, 0.32);
+  background: rgba(201, 127, 58, 0.16);
+  border-color: rgba(201, 127, 58, 0.42);
+  transform: translateY(-1px);
 }
 
 .add-shelf-btn {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  margin-top: var(--space-2);
-  padding: var(--space-1) var(--space-3);
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 12px;
   background: var(--color-primary);
   color: white;
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-weight: 500;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
   transition: all var(--duration-fast);
   align-self: flex-start;
 }
@@ -504,5 +597,32 @@ const showAiEntry = computed(() => {
 
 .add-shelf-btn:active {
   transform: scale(0.98);
+}
+
+@media (max-width: 520px) {
+  .book-card {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 13px;
+    padding: 12px;
+  }
+
+  .card-cover {
+    width: 76px;
+    height: 106px;
+  }
+
+  .book-name {
+    font-size: 15px;
+  }
+
+  .card-footer {
+    gap: 7px;
+  }
+
+  .ai-entry-btn {
+    min-height: 30px;
+    padding: 0 11px;
+    font-size: 12px;
+  }
 }
 </style>

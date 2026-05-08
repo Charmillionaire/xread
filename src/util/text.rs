@@ -23,7 +23,13 @@ pub fn normalize_source_url(input: &str) -> String {
 
 pub fn repair_encoded_url(input: &str) -> String {
     let normalized = normalize_source_url(input);
-    if !(normalized.contains("%3F") || normalized.contains("%3f") || normalized.contains("%26") || normalized.contains("%26") || normalized.contains("%3D") || normalized.contains("%3d")) {
+    if !(normalized.contains("%3F")
+        || normalized.contains("%3f")
+        || normalized.contains("%26")
+        || normalized.contains("%26")
+        || normalized.contains("%3D")
+        || normalized.contains("%3d"))
+    {
         return normalized;
     }
 

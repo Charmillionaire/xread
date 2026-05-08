@@ -9,7 +9,7 @@
           <header class="modal-header">
             <div>
               <h2>用户管理</h2>
-              <p class="subtitle">管理账号、密码与服务器备份/本地存储权限</p>
+              <p class="subtitle">管理账号、密码、备份、本地存储与后端 AI 模型权限</p>
             </div>
             <div class="header-actions">
               <button class="icon-btn" :class="{ spinning: loading }" @click="loadUsers" title="刷新">
@@ -67,6 +67,10 @@
                 <div class="summary-card">
                   <span>{{ localStoreEnabledCount }}</span>
                   <small>已开本地存储</small>
+                </div>
+                <div class="summary-card">
+                  <span>{{ aiModelEnabledCount }}</span>
+                  <small>已开 AI 模型</small>
                 </div>
               </div>
 
@@ -140,6 +144,14 @@
                         @click="handleTogglePermission(user, 'enableLocalStore', !user.enableLocalStore)"
                       >
                         本地存储
+                      </button>
+                      <button
+                        class="mini-btn"
+                        :class="{ active: !!user.enableAiModel }"
+                        :disabled="working"
+                        @click="handleTogglePermission(user, 'enableAiModel', !user.enableAiModel)"
+                      >
+                        AI模型
                       </button>
                       <button
                         class="mini-btn"
@@ -224,6 +236,7 @@ const canManageUsers = computed(() => appStore.isSecureMode && appStore.isLogged
 const adminCount = computed(() => users.value.filter((user) => user.isAdmin).length)
 const backupEnabledCount = computed(() => users.value.filter((user) => user.enableWebdav).length)
 const localStoreEnabledCount = computed(() => users.value.filter((user) => user.enableLocalStore).length)
+const aiModelEnabledCount = computed(() => users.value.filter((user) => user.enableAiModel).length)
 const sortedUsers = computed(() =>
   [...users.value].sort((a, b) => {
     if (!!a.isAdmin !== !!b.isAdmin) return a.isAdmin ? -1 : 1
@@ -332,7 +345,7 @@ async function handleCreateUser() {
 
 async function handleTogglePermission(
   user: UserInfo,
-  key: 'enableWebdav' | 'enableLocalStore',
+  key: 'enableWebdav' | 'enableLocalStore' | 'enableAiModel',
   value: boolean,
 ) {
   working.value = true

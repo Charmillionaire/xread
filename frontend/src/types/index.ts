@@ -103,6 +103,7 @@ export interface UserInfo {
   accessToken: string
   enableWebdav?: boolean
   enableLocalStore?: boolean
+  enableAiModel?: boolean
   createdAt?: number
   isAdmin?: boolean
 }
@@ -179,17 +180,54 @@ export interface RssArticle {
 
 // ─── AI 设定集 ───
 export interface AiBookConfig {
-  baseUrl: string
-  apiKey: string
+  modelSource: 'browser' | 'server'
+  textBaseUrl: string
+  textApiKey: string
   textModel: string
+  textUseFullUrl: boolean
+  imageBaseUrl: string
+  imageApiKey: string
   imageModel: string
   imageSize: string
+  imageUseFullUrl: boolean
+  useBackendProxy: boolean
+}
+
+export interface AiModelEndpointConfig {
+  enabled: boolean
+  baseUrl: string
+  apiKey: string
+  model: string
+  useFullUrl: boolean
+}
+
+export interface AiImageModelConfig extends AiModelEndpointConfig {
+  imageSize: string
+}
+
+export interface AiSpeechModelConfig extends AiModelEndpointConfig {
+  voice: string
+  responseFormat: string
+}
+
+export interface AiServerModelConfig {
+  text: AiModelEndpointConfig
+  image: AiImageModelConfig
+  speech: AiSpeechModelConfig
+}
+
+export interface AiServerModelConfigResponse {
+  config: AiServerModelConfig
+  canUseServerModel: boolean
+  isAdmin: boolean
 }
 
 export interface AiBookNote {
   title: string
   content: string
+  category?: string
   confidence?: string
+  importance?: string
 }
 
 export interface AiBookCharacter {
@@ -200,6 +238,7 @@ export interface AiBookCharacter {
   location?: string
   description?: string
   lastSeenChapter?: string
+  importance?: string
 }
 
 export interface AiBookRelationship {
@@ -208,15 +247,18 @@ export interface AiBookRelationship {
   relation: string
   status?: string
   description?: string
+  importance?: string
 }
 
 export interface AiBookLocation {
   name: string
   kind?: string
+  parentName?: string
   description: string
   status?: string
   relatedCharacters?: string[]
   firstSeenChapter?: string
+  importance?: string
 }
 
 export interface AiBookMap {
@@ -224,6 +266,8 @@ export interface AiBookMap {
   prompt?: string
   updatedAt?: number
   sourceChapterIndex?: number
+  fallback?: 'relationship-graph'
+  fallbackReason?: string
 }
 
 export interface AiBookMemory {

@@ -1,10 +1,15 @@
-pub mod router;
-pub mod handlers;
 pub mod auth;
+pub mod handlers;
+pub mod router;
 
-use std::sync::Arc;
 use crate::app::config::AppConfig;
-use crate::service::{ai_book_service::AiBookService, book_service::BookService, book_source_service::BookSourceService, user_service::UserService, book_group_service::BookGroupService};
+use crate::service::{
+    ai_book_service::AiBookService, ai_model_service::AiModelService,
+    book_group_service::BookGroupService, book_service::BookService,
+    book_source_service::BookSourceService, json_document_service::JsonDocumentService,
+    user_service::UserService,
+};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -13,5 +18,7 @@ pub struct AppState {
     pub book_source_service: Arc<BookSourceService>,
     pub user_service: Arc<UserService>,
     pub book_group_service: Arc<BookGroupService>,
+    pub json_document_service: Arc<JsonDocumentService>,
     pub ai_book_service: Arc<AiBookService>,
+    pub ai_model_service: Arc<AiModelService>,
 }

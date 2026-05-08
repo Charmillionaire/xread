@@ -347,6 +347,12 @@ async function handleRefreshBooks() {
   min-height: 0;
   overflow: auto;
   padding-bottom: calc(104px + var(--space-6));
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.shelf-grid-wrapper::-webkit-scrollbar {
+  display: none;
 }
 
 .batch-toolbar {

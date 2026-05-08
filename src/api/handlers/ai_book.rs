@@ -28,7 +28,9 @@ pub async fn get_ai_book_memory(
     let book_url = required_book_url(req.book_url)?;
     ensure_shelf_book(&state, &user_ns, &book_url).await?;
     let memory = state.ai_book_service.get(&user_ns, &book_url).await?;
-    Ok(Json(ApiResponse::ok(serde_json::to_value(memory).unwrap_or_default())))
+    Ok(Json(ApiResponse::ok(
+        serde_json::to_value(memory).unwrap_or_default(),
+    )))
 }
 
 pub async fn save_ai_book_memory(
@@ -49,7 +51,9 @@ pub async fn save_ai_book_memory(
         .ai_book_service
         .save_for_book(&user_ns, &book_url, memory)
         .await?;
-    Ok(Json(ApiResponse::ok(serde_json::to_value(saved).unwrap_or_default())))
+    Ok(Json(ApiResponse::ok(
+        serde_json::to_value(saved).unwrap_or_default(),
+    )))
 }
 
 pub async fn delete_ai_book_memory(
@@ -63,7 +67,9 @@ pub async fn delete_ai_book_memory(
     let book_url = required_book_url(req.book_url)?;
     ensure_shelf_book(&state, &user_ns, &book_url).await?;
     let deleted = state.ai_book_service.delete(&user_ns, &book_url).await?;
-    Ok(Json(ApiResponse::ok(serde_json::json!({ "deleted": deleted }))))
+    Ok(Json(ApiResponse::ok(
+        serde_json::json!({ "deleted": deleted }),
+    )))
 }
 
 async fn resolve_user_ns(state: &AppState, auth: &AuthContext) -> Result<String, AppError> {
@@ -86,7 +92,10 @@ async fn ensure_shelf_book(
         .ok_or_else(|| AppError::BadRequest("书籍未加入书架".to_string()))
 }
 
-fn parse_ai_book_request(q: AiBookMemoryRequest, body: Bytes) -> Result<AiBookMemoryRequest, AppError> {
+fn parse_ai_book_request(
+    q: AiBookMemoryRequest,
+    body: Bytes,
+) -> Result<AiBookMemoryRequest, AppError> {
     if body.is_empty() {
         return Ok(q);
     }

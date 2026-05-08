@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use serde_json::Value;
+use serde_with::serde_as;
 
-use crate::model::rule::{SearchRule, ExploreRule, BookInfoRule, TocRule, ContentRule};
+use crate::model::rule::{BookInfoRule, ContentRule, ExploreRule, SearchRule, TocRule};
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

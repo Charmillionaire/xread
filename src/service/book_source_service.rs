@@ -16,11 +16,15 @@ impl BookSourceService {
             .join("data")
             .join("__default__")
             .join("defaultBookSourceOwner.txt");
-        Self { repo, default_owner_path }
+        Self {
+            repo,
+            default_owner_path,
+        }
     }
 
     pub async fn save(&self, user_ns: &str, source: BookSource) -> Result<(), AppError> {
-        let json = serde_json::to_string(&source).map_err(|e| AppError::BadRequest(e.to_string()))?;
+        let json =
+            serde_json::to_string(&source).map_err(|e| AppError::BadRequest(e.to_string()))?;
         self.repo.upsert(user_ns, &source, &json).await
     }
 
@@ -31,10 +35,15 @@ impl BookSourceService {
         Ok(())
     }
 
-    pub async fn get(&self, user_ns: &str, book_source_url: &str) -> Result<Option<BookSource>, AppError> {
+    pub async fn get(
+        &self,
+        user_ns: &str,
+        book_source_url: &str,
+    ) -> Result<Option<BookSource>, AppError> {
         let json = self.repo.get(user_ns, book_source_url).await?;
         if let Some(j) = json {
-            let source: BookSource = serde_json::from_str(&j).map_err(|e| AppError::BadRequest(e.to_string()))?;
+            let source: BookSource =
+                serde_json::from_str(&j).map_err(|e| AppError::BadRequest(e.to_string()))?;
             Ok(Some(source))
         } else {
             Ok(None)

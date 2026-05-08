@@ -1,9 +1,9 @@
-pub mod app;
 pub mod api;
-pub mod service;
-pub mod parser;
+pub mod app;
 pub mod crawler;
-pub mod storage;
-pub mod model;
 pub mod error;
+pub mod model;
+pub mod parser;
+pub mod service;
+pub mod storage;
 pub mod util;

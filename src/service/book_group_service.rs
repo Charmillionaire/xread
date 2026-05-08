@@ -1,52 +1,35 @@
-use tokio::fs;
-use std::path::PathBuf;
+use std::sync::Arc;
+
 use crate::error::error::AppError;
 use crate::model::book_group::BookGroup;
+use crate::service::json_document_service::JsonDocumentService;
 
 pub struct BookGroupService {
-    storage_dir: String,
+    docs: Arc<JsonDocumentService>,
 }
 
 impl BookGroupService {
-    pub fn new(storage_dir: &str) -> Self {
-        Self {
-            storage_dir: storage_dir.to_string(),
-        }
-    }
-
-    fn file_path(&self, user_ns: &str) -> PathBuf {
-        PathBuf::from(&self.storage_dir)
-            .join("data")
-            .join(user_ns)
-            .join("book_groups.json")
+    pub fn new(docs: Arc<JsonDocumentService>) -> Self {
+        Self { docs }
     }
 
     pub async fn get_groups(&self, user_ns: &str) -> Result<Vec<BookGroup>, AppError> {
-        let path = self.file_path(user_ns);
-        if !path.exists() {
-            return Ok(Vec::new());
-        }
-        let data = fs::read_to_string(path).await.map_err(|e| AppError::Internal(e.into()))?;
-        let groups: Vec<BookGroup> = serde_json::from_str(&data).unwrap_or_default();
-        Ok(groups)
+        self.docs.read_list(user_ns, "book_groups.json").await
     }
 
-    pub async fn save_groups(&self, user_ns: &str, groups: &Vec<BookGroup>) -> Result<(), AppError> {
-        let path = self.file_path(user_ns);
-        if let Some(p) = path.parent() {
-            if !p.exists() {
-                fs::create_dir_all(p).await.map_err(|e| AppError::Internal(e.into()))?;
-            }
-        }
-        let data = serde_json::to_string(groups).map_err(|e| AppError::Internal(e.into()))?;
-        fs::write(path, data).await.map_err(|e| AppError::Internal(e.into()))?;
-        Ok(())
+    pub async fn save_groups(
+        &self,
+        user_ns: &str,
+        groups: &Vec<BookGroup>,
+    ) -> Result<(), AppError> {
+        self.docs
+            .write_list(user_ns, "book_groups.json", groups)
+            .await
     }
 
     pub async fn save_group(&self, user_ns: &str, mut group: BookGroup) -> Result<(), AppError> {
         let mut groups = self.get_groups(user_ns).await?;
         if group.group_id == 0 {
-            // Generate a simple id based on max id + 1 or timestamp
             let max_id = groups.iter().map(|g| g.group_id).max().unwrap_or(0);
             group.group_id = max_id + 1;
         }

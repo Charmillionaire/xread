@@ -1,3 +1,5 @@
+import { summarizeHttpErrorBody } from './httpError'
+
 export const DEFAULT_OPENAI_BASE_URL = 'http://localhost:8825'
 
 export function normalizeOpenAIBaseUrl(url: string) {
@@ -9,6 +11,7 @@ export function buildOpenAISpeechUrl(baseUrl: string) {
 }
 
 export interface OpenAISpeechRequest {
+  source?: 'browser' | 'server'
   baseUrl: string
   apiKey?: string
   input: string
@@ -41,13 +44,14 @@ async function readSpeechError(response: Response) {
     }
 
     const text = (await response.text()).trim()
-    return text || fallback
+    return summarizeHttpErrorBody(text, { fallback, status: response.status })
   } catch {
     return fallback
   }
 }
 
 export async function requestOpenAISpeechAudio({
+  source = 'browser',
   baseUrl,
   apiKey,
   input,
@@ -57,25 +61,52 @@ export async function requestOpenAISpeechAudio({
   speed,
   signal,
 }: OpenAISpeechRequest) {
-  const response = await fetch(buildOpenAISpeechUrl(baseUrl), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAuthHeaders(apiKey),
-    },
-    body: JSON.stringify({
-      model,
-      input,
-      voice,
-      response_format: format || 'mp3',
-      speed,
-    }),
-    signal,
-  })
+  const body = {
+    model,
+    input,
+    voice,
+    response_format: format || 'mp3',
+    speed,
+  }
+  const response = source === 'server'
+    ? await fetch('/reader3/aiProxy', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...buildReaderAuthHeaders(),
+      },
+      body: JSON.stringify({
+        useServerConfig: true,
+        kind: 'speech',
+        path: '/v1/audio/speech',
+        body,
+      }),
+      signal,
+    })
+    : await fetch(buildOpenAISpeechUrl(baseUrl), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...buildAuthHeaders(apiKey),
+      },
+      body: JSON.stringify(body),
+      signal,
+    })
 
   if (!response.ok) {
     throw new Error(await readSpeechError(response))
   }
 
   return response.blob()
+}
+
+function buildReaderAuthHeaders() {
+  const headers: Record<string, string> = {}
+  try {
+    const token = localStorage.getItem('accessToken') || ''
+    if (token) headers.Authorization = token
+  } catch {
+    // ignore storage access failures
+  }
+  return headers
 }

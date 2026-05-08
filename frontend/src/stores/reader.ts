@@ -133,6 +133,7 @@ interface PreloadedOpenAIAudio {
 const OPENAI_AUDIO_PRELOAD_LIMIT = 8
 
 export type SpeechProvider = 'system' | 'openai'
+export type OpenAISpeechSource = 'browser' | 'server'
 export type OpenAISpeechFormat = 'mp3' | 'wav' | 'opus' | 'flac' | 'pcm'
 export type OpenAISpeechRequestMode = 'chunked' | 'merged'
 
@@ -142,6 +143,7 @@ interface SpeechConfig {
   speechRate: number
   speechPitch: number
   stopAfterMinutes: number
+  openaiSource: OpenAISpeechSource
   openaiBaseUrl: string
   openaiApiKey: string
   openaiModel: string
@@ -156,6 +158,7 @@ const defaultSpeechConfig: SpeechConfig = {
   speechRate: 1,
   speechPitch: 1,
   stopAfterMinutes: 0,
+  openaiSource: 'browser',
   openaiBaseUrl: DEFAULT_OPENAI_BASE_URL,
   openaiApiKey: '',
   openaiModel: 'qwen-tts',
@@ -501,6 +504,7 @@ export const useReaderStore = defineStore('reader', () => {
   const voiceList = ref<SpeechSynthesisVoice[]>([])
   const speechConfig = reactive<SpeechConfig>(loadSpeechConfig())
   const openAISpeechConfigured = computed(() => {
+    if (speechConfig.openaiSource === 'server') return true
     return !!speechConfig.openaiBaseUrl.trim()
   })
   const speechProviderLabel = computed(() => speechConfig.provider === 'openai' ? 'OpenAI Speech' : '系统语音')
@@ -582,6 +586,12 @@ export const useReaderStore = defineStore('reader', () => {
     saveSpeechConfig()
   }
 
+  function setOpenAISpeechSource(source: OpenAISpeechSource) {
+    speechConfig.openaiSource = source
+    clearPreloadedOpenAIAudio()
+    saveSpeechConfig()
+  }
+
   function setOpenAISpeechApiKey(apiKey: string) {
     speechConfig.openaiApiKey = apiKey.trim()
     clearPreloadedOpenAIAudio()
@@ -625,6 +635,7 @@ export const useReaderStore = defineStore('reader', () => {
 
   function buildOpenAIAudioCacheKey(rawText: string) {
     return [
+      speechConfig.openaiSource,
       speechConfig.openaiBaseUrl.trim(),
       speechConfig.openaiApiKey.trim(),
       speechConfig.openaiModel,
@@ -637,6 +648,7 @@ export const useReaderStore = defineStore('reader', () => {
 
   async function fetchOpenAIAudioBlob(rawText: string, signal?: AbortSignal) {
     return requestOpenAISpeechAudio({
+      source: speechConfig.openaiSource,
       baseUrl: speechConfig.openaiBaseUrl,
       apiKey: speechConfig.openaiApiKey || undefined,
       input: rawText.slice(0, 4096),
@@ -936,12 +948,28 @@ export const useReaderStore = defineStore('reader', () => {
     scheduleFinishWatchdog()
   }
 
-  function startOpenAITTS(rawText: string, options: TTSOptions, sessionId: number) {
+  async function startOpenAITTS(rawText: string, options: TTSOptions, sessionId: number) {
     if (!openAISpeechConfigured.value) {
-      const error = new Error('请先填写 OpenAI Speech 的 URL 和 API Key')
+      const error = new Error('请先配置 OpenAI Speech')
       appStore.showToast(error.message, 'warning')
       options.onError?.(error)
       return
+    }
+    if (speechConfig.openaiSource === 'server') {
+      const serverConfig = await aiBookStore.loadServerModelConfig()
+      if (!serverConfig?.canUseServerModel) {
+        const error = new Error('当前账号没有使用后端模型配置的权限')
+        appStore.showToast(error.message, 'warning')
+        options.onError?.(error)
+        return
+      }
+      if (!serverConfig.config.speech.enabled) {
+        const error = new Error('后端 OpenAI Speech 未启用')
+        appStore.showToast(error.message, 'warning')
+        options.onError?.(error)
+        return
+      }
+      if (!isCurrentTTSSession(sessionId)) return
     }
 
     isSpeechLoading.value = true
@@ -1093,7 +1121,7 @@ export const useReaderStore = defineStore('reader', () => {
     }
 
     if (speechConfig.provider === 'openai') {
-      startOpenAITTS(rawText, options, sessionId)
+      void startOpenAITTS(rawText, options, sessionId)
       return
     }
 
@@ -1446,6 +1474,7 @@ export const useReaderStore = defineStore('reader', () => {
           book: completedBook,
           chapter: completedChapter,
           chapterContent: completedContent,
+          chapters: chapters.value,
         })
       }
     }
@@ -1565,7 +1594,7 @@ export const useReaderStore = defineStore('reader', () => {
     voiceList, speechConfig, speechStopAt, speechProviderLabel, openAISpeechConfigured,
     systemTtsNativeEventsReliable,
     fetchVoices, setVoiceName, setSpeechProvider, setSpeechRate, setSpeechPitch, setSpeechStopTimer, clearSpeechStopTimer,
-    setOpenAISpeechBaseUrl, setOpenAISpeechApiKey, setOpenAISpeechModel, setOpenAISpeechVoice, setOpenAISpeechFormat, setOpenAISpeechRequestMode, preloadOpenAITTS,
+    setOpenAISpeechSource, setOpenAISpeechBaseUrl, setOpenAISpeechApiKey, setOpenAISpeechModel, setOpenAISpeechVoice, setOpenAISpeechFormat, setOpenAISpeechRequestMode, preloadOpenAITTS,
     displayContent, processContentForDisplay,
     isAutoScrolling,
   }

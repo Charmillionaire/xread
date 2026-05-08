@@ -1,11 +1,11 @@
-mod app;
 mod api;
-mod service;
-mod parser;
+mod app;
 mod crawler;
-mod storage;
-mod model;
 mod error;
+mod model;
+mod parser;
+mod service;
+mod storage;
 mod util;
 
 use app::bootstrap::run;

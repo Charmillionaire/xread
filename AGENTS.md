@@ -29,14 +29,27 @@ cd web && npm run lint                       # ESLint + Prettier
 ```bash
 # Build ARM64 image (requires pre-built binary)
 cargo build --release --target aarch64-unknown-linux-musl
-docker build -t reader-rust .
+podman build --platform linux/arm64 -t docker.io/givenge/reader-rust:${TAG}-aarch64 -f Dockerfile .
 
 # Build x86_64 image (requires pre-built binary)
 cargo build --release --target x86_64-unknown-linux-musl
-docker build -t reader-rust -f Dockerfile.x86 .
+podman build --platform linux/amd64 -t docker.io/givenge/reader-rust:${TAG}-x86_64 -f Dockerfile.x86 .
 ```
 
 Dockerfiles do NOT compile Rust in-container. Build the binary on the host first, then copy it.
+
+### Docker Release (Podman)
+- Default release repository: `docker.io/givenge/reader-rust`
+- Default rolling tags:
+- `latest` -> x86_64
+- `latest-aarch64` -> arm64
+- Build commands must explicitly set platform:
+- x86_64: `podman build --platform linux/amd64 ... -f Dockerfile.x86 .`
+- arm64: `podman build --platform linux/arm64 ... -f Dockerfile .`
+- For any “发布版本 / 发布docker镜像 / release版本” request, run `./scripts/release.sh` by default.
+- If user does not specify version, auto-bump patch from latest tag (`vX.Y.Z -> vX.Y.(Z+1)`).
+- Full end-to-end workflow is in `/RELEASE_WORKFLOW.md`.
+- Docker-specific details remain in `/DOCKER_RELEASE.md`.
 
 ## Configuration
 

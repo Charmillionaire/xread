@@ -1,5 +1,5 @@
-use rand::{distributions::Alphanumeric, Rng};
 use crate::util::hash::md5_hex;
+use rand::{distributions::Alphanumeric, Rng};
 
 pub fn random_string(len: usize) -> String {
     rand::thread_rng()

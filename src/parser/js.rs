@@ -1,20 +1,21 @@
-use rquickjs::{Context, Runtime, Value, Object};
-use rquickjs::function::Func;
+use crate::util::hash::md5_hex;
+use crate::util::text::{apply_regex_replace, strip_whitespace};
+use base64::Engine;
+use chrono::{Local, TimeZone};
 use once_cell::sync::Lazy;
+use reqwest::blocking::Client;
+use reqwest::Method;
+use rquickjs::function::Func;
+use rquickjs::{Context, Object, Runtime, Value};
+use serde_json::Value as JsonValue;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use chrono::{Local, TimeZone};
-use reqwest::blocking::Client;
-use reqwest::Method;
-use serde_json::Value as JsonValue;
 use uuid::Uuid;
-use base64::Engine;
-use crate::util::text::{apply_regex_replace, strip_whitespace};
-use crate::util::hash::md5_hex;
 
 static JS_KV: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-static JS_LIB_CACHE: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static JS_LIB_CACHE: Lazy<Mutex<HashMap<String, String>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 static JS_HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
     Client::builder()
         .cookie_store(true)
@@ -56,11 +57,31 @@ pub fn eval_js_with_bindings(
     base_url: &str,
     bindings: &HashMap<String, JsonValue>,
 ) -> anyhow::Result<String> {
-    eval_js_inner(script, Some(input), Some(base_url), None, None, Some(bindings))
+    eval_js_inner(
+        script,
+        Some(input),
+        Some(base_url),
+        None,
+        None,
+        Some(bindings),
+    )
 }
 
-pub fn eval_js_search_with_source(script: &str, key: &str, page: i32, source_key: &str) -> anyhow::Result<String> {
-    eval_js_inner_with_source(script, None, None, Some(key), Some(page), Some(source_key), None)
+pub fn eval_js_search_with_source(
+    script: &str,
+    key: &str,
+    page: i32,
+    source_key: &str,
+) -> anyhow::Result<String> {
+    eval_js_inner_with_source(
+        script,
+        None,
+        None,
+        Some(key),
+        Some(page),
+        Some(source_key),
+        None,
+    )
 }
 
 fn eval_js_inner(
@@ -96,8 +117,12 @@ fn eval_js_inner_with_source(
         globals.set("src", input_value)?;
         globals.set("base_url", base_url_value)?;
         globals.set("baseUrl", base_url_value)?;
-        if let Some(key) = key { globals.set("key", key)?; }
-        if let Some(page) = page { globals.set("page", page)?; }
+        if let Some(key) = key {
+            globals.set("key", key)?;
+        }
+        if let Some(page) = page {
+            globals.set("page", page)?;
+        }
 
         // Default url variable for Legado compatibility
         globals.set("url", base_url_value)?;
@@ -111,91 +136,143 @@ fn eval_js_inner_with_source(
         globals.set("source", source_obj)?;
 
         let cookie_obj = Object::new(ctx.clone())?;
-        cookie_obj.set("removeCookie", Func::new(|_key: String| -> String { "".to_string() }))?;
+        cookie_obj.set(
+            "removeCookie",
+            Func::new(|_key: String| -> String { "".to_string() }),
+        )?;
         globals.set("cookie", cookie_obj)?;
 
         let cache_obj = Object::new(ctx.clone())?;
-        cache_obj.set("get", Func::new(|key: String| -> Option<String> {
-            let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
-            map.get(&key).cloned()
-        }))?;
-        cache_obj.set("put", Func::new(|key: String, val: String| -> bool {
-            let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
-            map.insert(key, val);
-            true
-        }))?;
+        cache_obj.set(
+            "get",
+            Func::new(|key: String| -> Option<String> {
+                let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.get(&key).cloned()
+            }),
+        )?;
+        cache_obj.set(
+            "put",
+            Func::new(|key: String, val: String| -> bool {
+                let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.insert(key, val);
+                true
+            }),
+        )?;
         globals.set("cache", cache_obj)?;
 
         let java_obj = Object::new(ctx.clone())?;
-        java_obj.set("ajax", Func::new(|spec: String| -> String {
-            java_ajax(&spec).unwrap_or_default()
-        }))?;
-        java_obj.set("md5Encode", Func::new(|input: String| -> String {
-            md5_hex(&input)
-        }))?;
-        java_obj.set("timeFormat", Func::new(|timestamp: i64| -> String {
-            java_time_format(timestamp)
-        }))?;
-        java_obj.set("androidId", Func::new(|| -> String {
-            JS_DEVICE_ID.clone()
-        }))?;
-        java_obj.set("deviceID", Func::new(|| -> String {
-            JS_DEVICE_ID.clone()
-        }))?;
-        java_obj.set("get", Func::new(|url: String| -> String {
-            java_request_simple("GET", &url, None).unwrap_or_default()
-        }))?;
-        java_obj.set("post", Func::new(|url: String, body: String| -> String {
-            java_request_simple("POST", &url, Some(body)).unwrap_or_default()
-        }))?;
-        java_obj.set("put", Func::new(|url: String, body: String| -> String {
-            java_request_simple("PUT", &url, Some(body)).unwrap_or_default()
-        }))?;
-        java_obj.set("base64Encode", Func::new(|input: String| -> String {
-            base64::engine::general_purpose::STANDARD.encode(input)
-        }))?;
-        java_obj.set("base64Decode", Func::new(|input: String| -> String {
-            base64::engine::general_purpose::STANDARD
-                .decode(input)
-                .ok()
-                .and_then(|bytes| String::from_utf8(bytes).ok())
-                .unwrap_or_default()
-        }))?;
-        java_obj.set("encodeURIComponent", Func::new(|input: String| -> String {
-            urlencoding::encode(&input).into_owned()
-        }))?;
-        java_obj.set("decodeURIComponent", Func::new(|input: String| -> String {
-            urlencoding::decode(&input).map(|s| s.into_owned()).unwrap_or_default()
-        }))?;
-        java_obj.set("encodeURI", Func::new(|input: String| -> String {
-            urlencoding::encode(&input).into_owned()
-        }))?;
-        java_obj.set("decodeURI", Func::new(|input: String| -> String {
-            urlencoding::decode(&input).map(|s| s.into_owned()).unwrap_or_default()
-        }))?;
-        java_obj.set("now", Func::new(|| -> i64 {
-            chrono::Utc::now().timestamp_millis()
-        }))?;
-        java_obj.set("uuid", Func::new(|| -> String {
-            Uuid::new_v4().to_string()
-        }))?;
+        java_obj.set(
+            "ajax",
+            Func::new(|spec: String| -> String { java_ajax(&spec).unwrap_or_default() }),
+        )?;
+        java_obj.set(
+            "md5Encode",
+            Func::new(|input: String| -> String { md5_hex(&input) }),
+        )?;
+        java_obj.set(
+            "timeFormat",
+            Func::new(|timestamp: i64| -> String { java_time_format(timestamp) }),
+        )?;
+        java_obj.set(
+            "androidId",
+            Func::new(|| -> String { JS_DEVICE_ID.clone() }),
+        )?;
+        java_obj.set("deviceID", Func::new(|| -> String { JS_DEVICE_ID.clone() }))?;
+        java_obj.set(
+            "get",
+            Func::new(|url: String| -> String {
+                java_request_simple("GET", &url, None).unwrap_or_default()
+            }),
+        )?;
+        java_obj.set(
+            "post",
+            Func::new(|url: String, body: String| -> String {
+                java_request_simple("POST", &url, Some(body)).unwrap_or_default()
+            }),
+        )?;
+        java_obj.set(
+            "put",
+            Func::new(|url: String, body: String| -> String {
+                java_request_simple("PUT", &url, Some(body)).unwrap_or_default()
+            }),
+        )?;
+        java_obj.set(
+            "base64Encode",
+            Func::new(|input: String| -> String {
+                base64::engine::general_purpose::STANDARD.encode(input)
+            }),
+        )?;
+        java_obj.set(
+            "base64Decode",
+            Func::new(|input: String| -> String {
+                base64::engine::general_purpose::STANDARD
+                    .decode(input)
+                    .ok()
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .unwrap_or_default()
+            }),
+        )?;
+        java_obj.set(
+            "encodeURIComponent",
+            Func::new(|input: String| -> String { urlencoding::encode(&input).into_owned() }),
+        )?;
+        java_obj.set(
+            "decodeURIComponent",
+            Func::new(|input: String| -> String {
+                urlencoding::decode(&input)
+                    .map(|s| s.into_owned())
+                    .unwrap_or_default()
+            }),
+        )?;
+        java_obj.set(
+            "encodeURI",
+            Func::new(|input: String| -> String { urlencoding::encode(&input).into_owned() }),
+        )?;
+        java_obj.set(
+            "decodeURI",
+            Func::new(|input: String| -> String {
+                urlencoding::decode(&input)
+                    .map(|s| s.into_owned())
+                    .unwrap_or_default()
+            }),
+        )?;
+        java_obj.set(
+            "now",
+            Func::new(|| -> i64 { chrono::Utc::now().timestamp_millis() }),
+        )?;
+        java_obj.set(
+            "uuid",
+            Func::new(|| -> String { Uuid::new_v4().to_string() }),
+        )?;
         globals.set("java", java_obj)?;
 
-        globals.set("kv_get", Func::new(|key: String| -> Option<String> {
-            let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
-            map.get(&key).cloned()
-        }))?;
-        globals.set("kv_put", Func::new(|key: String, val: String| -> bool {
-            let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
-            map.insert(key, val);
-            true
-        }))?;
-        globals.set("regex_replace", Func::new(|input: String, pattern: String, replace: String| -> String {
-            apply_regex_replace(&input, &pattern, &replace)
-        }))?;
-        globals.set("strip_ws", Func::new(|input: String| -> String {
-            strip_whitespace(&input)
-        }))?;
+        globals.set(
+            "kv_get",
+            Func::new(|key: String| -> Option<String> {
+                let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.get(&key).cloned()
+            }),
+        )?;
+        globals.set(
+            "kv_put",
+            Func::new(|key: String, val: String| -> bool {
+                let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.insert(key, val);
+                true
+            }),
+        )?;
+        globals.set(
+            "regex_replace",
+            Func::new(
+                |input: String, pattern: String, replace: String| -> String {
+                    apply_regex_replace(&input, &pattern, &replace)
+                },
+            ),
+        )?;
+        globals.set(
+            "strip_ws",
+            Func::new(|input: String| -> String { strip_whitespace(&input) }),
+        )?;
 
         globals.set("book", Object::new(ctx.clone())?)?;
         globals.set("chapter", Object::new(ctx.clone())?)?;
@@ -220,7 +297,9 @@ fn eval_js_inner_with_source(
             String::new()
         } else if let Some(s) = v.clone().into_string() {
             let s: rquickjs::String<'_> = s;
-            s.to_string().map(|value| value.to_string()).unwrap_or_default()
+            s.to_string()
+                .map(|value| value.to_string())
+                .unwrap_or_default()
         } else {
             match ctx.json_stringify(v) {
                 Ok(Some(json)) => json.to_string().unwrap_or_default(),
@@ -249,7 +328,12 @@ fn active_js_lib_script() -> anyhow::Result<String> {
         return Ok(String::new());
     };
     let cache_key = md5_hex(&js_lib);
-    if let Some(cached) = JS_LIB_CACHE.lock().unwrap_or_else(|e| e.into_inner()).get(&cache_key).cloned() {
+    if let Some(cached) = JS_LIB_CACHE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&cache_key)
+        .cloned()
+    {
         return Ok(cached);
     }
 
