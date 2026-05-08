@@ -154,7 +154,7 @@ cargo build --release --target x86_64-unknown-linux-musl
 cargo build --release --target aarch64-unknown-linux-musl
 
 echo "Creating commit and tag..."
-git add Cargo.toml package.json package-lock.json frontend/package.json frontend/package-lock.json
+git add Cargo.toml Cargo.lock package.json package-lock.json frontend/package.json frontend/package-lock.json
 git commit -m "release: ${TAG}"
 git tag -a "$TAG" -m "$TAG"
 
