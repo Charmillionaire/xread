@@ -149,11 +149,34 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
   const searchResults = ref<SearchBook[]>([])
   const isSearching = ref(false)
   const searchKey = ref('')
+  const searchScope = ref<'all' | 'group' | 'source'>('source')
+  const searchGroup = ref('')
+  const searchSourceUrl = ref('')
+
+  function startSearch(key: string, options: {
+    scope?: 'all' | 'group' | 'source'
+    group?: string
+    sourceUrl?: string
+  } = {}) {
+    const nextKey = key.trim()
+    if (!nextKey) {
+      clearSearch()
+      return
+    }
+
+    searchScope.value = options.scope || 'source'
+    searchGroup.value = options.group || ''
+    searchSourceUrl.value = options.sourceUrl || ''
+    searchKey.value = nextKey
+  }
 
   function clearSearch() {
     searchResults.value = []
     searchKey.value = ''
     isSearching.value = false
+    searchScope.value = 'source'
+    searchGroup.value = ''
+    searchSourceUrl.value = ''
   }
 
   const isSearchMode = computed(() => searchKey.value.length > 0)
@@ -253,7 +276,8 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
     refreshRecentBooks, removeRecentBook, clearAllRecentBooks,
     groups, activeGroupId, displayGroups, filteredBooks,
     fetchGroups, saveGroup, removeGroup,
-    searchResults, isSearching, searchKey, clearSearch, isSearchMode,
+    searchResults, isSearching, searchKey,
+    searchScope, searchGroup, searchSourceUrl, startSearch, clearSearch, isSearchMode,
     editMode,
     selectedBookUrls, toggleSelection, selectAll, clearSelection,
     bulkDelete, bulkSetGroup, reorderBooks, moveBookToFront,

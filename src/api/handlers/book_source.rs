@@ -1,7 +1,10 @@
 use crate::api::auth::AuthContext;
 use crate::api::AppState;
 use crate::error::error::{ApiResponse, AppError};
-use crate::model::book_source::BookSource;
+use crate::model::book_source::{book_source_from_value, BookSource};
+use crate::service::book_source_service::{
+    book_source_has_group, set_invalid_book_source_group, INVALID_BOOK_SOURCE_GROUP,
+};
 use crate::util::text::{normalize_source_url, repair_encoded_url};
 use axum::{
     body::Bytes,
@@ -14,13 +17,60 @@ use axum::{
     Json,
 };
 use regex::{Captures, Regex};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashSet, sync::Arc};
+use tokio::{sync::Semaphore, task::JoinSet};
 use url::Url;
+
+const MAX_TEST_SOURCE_BATCH_SIZE: usize = 100;
 
 #[derive(Debug, Deserialize)]
 pub struct BookSourceUrlParam {
     #[serde(rename = "bookSourceUrl")]
     book_source_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExploreKindsRequest {
+    #[serde(rename = "bookSourceUrl")]
+    book_source_url: Option<String>,
+    #[serde(rename = "bookSource")]
+    book_source: Option<BookSource>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TestBookSourcesRequest {
+    pub book_source_urls: Option<Vec<String>>,
+    pub keyword: Option<String>,
+    pub mark_invalid: Option<bool>,
+    pub concurrent: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TestBookSourceItem {
+    book_source_url: String,
+    book_source_name: String,
+    valid: bool,
+    search_ok: bool,
+    explore_ok: bool,
+    keyword: String,
+    explore_url: Option<String>,
+    search_error: Option<String>,
+    explore_error: Option<String>,
+    marked_invalid: bool,
+    group: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TestBookSourcesResponse {
+    total: usize,
+    valid: usize,
+    invalid: usize,
+    marked_invalid: usize,
+    results: Vec<TestBookSourceItem>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,13 +81,15 @@ pub struct UsernameParam {
 pub async fn save_book_source(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(source): Json<BookSource>,
+    Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
         .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+    let source =
+        book_source_from_value(payload).map_err(|e| AppError::BadRequest(e.to_string()))?;
     state.book_source_service.save(&user_ns, source).await?;
     Ok(Json(ApiResponse::ok(serde_json::json!({"saved": true}))))
 }
@@ -151,6 +203,204 @@ pub async fn login_book_source(
         .ok_or_else(|| AppError::NotFound("bookSource not found".to_string()))?;
     let result = state.book_service.login_book_source(&source).await?;
     Ok(Json(ApiResponse::ok(result)))
+}
+
+pub async fn get_explore_kinds(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<ExploreKindsRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+
+    let source = if let Some(source) = req.book_source {
+        source
+    } else {
+        let url = req
+            .book_source_url
+            .ok_or_else(|| AppError::BadRequest("bookSourceUrl required".to_string()))?;
+        state
+            .book_source_service
+            .get(&user_ns, &url)
+            .await?
+            .ok_or_else(|| AppError::NotFound("bookSource not found".to_string()))?
+    };
+
+    let kinds = state.book_service.explore_kinds(&source)?;
+    Ok(Json(ApiResponse::ok(
+        serde_json::to_value(kinds).unwrap_or_default(),
+    )))
+}
+
+pub async fn test_book_sources(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<TestBookSourcesRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+
+    let requested = normalize_requested_source_urls(req.book_source_urls.as_deref())?;
+    let sources = state
+        .book_source_service
+        .list(&user_ns)
+        .await?
+        .into_iter()
+        .filter(|source| {
+            requested
+                .as_ref()
+                .map(|urls| urls.contains(&normalize_source_url(&source.book_source_url)))
+                .unwrap_or(true)
+        })
+        .collect::<Vec<_>>();
+
+    let concurrent = req.concurrent.unwrap_or(12).clamp(1, 12);
+    let keyword = req.keyword.clone();
+    let mark_invalid = req.mark_invalid.unwrap_or(true);
+    let outcomes = test_sources_in_parallel(
+        state.book_service.clone(),
+        user_ns.clone(),
+        keyword,
+        sources,
+        concurrent,
+    )
+    .await;
+
+    let mut results = Vec::with_capacity(outcomes.len());
+    let mut marked_invalid = 0usize;
+    for (mut source, availability) in outcomes {
+        let changed = if mark_invalid {
+            set_invalid_book_source_group(&mut source, !availability.valid)
+        } else {
+            false
+        };
+        if changed {
+            state
+                .book_source_service
+                .save(&user_ns, source.clone())
+                .await?;
+            if !availability.valid {
+                marked_invalid += 1;
+            }
+        }
+
+        results.push(TestBookSourceItem {
+            book_source_url: availability.book_source_url,
+            book_source_name: availability.book_source_name,
+            valid: availability.valid,
+            search_ok: availability.search_ok,
+            explore_ok: availability.explore_ok,
+            keyword: availability.keyword,
+            explore_url: availability.explore_url,
+            search_error: availability.search_error,
+            explore_error: availability.explore_error,
+            marked_invalid: changed && !availability.valid,
+            group: source.book_source_group,
+        });
+    }
+
+    results.sort_by(|a, b| a.book_source_name.cmp(&b.book_source_name));
+    let valid = results.iter().filter(|item| item.valid).count();
+    let invalid = results.len().saturating_sub(valid);
+    let response = TestBookSourcesResponse {
+        total: results.len(),
+        valid,
+        invalid,
+        marked_invalid,
+        results,
+    };
+    Ok(Json(ApiResponse::ok(
+        serde_json::to_value(response).unwrap_or_default(),
+    )))
+}
+
+fn normalize_requested_source_urls(
+    urls: Option<&[String]>,
+) -> Result<Option<HashSet<String>>, AppError> {
+    let Some(urls) = urls else {
+        return Ok(None);
+    };
+    if urls.len() > MAX_TEST_SOURCE_BATCH_SIZE {
+        return Err(AppError::BadRequest(format!(
+            "bookSourceUrls 最多支持 {} 条",
+            MAX_TEST_SOURCE_BATCH_SIZE
+        )));
+    }
+    Ok(Some(
+        urls.iter()
+            .map(|url| normalize_source_url(url))
+            .filter(|url| !url.is_empty())
+            .collect::<HashSet<_>>(),
+    ))
+}
+
+async fn test_sources_in_parallel(
+    book_service: Arc<crate::service::book_service::BookService>,
+    user_ns: String,
+    keyword: Option<String>,
+    sources: Vec<BookSource>,
+    concurrent: usize,
+) -> Vec<(
+    BookSource,
+    crate::service::book_service::BookSourceAvailability,
+)> {
+    let permits = Arc::new(Semaphore::new(concurrent.max(1)));
+    let mut tasks = JoinSet::new();
+
+    for source in sources {
+        let permit = match permits.clone().acquire_owned().await {
+            Ok(permit) => permit,
+            Err(_) => break,
+        };
+        let book_service = book_service.clone();
+        let user_ns = user_ns.clone();
+        let keyword = keyword.clone();
+        tasks.spawn(async move {
+            let _permit = permit;
+            let availability = book_service
+                .test_book_source_availability(&user_ns, &source, keyword.as_deref())
+                .await;
+            (source, availability)
+        });
+    }
+
+    let mut outcomes = Vec::with_capacity(tasks.len());
+    while let Some(result) = tasks.join_next().await {
+        match result {
+            Ok(outcome) => outcomes.push(outcome),
+            Err(err) => tracing::error!("book source test task failed: {err}"),
+        }
+    }
+    outcomes
+}
+
+pub async fn delete_invalid_book_sources(
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+    let sources = state.book_source_service.list(&user_ns).await?;
+    let invalid_urls = sources
+        .iter()
+        .filter(|source| book_source_has_group(source, INVALID_BOOK_SOURCE_GROUP))
+        .map(|source| source.book_source_url.clone())
+        .collect::<Vec<_>>();
+    for url in &invalid_urls {
+        state.book_source_service.delete(&user_ns, url).await?;
+    }
+    Ok(Json(ApiResponse::ok(serde_json::json!({
+        "deleted": invalid_urls.len()
+    }))))
 }
 
 #[derive(Debug, Deserialize)]
@@ -747,16 +997,27 @@ pub async fn delete_all_book_sources(
 }
 
 fn extract_sources(payload: serde_json::Value) -> Result<Vec<BookSource>, AppError> {
-    if payload.is_array() {
-        return serde_json::from_value::<Vec<BookSource>>(payload)
-            .map_err(|e| AppError::BadRequest(e.to_string()));
+    if let Some(items) = payload.as_array() {
+        return items
+            .iter()
+            .cloned()
+            .map(|value| {
+                book_source_from_value(value).map_err(|e| AppError::BadRequest(e.to_string()))
+            })
+            .collect();
     }
     if let Some(obj) = payload.as_object() {
         for key in ["bookSourceList", "bookSources", "data", "sources"] {
             if let Some(v) = obj.get(key) {
-                if v.is_array() {
-                    return serde_json::from_value::<Vec<BookSource>>(v.clone())
-                        .map_err(|e| AppError::BadRequest(e.to_string()));
+                if let Some(items) = v.as_array() {
+                    return items
+                        .iter()
+                        .cloned()
+                        .map(|value| {
+                            book_source_from_value(value)
+                                .map_err(|e| AppError::BadRequest(e.to_string()))
+                        })
+                        .collect();
                 }
             }
         }
@@ -799,17 +1060,9 @@ pub async fn read_remote_source_file(
         &text.chars().take(500).collect::<String>()
     );
 
-    let sources: Vec<BookSource> = serde_json::from_str(&text).or_else(|e| {
-        println!("DEBUG: direct parse failed: {:?}", e);
-        // some sources are wrapped in a list or object
-        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
-            extract_sources(v)
-        } else {
-            Err(AppError::BadRequest(
-                "invalid book sources json format".to_string(),
-            ))
-        }
-    })?;
+    let sources: Vec<BookSource> = serde_json::from_str::<serde_json::Value>(&text)
+        .map_err(|_| AppError::BadRequest("invalid book sources json format".to_string()))
+        .and_then(extract_sources)?;
 
     println!("DEBUG: parsed {} book sources", sources.len());
 
@@ -837,15 +1090,11 @@ pub async fn read_source_file(
                     .await
                     .map_err(|e| AppError::BadRequest(e.to_string()))?;
                 let text = String::from_utf8_lossy(&bytes);
-                let sources: Vec<BookSource> = serde_json::from_str(&text).or_else(|_| {
-                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
-                        extract_sources(v)
-                    } else {
-                        Err(AppError::BadRequest(
-                            "invalid book sources json format".to_string(),
-                        ))
-                    }
-                })?;
+                let sources: Vec<BookSource> = serde_json::from_str::<serde_json::Value>(&text)
+                    .map_err(|_| {
+                        AppError::BadRequest("invalid book sources json format".to_string())
+                    })
+                    .and_then(extract_sources)?;
                 return Ok(Json(serde_json::to_value(sources).unwrap_or_default()));
             }
         }
@@ -876,4 +1125,20 @@ pub async fn set_as_default_book_sources(
     Ok(Json(ApiResponse::ok(
         serde_json::json!({"success": true, "count": count}),
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn requested_source_urls_rejects_batches_above_limit() {
+        let urls = (0..101)
+            .map(|index| format!("https://source-{index}.example"))
+            .collect::<Vec<_>>();
+
+        let err = normalize_requested_source_urls(Some(&urls)).unwrap_err();
+
+        assert!(matches!(err, AppError::BadRequest(message) if message.contains("100")));
+    }
 }

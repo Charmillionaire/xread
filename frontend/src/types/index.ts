@@ -89,6 +89,28 @@ export interface BookSource {
   ruleContent?: Record<string, unknown>
 }
 
+export interface BookSourceTestResult {
+  bookSourceName: string
+  bookSourceUrl: string
+  valid: boolean
+  searchOk: boolean
+  exploreOk: boolean
+  keyword: string
+  exploreUrl?: string
+  searchError?: string
+  exploreError?: string
+  markedInvalid: boolean
+  group?: string
+}
+
+export interface BookSourceTestResponse {
+  total: number
+  valid: number
+  invalid: number
+  markedInvalid: number
+  results: BookSourceTestResult[]
+}
+
 // ─── 分组 ───
 export interface BookGroup {
   groupId: number

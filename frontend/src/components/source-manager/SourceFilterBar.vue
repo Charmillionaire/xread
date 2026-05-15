@@ -30,9 +30,11 @@
       <option value="">全部分组</option>
       <option v-for="group in groups" :key="group" :value="group">{{ group }}</option>
     </select>
-    <button v-if="selectedCount > 0" class="mini-btn" type="button" @click="$emit('clear-selection')">
-      清空已选 {{ selectedCount }}
-    </button>
+    <div v-if="selectedCount > 0" class="selection-tools">
+      <span>已选 {{ selectedCount }}</span>
+      <button class="mini-btn" type="button" @click="$emit('clear-selection')">清空</button>
+      <button class="mini-btn danger" type="button" @click="$emit('delete-selection')">删除选中</button>
+    </div>
   </section>
 </template>
 
@@ -52,6 +54,7 @@ defineEmits<{
   'update:filterGroup': [value: string]
   'toggle-current-selection': []
   'clear-selection': []
+  'delete-selection': []
 }>()
 </script>
 
@@ -118,6 +121,24 @@ defineEmits<{
   color: inherit;
 }
 
+.selection-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid rgba(201, 127, 58, 0.22);
+  border-radius: var(--radius-md);
+  background: rgba(201, 127, 58, 0.08);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.selection-tools span {
+  color: var(--color-text-secondary);
+}
+
 .mini-btn {
   min-height: 36px;
   padding: 7px 10px;
@@ -132,12 +153,36 @@ defineEmits<{
   background: var(--color-bg-hover);
 }
 
+.mini-btn.danger {
+  color: var(--color-danger);
+  border-color: rgba(245, 34, 45, 0.22);
+}
+
+.mini-btn.danger:hover {
+  background: rgba(245, 34, 45, 0.08);
+}
+
 @media (max-width: 760px) {
   .filter-bar {
     flex-direction: column;
     align-items: stretch;
     padding-left: 16px;
     padding-right: 16px;
+  }
+
+  .selection-tools {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .selection-tools span {
+    grid-column: 1 / -1;
+  }
+
+  .selection-tools .mini-btn {
+    min-height: 42px;
   }
 }
 </style>

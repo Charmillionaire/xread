@@ -100,12 +100,16 @@ const readerStore = useReaderStore()
 const appStore = useAppStore()
 const sourceStore = useSourceStore()
 
-const { searchKey, searchResults: results, isSearching } = storeToRefs(shelfStore)
+const {
+  searchKey,
+  searchResults: results,
+  isSearching,
+  searchScope,
+  searchGroup: selectedGroup,
+  searchSourceUrl: selectedSourceUrl,
+} = storeToRefs(shelfStore)
 
 let eventSource: EventSource | null = null
-const searchScope = ref<'all' | 'group' | 'source'>('all')
-const selectedGroup = ref('')
-const selectedSourceUrl = ref('')
 const showBookDetail = ref(false)
 const selectedBook = ref<Book | SearchBook | null>(null)
 
@@ -156,11 +160,17 @@ function closeEventSource() {
 }
 
 function ensureSearchSelection() {
-  if (searchScope.value === 'group' && !selectedGroup.value && sourceGroups.value.length > 0) {
-    selectedGroup.value = sourceGroups.value[0]
+  if (searchScope.value === 'group') {
+    const selectedGroupStillValid = selectedGroup.value && sourceGroups.value.includes(selectedGroup.value)
+    if (!selectedGroupStillValid && sourceGroups.value.length > 0) {
+      selectedGroup.value = sourceGroups.value[0]
+    }
   }
-  if (searchScope.value === 'source' && !selectedSourceUrl.value && sourceOptions.value.length > 0) {
-    selectedSourceUrl.value = sourceOptions.value[0].bookSourceUrl
+  if (searchScope.value === 'source') {
+    const selectedSourceStillValid = sourceOptions.value.some((source) => source.bookSourceUrl === selectedSourceUrl.value)
+    if (!selectedSourceStillValid && sourceOptions.value.length > 0) {
+      selectedSourceUrl.value = sourceOptions.value[0].bookSourceUrl
+    }
   }
 }
 
@@ -219,6 +229,7 @@ function doSearch(key: string) {
 watch(
   [() => shelfStore.searchKey, searchScope, selectedGroup, selectedSourceUrl],
   ([key]) => {
+    ensureSearchSelection()
     if (key) {
       doSearch(key)
     } else {

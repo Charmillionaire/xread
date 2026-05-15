@@ -645,7 +645,7 @@ watch(
 onMounted(async () => {
   await appStore.fetchUserInfo()
   aiStore.refreshConfig()
-  await aiStore.loadServerModelConfig()
+  await aiStore.loadServerModelConfig({ force: true })
   Object.assign(configDraft, aiStore.config)
   if (aiStore.serverModelConfig?.config) {
     Object.assign(serverConfigDraft, cloneServerModelConfig(aiStore.serverModelConfig.config))

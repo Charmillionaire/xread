@@ -36,4 +36,29 @@ describe('exploreCategories', () => {
 
     expect(getExploreCategoryKey(categories[0], 0)).not.toBe(getExploreCategoryKey(categories[1], 1))
   })
+
+  it('parses relaxed json categories with angle bracket style objects', () => {
+    const categories = parseExploreCategories(
+      '[{"title":"排行🏷榜单","url":"","style":<"layout_flexBasisPercent":1,"layout_flexGrow":1>},{"title":"总排行榜","url":"/rank/","style":<"layout_flexBasisPercent":0.4,"layout_flexGrow":1>}]'
+    )
+
+    expect(categories).toEqual([
+      { title: '排行🏷榜单', url: '' },
+      { title: '总排行榜', url: '/rank/' },
+    ])
+    expect(getInitialExploreCategoryUrl(categories)).toBe('/rank/')
+  })
+
+  it('parses relaxed json categories with angle bracket item objects', () => {
+    const categories = parseExploreCategories(
+      '[<"style":<"layout_flexBasisPercent":1.0,"layout_flexGrow":1>,"title":"书 库","url":"/book/category/catalog.html">,<"style":<"layout_flexBasisPercent":0.25,"layout_flexGrow":1>,"title":"排 行","url":"/book/ranking.html">,<"style":<"layout_flexBasisPercent":0.25,"layout_flexGrow":1>,"title":">","url":"/ranking/hits/2.html">]'
+    )
+
+    expect(categories).toEqual([
+      { title: '书 库', url: '/book/category/catalog.html' },
+      { title: '排 行', url: '/book/ranking.html' },
+      { title: '>', url: '/ranking/hits/2.html' },
+    ])
+    expect(getInitialExploreCategoryUrl(categories)).toBe('/book/category/catalog.html')
+  })
 })

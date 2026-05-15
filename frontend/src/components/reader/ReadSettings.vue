@@ -437,7 +437,7 @@ async function selectOpenAISpeechSource(source: 'browser' | 'server') {
     return
   }
   if (!serverModelLoaded.value) {
-    await aiBookStore.loadServerModelConfig()
+    await aiBookStore.loadServerModelConfig({ force: true })
     serverModelLoaded.value = true
   }
   if (!canUseServerModel.value) {
@@ -450,7 +450,7 @@ async function selectOpenAISpeechSource(source: 'browser' | 'server') {
 
 onMounted(async () => {
   store.fetchVoices()
-  await aiBookStore.loadServerModelConfig()
+  await aiBookStore.loadServerModelConfig({ force: true })
   serverModelLoaded.value = true
   if (store.speechConfig.openaiSource === 'server' && !canUseServerModel.value) {
     store.setOpenAISpeechSource('browser')

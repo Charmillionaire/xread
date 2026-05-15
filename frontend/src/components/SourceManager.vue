@@ -13,10 +13,14 @@
             :filtered="sourceStats.filtered"
             :selected="selectedFilteredSources.length"
             :loading="loading"
+            :testing="testingSources"
+            :invalid-count="invalidSources.length"
             @refresh="loadSources"
             @import-local="triggerFileImport"
             @open-subscriptions="subscriptionPanelVisible = true"
             @export="exportSources"
+            @test-sources="testSources"
+            @delete-invalid="removeInvalidSources"
             @create="createSource"
             @close="close"
           />
@@ -41,10 +45,12 @@
             @update:filter-group="filterGroup = $event"
             @toggle-current-selection="toggleFilteredSelection"
             @clear-selection="clearSelection"
+            @delete-selection="removeSelectedSources"
           />
 
           <div class="content-grid">
             <SourceList
+              class="source-list-slot"
               :sources="filteredSources"
               :loading="loading"
               :selected-urls="selectedSourceUrls"
@@ -58,6 +64,7 @@
             />
 
             <SourceEditorPanel
+              class="editor-slot"
               :source="editingSource"
               :editor-text="editorText"
               :can-login="canLoginSource"
@@ -73,11 +80,6 @@
 
           <footer class="modal-footer">
             <span class="count-info">显示 {{ filteredSources.length }} / {{ sources.length }}</span>
-            <div v-if="selectedFilteredSources.length" class="selection-bar">
-              <span>已选择 {{ selectedFilteredSources.length }} 个当前结果</span>
-              <button class="mini-btn" type="button" @click="clearSelection">清空</button>
-              <button class="mini-btn danger" type="button" @click="removeSelectedSources">删除选中</button>
-            </div>
           </footer>
         </div>
       </div>
@@ -121,9 +123,11 @@ import {
   getBookSources,
   deleteBookSource,
   deleteBookSources,
+  deleteInvalidBookSources,
   loginBookSource,
   saveBookSource,
   saveBookSources,
+  testBookSources,
   readRemoteSourceFile,
   readSourceFile,
 } from '../api/source'
@@ -137,6 +141,7 @@ import {
   toBookSourceDeletePayload,
 } from '../utils/sourceSelection'
 import { appendAuthQueryParams } from '../utils/secureAccess'
+import { chunkBookSourceUrls, mergeBookSourceTestResponses } from '../utils/sourceTesting'
 import SourceEditorPanel from './source-manager/SourceEditorPanel.vue'
 import SourceFilterBar from './source-manager/SourceFilterBar.vue'
 import SourceList from './source-manager/SourceList.vue'
@@ -162,6 +167,7 @@ const appStore = useAppStore()
 
 const sources = ref<BookSource[]>([])
 const loading = ref(false)
+const testingSources = ref(false)
 const filterText = ref('')
 const filterGroup = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -188,6 +194,10 @@ const sourceStats = computed(() => getBookSourceStats(sources.value, filteredSou
 
 const selectedFilteredSources = computed(() =>
   getVisibleSelection(filteredSources.value, selectedSourceUrls.value, (source) => source.bookSourceUrl)
+)
+
+const invalidSources = computed(() =>
+  sources.value.filter((source) => hasSourceGroup(source, '失效'))
 )
 
 const allFilteredSelected = computed(() =>
@@ -287,6 +297,64 @@ async function removeSelectedSources() {
   }
 }
 
+async function testSources() {
+  const targets = selectedFilteredSources.value.length ? selectedFilteredSources.value : sources.value
+  if (!targets.length) {
+    appStore.showToast('没有可测试的书源', 'warning')
+    return
+  }
+  const scopeText = selectedFilteredSources.value.length ? `选中的 ${targets.length}` : `全部 ${targets.length}`
+  if (!confirm(`将测试${scopeText} 个书源。测试会请求外部站点，耗时可能较长，是否继续？`)) return
+
+  testingSources.value = true
+  try {
+    const batches = chunkBookSourceUrls(targets.map((source) => source.bookSourceUrl))
+    const responses = []
+    for (const batch of batches) {
+      responses.push(
+        await testBookSources({
+          bookSourceUrls: batch,
+          markInvalid: true,
+          concurrent: 12,
+        })
+      )
+    }
+    const result = mergeBookSourceTestResponses(responses)
+    await loadSources()
+    if (result.invalid > 0) {
+      filterGroup.value = '失效'
+    }
+    appStore.showToast(
+      `测试完成：有效 ${result.valid} 个，失效 ${result.invalid} 个，更新分组 ${result.markedInvalid} 个`,
+      result.invalid > 0 ? 'warning' : 'success'
+    )
+  } catch (e: unknown) {
+    appStore.showToast((e as Error).message || '书源测试失败', 'error')
+  } finally {
+    testingSources.value = false
+  }
+}
+
+async function removeInvalidSources() {
+  if (!invalidSources.value.length) {
+    appStore.showToast('没有失效书源', 'warning')
+    return
+  }
+  if (!confirm(`确定删除 ${invalidSources.value.length} 个失效书源？此操作不可撤销。`)) return
+  try {
+    const result = await deleteInvalidBookSources()
+    const invalidUrls = new Set(invalidSources.value.map((source) => source.bookSourceUrl))
+    sources.value = sources.value.filter((source) => !invalidUrls.has(source.bookSourceUrl))
+    selectedSourceUrls.value.clear()
+    if (editingSource.value && invalidUrls.has(editingSource.value.bookSourceUrl)) {
+      createSource()
+    }
+    appStore.showToast(`已删除 ${result.deleted} 个失效书源`, 'success')
+  } catch (e: unknown) {
+    appStore.showToast((e as Error).message || '删除失效书源失败', 'error')
+  }
+}
+
 function toggleSourceSelection(source: BookSource) {
   const selected = selectedSourceUrls.value
   if (selected.has(source.bookSourceUrl)) {
@@ -316,6 +384,14 @@ function pruneSelection() {
       selectedSourceUrls.value.delete(url)
     }
   })
+}
+
+function hasSourceGroup(source: BookSource, groupName: string) {
+  return (source.bookSourceGroup || '')
+    .split(/[,;；、]/)
+    .map((group) => group.trim())
+    .filter(Boolean)
+    .includes(groupName)
 }
 
 function createSource() {
@@ -542,6 +618,7 @@ watch(() => props.modelValue, (v) => {
 
 .source-modal {
   width: min(1180px, 100%);
+  height: min(780px, calc(var(--app-height, 100dvh) - var(--safe-area-top) - var(--safe-area-bottom) - 32px));
   max-height: min(88vh, calc(var(--app-height, 100dvh) - var(--safe-area-top) - var(--safe-area-bottom) - 32px));
   background: var(--color-bg-elevated);
   border-radius: var(--radius-xl);
@@ -565,31 +642,24 @@ watch(() => props.modelValue, (v) => {
   overflow: hidden;
 }
 
+.source-list-slot,
+.editor-slot {
+  min-height: 0;
+}
+
 .modal-footer {
-  min-height: 56px;
+  min-height: 44px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
-  padding: 12px 24px 16px;
+  padding: 8px 24px 14px;
   flex-shrink: 0;
 }
 
 .count-info {
   font-size: 12px;
   color: var(--color-text-tertiary);
-}
-
-.selection-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid rgba(201, 127, 58, 0.2);
-  border-radius: var(--radius-full);
-  background: rgba(201, 127, 58, 0.08);
-  color: var(--color-text-secondary);
-  font-size: 12px;
 }
 
 .mini-btn,
@@ -690,6 +760,7 @@ watch(() => props.modelValue, (v) => {
 
   .source-modal {
     width: 100%;
+    height: calc(var(--app-height, 100dvh) - 16px);
     max-height: calc(var(--app-height, 100dvh) - 16px);
     border-radius: 24px;
     overflow-y: auto;
@@ -697,17 +768,28 @@ watch(() => props.modelValue, (v) => {
   }
 
   .content-grid {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     overflow: visible;
     flex: none;
     padding-left: 16px;
     padding-right: 16px;
   }
 
-  .modal-footer,
-  .selection-bar {
-    flex-direction: column;
-    align-items: stretch;
+  .editor-slot {
+    order: -1;
+    min-height: 360px;
+    max-height: min(58vh, 560px);
+  }
+
+  .source-list-slot {
+    max-height: min(46vh, 460px);
+  }
+
+  .modal-footer {
+    padding: 10px 16px 14px;
+    background: var(--color-bg-elevated);
+    border-top: 1px solid var(--color-border-light);
   }
 }
 

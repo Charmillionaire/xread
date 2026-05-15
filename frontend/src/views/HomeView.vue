@@ -16,20 +16,61 @@
         </h1>
         <div class="shelf-actions">
           <template v-if="shelfStore.editMode">
-            <button class="shelf-btn" @click="shelfStore.selectAll()">全选</button>
-            <button class="shelf-btn" @click="shelfStore.clearSelection()">取消全选</button>
+            <button class="shelf-btn" type="button" title="全选" aria-label="全选" @click="shelfStore.selectAll()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+              <span class="shelf-btn-label">全选</span>
+            </button>
+            <button class="shelf-btn" type="button" title="取消全选" aria-label="取消全选" @click="shelfStore.clearSelection()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M8 12h8" />
+              </svg>
+              <span class="shelf-btn-label">取消全选</span>
+            </button>
           </template>
-          <button class="shelf-btn" @click="handleRefreshBooks" :disabled="shelfStore.refreshing">
-            {{ shelfStore.refreshing ? '刷新中' : '刷新书架' }}
+          <button class="shelf-btn" type="button" title="刷新书架" aria-label="刷新书架" @click="handleRefreshBooks" :disabled="shelfStore.refreshing">
+            <svg :class="{ spinning: shelfStore.refreshing }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 0 0-15.55-6.2L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M3 12a9 9 0 0 0 15.55 6.2L21 16" />
+              <path d="M21 21v-5h-5" />
+            </svg>
+            <span class="shelf-btn-label">{{ shelfStore.refreshing ? '刷新中' : '刷新书架' }}</span>
           </button>
-          <button class="shelf-btn" @click="showGroupManager = true">分组管理</button>
-          <button class="shelf-btn" @click="showCacheManager = true">缓存管理</button>
+          <button class="shelf-btn" type="button" title="分组管理" aria-label="分组管理" @click="showGroupManager = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 7h6l2 2h8v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
+              <path d="M8 13h8" />
+            </svg>
+            <span class="shelf-btn-label">分组管理</span>
+          </button>
+          <button class="shelf-btn" type="button" title="缓存管理" aria-label="缓存管理" @click="showCacheManager = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <ellipse cx="12" cy="5" rx="8" ry="3" />
+              <path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
+              <path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" />
+            </svg>
+            <span class="shelf-btn-label">缓存管理</span>
+          </button>
           <button
             class="shelf-btn"
+            type="button"
             :class="{ active: shelfStore.editMode }"
+            :title="shelfStore.editMode ? '完成' : '编辑'"
+            :aria-label="shelfStore.editMode ? '完成' : '编辑'"
             @click="toggleEditMode"
           >
-            {{ shelfStore.editMode ? '完成' : '编辑' }}
+            <svg v-if="shelfStore.editMode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            <span class="shelf-btn-label">{{ shelfStore.editMode ? '完成' : '编辑' }}</span>
           </button>
         </div>
       </div>
@@ -281,9 +322,14 @@ async function handleRefreshBooks() {
 .shelf-actions {
   display: flex;
   gap: var(--space-2);
+  align-items: center;
 }
 
 .shelf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
@@ -291,6 +337,19 @@ async function handleRefreshBooks() {
   color: var(--color-text-secondary);
   border: 1px solid var(--color-border);
   transition: all var(--duration-fast);
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.shelf-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.shelf-btn svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
 }
 
 .shelf-btn:hover {
@@ -302,6 +361,15 @@ async function handleRefreshBooks() {
   background: var(--color-primary);
   color: white;
   border-color: var(--color-primary);
+}
+
+.shelf-btn .spinning {
+  animation: shelf-spin 0.9s linear infinite;
+}
+
+@keyframes shelf-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .group-tabs {
@@ -427,6 +495,60 @@ async function handleRefreshBooks() {
 }
 
 @media (max-width: 640px) {
+  .shelf-content {
+    padding: 0 var(--space-4);
+  }
+
+  .shelf-header {
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-5) 0 var(--space-3);
+  }
+
+  .shelf-title {
+    flex: 0 0 auto;
+    font-size: var(--text-2xl);
+  }
+
+  .shelf-actions {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .shelf-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .shelf-btn {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
+    padding: 0;
+    border-radius: var(--radius-lg);
+  }
+
+  .shelf-btn svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .shelf-btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   .batch-toolbar {
     width: calc(100% - var(--space-8));
     bottom: calc(104px + var(--space-3));

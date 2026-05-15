@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { exploreBook } from '../api/explore'
 import { useSourceStore } from './source'
 import type { SearchBook, BookSource } from '../types'
@@ -35,6 +35,29 @@ export const useExploreStore = defineStore('explore', () => {
   const categories = computed<ExploreCategory[]>(() => {
     return parseExploreCategories(currentSource.value?.exploreUrl)
   })
+
+  function ensureActiveSource() {
+    if (exploreSources.value.length === 0) {
+      activeSourceUrl.value = ''
+      activeCategoryUrl.value = ''
+      books.value = []
+      hasMore.value = false
+      return
+    }
+
+    const activeSourceStillValid = exploreSources.value.some((source) => source.bookSourceUrl === activeSourceUrl.value)
+    if (!activeSourceUrl.value || !activeSourceStillValid) {
+      setSource(exploreSources.value[0].bookSourceUrl)
+      return
+    }
+
+    if (!categories.value.some((category) => category.url === activeCategoryUrl.value)) {
+      const firstCategoryUrl = getInitialExploreCategoryUrl(categories.value)
+      if (firstCategoryUrl) {
+        setCategory(firstCategoryUrl)
+      }
+    }
+  }
 
   function setSource(url: string) {
     const sourceChanged = activeSourceUrl.value !== url
@@ -104,10 +127,12 @@ export const useExploreStore = defineStore('explore', () => {
     if (sourceStore.sources.length === 0) {
       await sourceStore.fetchSources()
     }
-    if (exploreSources.value.length > 0 && !activeSourceUrl.value) {
-      setSource(exploreSources.value[0].bookSourceUrl)
-    }
+    ensureActiveSource()
   }
+
+  watch(exploreSources, () => {
+    ensureActiveSource()
+  })
 
   return {
     activeSourceUrl,

@@ -87,6 +87,25 @@ pub fn eval_js_search_with_source(
     )
 }
 
+pub fn eval_js_url(
+    script: &str,
+    result: &str,
+    key: &str,
+    page: i32,
+    source_key: &str,
+    base_url: &str,
+) -> anyhow::Result<String> {
+    eval_js_inner_with_source(
+        script,
+        Some(result),
+        Some(base_url),
+        Some(key),
+        Some(page),
+        Some(source_key),
+        None,
+    )
+}
+
 fn eval_js_inner(
     script: &str,
     input: Option<&str>,

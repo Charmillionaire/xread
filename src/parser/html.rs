@@ -1,6 +1,8 @@
 use scraper::{ElementRef, Html, Selector};
 use std::collections::HashSet;
 
+use crate::parser::rule_analyzer::split_top_level;
+
 #[derive(Clone, Debug, PartialEq)]
 enum SelectorBase {
     Css(String),
@@ -409,7 +411,13 @@ pub fn select_list<'a>(doc: &'a Html, selector: &str) -> Vec<ElementRef<'a>> {
 
     // Split by @ first to get the base selector (handle @@ separately in text extraction)
     let sel_text = selector.split("@@").next().unwrap_or(selector).trim();
-    let sel_text = sel_text.split('@').next().unwrap_or(sel_text).trim();
+    let split = split_top_level(sel_text, &["@"]);
+    let sel_text = split
+        .parts
+        .first()
+        .map(String::as_str)
+        .unwrap_or(sel_text)
+        .trim();
 
     // Handle list combination operators at the top level
     if sel_text.contains("&&") || sel_text.contains("||") || sel_text.contains("%%") {
@@ -421,54 +429,29 @@ pub fn select_list<'a>(doc: &'a Html, selector: &str) -> Vec<ElementRef<'a>> {
 
 /// Handle list combination operators
 fn select_with_combination<'a>(doc: &'a Html, rule: &str) -> Vec<ElementRef<'a>> {
-    let mut rules: Vec<&str> = Vec::new();
-    let mut operators: Vec<char> = Vec::new();
-
-    let mut current = rule;
-    while !current.is_empty() {
-        let mut found = None;
-        for (i, c) in current.char_indices() {
-            if c == '&' && current.chars().nth(i + 1) == Some('&') {
-                found = Some((i, "&&"));
-                break;
-            } else if c == '|' && current.chars().nth(i + 1) == Some('|') {
-                found = Some((i, "||"));
-                break;
-            } else if c == '%' && current.chars().nth(i + 1) == Some('%') {
-                found = Some((i, "%%"));
-                break;
-            }
-        }
-
-        if let Some((pos, op)) = found {
-            rules.push(current[..pos].trim());
-            operators.push(op.chars().next().unwrap());
-            current = current[pos + 2..].trim();
-        } else {
-            rules.push(current.trim());
-            break;
-        }
-    }
+    let split = split_top_level(rule, &["&&", "||", "%%"]);
+    let rules = split.parts;
 
     if rules.is_empty() {
         return vec![];
     }
 
-    let mut result = select_list_simple(doc, rules[0]);
+    let mut result = select_list_simple(doc, &rules[0]);
+    let operator = split.delimiter.as_deref().unwrap_or("");
 
-    for (i, op) in operators.into_iter().enumerate() {
-        let next_results = select_list_simple(doc, rules[i + 1]);
+    for next_rule in rules.iter().skip(1) {
+        let next_results = select_list_simple(doc, next_rule);
 
-        match op {
-            '&' => {
+        match operator {
+            "&&" => {
                 result.extend(next_results);
             }
-            '|' => {
+            "||" => {
                 if result.is_empty() {
                     result = next_results;
                 }
             }
-            '%' => {
+            "%%" => {
                 let mut zipped = Vec::new();
                 let max_len = result.len().max(next_results.len());
                 for j in 0..max_len {
@@ -577,7 +560,7 @@ fn collect_text_nodes(el: ElementRef, texts: &mut Vec<String>) {
 }
 
 pub fn select_text_from_element(el: &ElementRef, rule: &str) -> Option<String> {
-    let parts: Vec<&str> = rule.split('@').collect();
+    let parts = split_top_level(rule, &["@"]).parts;
     let mut current_matches = vec![*el];
 
     for i in 0..parts.len() {
@@ -611,7 +594,7 @@ pub fn select_text_from_element(el: &ElementRef, rule: &str) -> Option<String> {
 
 /// Select all matching elements and collect their text, joined by newlines
 pub fn select_all_text(doc: &Html, rule: &str) -> Option<String> {
-    let parts: Vec<&str> = rule.split('@').collect();
+    let parts = split_top_level(rule, &["@"]).parts;
     if parts.is_empty() {
         return None;
     }
@@ -670,6 +653,38 @@ pub fn select_text(doc: &Html, rule: &str) -> Option<String> {
 }
 
 pub fn select_text_list(doc: &Html, rule: &str) -> Vec<String> {
+    let combo = split_top_level(rule, &["&&", "||", "%%"]);
+    if let Some(operator) = combo.delimiter.as_deref() {
+        let mut result =
+            select_text_list(doc, combo.parts.first().map(String::as_str).unwrap_or(""));
+        for part in combo.parts.iter().skip(1) {
+            let next = select_text_list(doc, part);
+            match operator {
+                "&&" => result.extend(next),
+                "||" => {
+                    if result.is_empty() {
+                        result = next;
+                    }
+                }
+                "%%" => {
+                    let mut zipped = Vec::new();
+                    let max_len = result.len().max(next.len());
+                    for idx in 0..max_len {
+                        if idx < result.len() {
+                            zipped.push(result[idx].clone());
+                        }
+                        if idx < next.len() {
+                            zipped.push(next[idx].clone());
+                        }
+                    }
+                    result = zipped;
+                }
+                _ => {}
+            }
+        }
+        return result;
+    }
+
     // Handle rule chaining with @@
     if rule.contains("@@") {
         let rules: Vec<&str> = rule.split("@@").collect();
@@ -696,7 +711,7 @@ pub fn select_text_list(doc: &Html, rule: &str) -> Vec<String> {
         return current_texts;
     }
 
-    let parts: Vec<&str> = rule.split('@').collect();
+    let parts = split_top_level(rule, &["@"]).parts;
     if parts.is_empty() {
         return vec![];
     }

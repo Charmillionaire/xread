@@ -18,6 +18,9 @@ import {
 import { shouldSkipAiBookChapter } from '../utils/aiBookChapterFilter'
 
 type GenerationPhase = 'idle' | 'loading' | 'text' | 'map' | 'saving' | 'error'
+interface LoadServerModelConfigOptions {
+  force?: boolean
+}
 
 export const useAiBookStore = defineStore('aiBook', () => {
   const appStore = useAppStore()
@@ -33,10 +36,33 @@ export const useAiBookStore = defineStore('aiBook', () => {
   const isBusy = computed(() => loading.value || phase.value !== 'idle')
   const canUseServerModel = computed(() => Boolean(serverModelConfig.value?.canUseServerModel))
   const isServerModelAdmin = computed(() => Boolean(serverModelConfig.value?.isAdmin))
+  let serverModelConfigRequest: Promise<AiServerModelConfigResponse | null> | null = null
 
-  async function loadServerModelConfig() {
-    serverModelConfig.value = await getAiModelConfig().catch(() => null)
-    return serverModelConfig.value
+  async function loadServerModelConfig(options: LoadServerModelConfigOptions = {}) {
+    if (!options.force && serverModelConfig.value) {
+      return serverModelConfig.value
+    }
+    if (!options.force && serverModelConfigRequest) {
+      return serverModelConfigRequest
+    }
+
+    const request = getAiModelConfig()
+      .then((config) => {
+        serverModelConfig.value = config
+        return config
+      })
+      .catch(() => {
+        serverModelConfig.value = null
+        return null
+      })
+      .finally(() => {
+        if (serverModelConfigRequest === request) {
+          serverModelConfigRequest = null
+        }
+      })
+
+    serverModelConfigRequest = request
+    return request
   }
 
   function refreshConfig() {

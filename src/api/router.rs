@@ -29,6 +29,18 @@ pub fn build_router(state: AppState) -> Router {
             "/reader3/loginBookSource",
             post(handlers::login_book_source),
         )
+        .route(
+            "/reader3/getExploreKinds",
+            post(handlers::get_explore_kinds),
+        )
+        .route(
+            "/reader3/testBookSources",
+            post(handlers::test_book_sources),
+        )
+        .route(
+            "/reader3/deleteInvalidBookSources",
+            post(handlers::delete_invalid_book_sources),
+        )
         .route("/reader3/bookSourceProxy", any(handlers::book_source_proxy))
         .route(
             "/reader3/bookSourceClientLog",

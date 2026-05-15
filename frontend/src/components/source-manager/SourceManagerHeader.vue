@@ -19,6 +19,17 @@
       <button class="action-btn" type="button" @click="$emit('import-local')">本地导入</button>
       <button class="action-btn" type="button" @click="$emit('open-subscriptions')">远程同步</button>
       <button class="action-btn" type="button" @click="$emit('export')">导出</button>
+      <button class="action-btn" :disabled="testing || total === 0" type="button" @click="$emit('test-sources')">
+        {{ testing ? '测试中...' : '测试书源' }}
+      </button>
+      <button
+        class="action-btn danger"
+        :disabled="testing || invalidCount === 0"
+        type="button"
+        @click="$emit('delete-invalid')"
+      >
+        删除失效<span v-if="invalidCount"> {{ invalidCount }}</span>
+      </button>
       <button class="action-btn primary" type="button" @click="$emit('create')">新增</button>
       <button class="icon-btn close-btn" type="button" title="关闭" @click="$emit('close')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -36,6 +47,8 @@ defineProps<{
   filtered: number
   selected: number
   loading: boolean
+  testing: boolean
+  invalidCount: number
 }>()
 
 defineEmits<{
@@ -43,6 +56,8 @@ defineEmits<{
   'import-local': []
   'open-subscriptions': []
   export: []
+  'test-sources': []
+  'delete-invalid': []
   create: []
   close: []
 }>()
@@ -105,6 +120,16 @@ defineEmits<{
   background: var(--color-primary);
   border-color: var(--color-primary);
   color: #fff;
+}
+
+.action-btn.danger {
+  color: var(--color-danger);
+  border-color: rgba(245, 34, 45, 0.26);
+}
+
+.action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
 }
 
 .icon-btn {

@@ -1,5 +1,6 @@
 import http from './http'
-import type { BookSource } from '../types'
+import type { BookSource, BookSourceTestResponse } from '../types'
+import { MAX_SOURCE_TEST_BATCH_SIZE } from '../utils/sourceTesting'
 
 export function getBookSources() {
   return http.get<BookSource[]>('/getBookSources').then((r) => r.data)
@@ -42,6 +43,22 @@ export function deleteBookSources(sources: { bookSourceUrl: string }[]) {
 
 export function deleteAllBookSources() {
   return http.post<{ deleted: boolean }>('/deleteAllBookSources').then((r) => r.data)
+}
+
+export function testBookSources(params: {
+  bookSourceUrls?: string[]
+  keyword?: string
+  markInvalid?: boolean
+  concurrent?: number
+}) {
+  if ((params.bookSourceUrls?.length || 0) > MAX_SOURCE_TEST_BATCH_SIZE) {
+    throw new Error(`单次最多测试 ${MAX_SOURCE_TEST_BATCH_SIZE} 个书源`)
+  }
+  return http.post<BookSourceTestResponse>('/testBookSources', params).then((r) => r.data)
+}
+
+export function deleteInvalidBookSources() {
+  return http.post<{ deleted: number }>('/deleteInvalidBookSources').then((r) => r.data)
 }
 
 export function setAsDefaultBookSources(username: string) {

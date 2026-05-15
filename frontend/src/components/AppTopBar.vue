@@ -10,25 +10,38 @@
           <span class="logo-text">阅读</span>
         </div>
 
-        <div v-if="showGlobalSearch" class="search-box" :class="{ focused: searchFocused }">
-          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
+        <form
+          v-if="showGlobalSearch"
+          class="search-box"
+          :class="{ focused: searchFocused }"
+          role="search"
+          @submit.prevent="handleSearch"
+        >
           <input
             v-model="searchValue"
             type="text"
             placeholder="搜索书籍..."
             @focus="searchFocused = true"
             @blur="searchFocused = false"
-            @keyup.enter="handleSearch"
           />
-          <button v-if="searchValue" class="search-clear" @click="clearSearch">
+          <button v-if="searchValue" class="search-clear" type="button" @click="clearSearch">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
-        </div>
+          <button
+            class="search-submit"
+            type="submit"
+            title="搜索"
+            aria-label="搜索"
+            :disabled="!canSearch"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </button>
+        </form>
       </div>
 
       <div class="topbar-right">
@@ -72,11 +85,13 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../stores/app'
 import { useBookshelfStore } from '../stores/bookshelf'
+import { useExploreStore } from '../stores/explore'
 
 const router = useRouter()
 const route = useRoute()
 const appStore = useAppStore()
 const shelfStore = useBookshelfStore()
+const exploreStore = useExploreStore()
 
 const searchFocused = ref(false)
 const searchValue = ref('')
@@ -85,6 +100,7 @@ const theme = computed(() => appStore.theme)
 const isLoggedIn = computed(() => appStore.isLoggedIn)
 const userInfo = computed(() => appStore.userInfo)
 const showGlobalSearch = computed(() => !route.path.startsWith('/rss') && route.path !== '/recent')
+const canSearch = computed(() => searchValue.value.trim().length > 0)
 
 function goHome() {
   shelfStore.clearSearch()
@@ -93,8 +109,15 @@ function goHome() {
 
 function handleSearch() {
   const value = searchValue.value.trim()
-  if (value) {
-    shelfStore.searchKey = value
+  if (!value) return
+
+  shelfStore.startSearch(value, {
+    scope: 'source',
+    sourceUrl: route.path === '/explore' ? exploreStore.activeSourceUrl : '',
+  })
+
+  if (route.path !== '/') {
+    router.push('/')
   }
 }
 
@@ -225,6 +248,39 @@ function openSettings() {
   height: 14px;
 }
 
+.search-submit {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
+  flex-shrink: 0;
+  padding: 0;
+  transition: transform var(--duration-fast), opacity var(--duration-fast), background var(--duration-fast);
+}
+
+.search-submit:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+}
+
+.search-submit:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.search-submit:disabled {
+  color: var(--color-text-tertiary);
+  background: transparent;
+  opacity: 0.75;
+}
+
+.search-submit svg {
+  width: 15px;
+  height: 15px;
+}
+
 .topbar-right {
   display: flex;
   align-items: center;
@@ -289,7 +345,13 @@ function openSettings() {
   .search-box {
     max-width: none;
     min-width: 0;
-    padding: var(--space-2) var(--space-3);
+    gap: 6px;
+    padding: 7px 8px 7px var(--space-3);
+  }
+
+  .search-submit {
+    width: 28px;
+    height: 28px;
   }
 
   .topbar-left {

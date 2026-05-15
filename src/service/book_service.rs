@@ -1,22 +1,27 @@
 use crate::crawler::{
-    fetcher::{fetch, HttpMethod, RequestSpec},
+    fetcher::{fetch, FetchResponse, RequestSpec, StrResponse},
     http_client::HttpClient,
+    url_analyzer::analyze_url,
 };
 use crate::error::error::AppError;
 use crate::model::{
-    book::Book, book_chapter::BookChapter, book_source::BookSource, search::SearchBook,
+    book::Book,
+    book_chapter::BookChapter,
+    book_source::{BookSource, ExploreKind},
+    search::SearchBook,
 };
-use crate::parser::js::{eval_js, eval_js_search_with_source, with_js_lib};
+use crate::parser::js::{eval_js, eval_js_with_bindings, with_js_lib};
 use crate::parser::rule_engine::RuleEngine;
 use crate::storage::cache::file_cache::FileCache;
 use crate::util::hash::md5_hex;
 use crate::util::text::{normalize_source_url, repair_encoded_url};
+use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::RwLock;
-use urlencoding::encode;
+use tokio::time::{sleep, Duration, Instant};
 
 /// State for background chapter fetching
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -37,6 +42,28 @@ pub struct BookService {
     cache: FileCache,
     storage_dir: PathBuf,
     source_cookies: Arc<RwLock<HashMap<String, String>>>,
+    rate_states: Arc<RwLock<HashMap<String, RateState>>>,
+}
+
+#[derive(Clone, Default)]
+struct RateState {
+    in_flight: bool,
+    last_start: Option<Instant>,
+    window_starts: Vec<Instant>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BookSourceAvailability {
+    pub book_source_url: String,
+    pub book_source_name: String,
+    pub valid: bool,
+    pub search_ok: bool,
+    pub explore_ok: bool,
+    pub keyword: String,
+    pub explore_url: Option<String>,
+    pub search_error: Option<String>,
+    pub explore_error: Option<String>,
 }
 
 impl BookService {
@@ -48,6 +75,7 @@ impl BookService {
             cache,
             storage_dir,
             source_cookies: Arc::new(RwLock::new(HashMap::new())),
+            rate_states: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -56,7 +84,7 @@ impl BookService {
     }
 
     fn source_cookie_key(&self, user_ns: &str, source_url: &str) -> String {
-        format!("{}::{}", user_ns, normalize_source_url(source_url))
+        format!("{}::{}", user_ns, cookie_domain(source_url))
     }
 
     async fn apply_source_cookie(
@@ -93,16 +121,111 @@ impl BookService {
         self.source_cookies.write().await.remove(&key);
     }
 
-    async fn request_headers_for_source(
+    async fn fetch_source_url(
         &self,
         user_ns: &str,
         source: &BookSource,
-    ) -> Vec<(String, String)> {
-        let mut headers = Vec::new();
-        append_source_headers(source, &mut headers);
-        self.apply_source_cookie(user_ns, source, &mut headers)
+        url_rule: &str,
+        base_url: &str,
+    ) -> Result<FetchResponse, AppError> {
+        let mut spec = analyze_url(url_rule, "", 1, base_url, source)?;
+        self.apply_source_cookie(user_ns, source, &mut spec.headers)
             .await;
-        headers
+        let res = self.fetch_with_rate(source, spec).await?;
+        Ok(apply_login_check_js(source, res))
+    }
+
+    async fn fetch_with_rate(
+        &self,
+        source: &BookSource,
+        spec: RequestSpec,
+    ) -> anyhow::Result<FetchResponse> {
+        self.wait_for_rate(source).await;
+        let result = fetch(&self.http, spec).await;
+        self.finish_rate(source).await;
+        result
+    }
+
+    async fn wait_for_rate(&self, source: &BookSource) {
+        let Some(rate) = source.concurrent_rate.as_deref().map(str::trim) else {
+            return;
+        };
+        if rate.is_empty() || rate == "0" {
+            return;
+        }
+        if let Some((limit, window_ms)) = parse_window_rate(rate) {
+            self.wait_for_window_rate(&source.book_source_url, limit, window_ms)
+                .await;
+            return;
+        }
+        let Ok(delay_ms) = rate.parse::<u64>() else {
+            return;
+        };
+        self.wait_for_serial_rate(&source.book_source_url, delay_ms)
+            .await;
+    }
+
+    async fn wait_for_serial_rate(&self, source_key: &str, delay_ms: u64) {
+        let delay = Duration::from_millis(delay_ms);
+        loop {
+            let wait = {
+                let mut states = self.rate_states.write().await;
+                let state = states.entry(source_key.to_string()).or_default();
+                let now = Instant::now();
+                if state.in_flight {
+                    delay
+                } else if let Some(last_start) = state.last_start {
+                    let elapsed = now.saturating_duration_since(last_start);
+                    if elapsed < delay {
+                        delay - elapsed
+                    } else {
+                        state.in_flight = true;
+                        state.last_start = Some(now);
+                        return;
+                    }
+                } else {
+                    state.in_flight = true;
+                    state.last_start = Some(now);
+                    return;
+                }
+            };
+            sleep(wait).await;
+        }
+    }
+
+    async fn wait_for_window_rate(&self, source_key: &str, limit: usize, window_ms: u64) {
+        if limit == 0 || window_ms == 0 {
+            return;
+        }
+        let window = Duration::from_millis(window_ms);
+        loop {
+            let wait = {
+                let mut states = self.rate_states.write().await;
+                let state = states.entry(source_key.to_string()).or_default();
+                let now = Instant::now();
+                state
+                    .window_starts
+                    .retain(|start| now.saturating_duration_since(*start) <= window);
+                if state.window_starts.len() >= limit {
+                    state
+                        .window_starts
+                        .first()
+                        .map(|start| window.saturating_sub(now.saturating_duration_since(*start)))
+                        .unwrap_or(window)
+                } else {
+                    state.window_starts.push(now);
+                    return;
+                }
+            };
+            sleep(wait).await;
+        }
+    }
+
+    async fn finish_rate(&self, source: &BookSource) {
+        let mut states = self.rate_states.write().await;
+        if let Some(state) = states.get_mut(&source.book_source_url) {
+            state.in_flight = false;
+        }
     }
 
     pub async fn search_book(
@@ -123,31 +246,23 @@ impl BookService {
             page,
             search_url
         );
-        let mut spec = analyze_url(
-            &search_url,
-            key,
-            page,
-            &source.book_source_url,
-            source.js_lib.as_deref(),
-        )
-        .map_err(|e| {
-            tracing::error!("analyze_url failed: {:?}", e);
-            e
-        })?;
+        let mut spec = analyze_url(&search_url, key, page, &source.book_source_url, source)
+            .map_err(|e| {
+                tracing::error!("analyze_url failed: {:?}", e);
+                e
+            })?;
 
-        append_source_headers(source, &mut spec.headers);
         self.apply_source_cookie(user_ns, source, &mut spec.headers)
             .await;
 
         tracing::debug!("search_book fetched spec: {:?}", spec);
-        let res = fetch(&self.http, spec).await.map_err(|e| {
+        let res = self.fetch_with_rate(source, spec).await.map_err(|e| {
             tracing::error!("fetch failed: {:?}", e);
             e
         })?;
+        let res = apply_login_check_js(source, res);
         tracing::debug!("fetch success, body length: {}", res.body.len());
-        let books = self
-            .parser
-            .search_books(source, &res.body, &source.book_source_url);
+        let books = self.parser.search_books(source, &res.body, &res.url);
         tracing::info!("found {} books", books.len());
         Ok(books)
     }
@@ -162,20 +277,80 @@ impl BookService {
         if rule_find_url.trim().is_empty() {
             return Err(AppError::BadRequest("ruleFindUrl required".to_string()));
         }
-        let mut spec = analyze_url(
-            rule_find_url,
-            "",
-            page,
-            &source.book_source_url,
-            source.js_lib.as_deref(),
-        )?;
+        let mut spec = analyze_url(rule_find_url, "", page, &source.book_source_url, source)?;
 
-        append_source_headers(source, &mut spec.headers);
         self.apply_source_cookie(user_ns, source, &mut spec.headers)
             .await;
 
-        let res = fetch(&self.http, spec).await?;
+        let res = apply_login_check_js(source, self.fetch_with_rate(source, spec).await?);
         Ok(self.parser.explore_books(source, &res.body, &res.url))
+    }
+
+    pub fn explore_kinds(&self, source: &BookSource) -> Result<Vec<ExploreKind>, AppError> {
+        parse_explore_kinds(source)
+    }
+
+    pub async fn test_book_source_availability(
+        &self,
+        user_ns: &str,
+        source: &BookSource,
+        keyword: Option<&str>,
+    ) -> BookSourceAvailability {
+        let keyword = keyword
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                source
+                    .rule_search
+                    .as_ref()
+                    .and_then(|rule| rule.check_key_word.as_deref())
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+            })
+            .unwrap_or("斗破苍穹")
+            .to_string();
+
+        let (search_ok, search_error) = if source
+            .search_url
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+            && source.rule_search.is_some()
+        {
+            match self.search_book(user_ns, source, &keyword, 1).await {
+                Ok(books) => (!books.is_empty(), None),
+                Err(err) => (false, Some(format!("{err:?}"))),
+            }
+        } else {
+            (false, Some("missing searchUrl or ruleSearch".to_string()))
+        };
+
+        let explore_url = self.explore_kinds(source).ok().and_then(|kinds| {
+            kinds
+                .into_iter()
+                .filter_map(|kind| kind.url)
+                .map(|url| url.trim().to_string())
+                .find(|url| !url.is_empty())
+        });
+        let (explore_ok, explore_error) = if let Some(url) = explore_url.as_deref() {
+            match self.explore_book(user_ns, source, url, 1).await {
+                Ok(books) => (!books.is_empty(), None),
+                Err(err) => (false, Some(format!("{err:?}"))),
+            }
+        } else {
+            (false, Some("missing explore category url".to_string()))
+        };
+
+        BookSourceAvailability {
+            book_source_url: source.book_source_url.clone(),
+            book_source_name: source.book_source_name.clone(),
+            valid: search_ok || explore_ok,
+            search_ok,
+            explore_ok,
+            keyword,
+            explore_url,
+            search_error,
+            explore_error,
+        }
     }
 
     pub async fn login_book_source(
@@ -188,16 +363,9 @@ impl BookService {
             .filter(|v| !v.trim().is_empty())
             .ok_or_else(|| AppError::BadRequest("missing loginUrl".to_string()))?;
 
-        let mut spec = analyze_url(
-            &login_url,
-            "",
-            1,
-            &source.book_source_url,
-            source.js_lib.as_deref(),
-        )?;
-        append_source_headers(source, &mut spec.headers);
+        let spec = analyze_url(&login_url, "", 1, &source.book_source_url, source)?;
 
-        let res = fetch(&self.http, spec).await?;
+        let res = self.fetch_with_rate(source, spec).await?;
         let check_result = if let Some(login_check_js) = source
             .login_check_js
             .as_deref()
@@ -226,17 +394,9 @@ impl BookService {
         source: &BookSource,
         book_url: &str,
     ) -> Result<Book, AppError> {
-        let headers = self.request_headers_for_source(user_ns, source).await;
-        let res = fetch(
-            &self.http,
-            RequestSpec {
-                url: book_url.to_string(),
-                method: HttpMethod::GET,
-                headers,
-                body: None,
-            },
-        )
-        .await?;
+        let res = self
+            .fetch_source_url(user_ns, source, book_url, &source.book_source_url)
+            .await?;
         Ok(self.parser.book_info(source, &res.body, &res.url, book_url))
     }
 
@@ -282,17 +442,9 @@ impl BookService {
         source: &BookSource,
         toc_url: &str,
     ) -> Result<(Vec<BookChapter>, ChapterPagination), AppError> {
-        let headers = self.request_headers_for_source(user_ns, source).await;
-        let res = fetch(
-            &self.http,
-            RequestSpec {
-                url: toc_url.to_string(),
-                method: HttpMethod::GET,
-                headers,
-                body: None,
-            },
-        )
-        .await?;
+        let res = self
+            .fetch_source_url(user_ns, source, toc_url, &source.book_source_url)
+            .await?;
         let (chapters, next_urls) = self.parser.chapter_list(source, &res.body, &res.url);
 
         let mut chapter_index = 0i32;
@@ -371,19 +523,14 @@ impl BookService {
                 }
                 visited_page_urls.insert(url.clone());
 
-                let headers = self
-                    .request_headers_for_source(&pagination.user_ns, &pagination.source)
-                    .await;
-                let res = fetch(
-                    &self.http,
-                    RequestSpec {
-                        url: url.clone(),
-                        method: HttpMethod::GET,
-                        headers,
-                        body: None,
-                    },
-                )
-                .await?;
+                let res = self
+                    .fetch_source_url(
+                        &pagination.user_ns,
+                        &pagination.source,
+                        &url,
+                        &pagination.source.book_source_url,
+                    )
+                    .await?;
                 let (chapters, _) =
                     self.parser
                         .chapter_list(&pagination.source, &res.body, &res.url);
@@ -422,19 +569,14 @@ impl BookService {
                 }
                 visited_page_urls.insert(current_url.clone());
 
-                let headers = self
-                    .request_headers_for_source(&pagination.user_ns, &pagination.source)
-                    .await;
-                let res = fetch(
-                    &self.http,
-                    RequestSpec {
-                        url: current_url.clone(),
-                        method: HttpMethod::GET,
-                        headers,
-                        body: None,
-                    },
-                )
-                .await?;
+                let res = self
+                    .fetch_source_url(
+                        &pagination.user_ns,
+                        &pagination.source,
+                        &current_url,
+                        &pagination.source.book_source_url,
+                    )
+                    .await?;
                 let (chapters, next_urls) =
                     self.parser
                         .chapter_list(&pagination.source, &res.body, &res.url);
@@ -489,16 +631,9 @@ impl BookService {
         let mut chapter_index = 0i32;
 
         // Fetch first page
-        let res = fetch(
-            &self.http,
-            RequestSpec {
-                url: toc_url.to_string(),
-                method: HttpMethod::GET,
-                headers: self.request_headers_for_source(user_ns, source).await,
-                body: None,
-            },
-        )
-        .await?;
+        let res = self
+            .fetch_source_url(user_ns, source, toc_url, &source.book_source_url)
+            .await?;
         let (chapters, next_urls) = self.parser.chapter_list(source, &res.body, &res.url);
 
         visited_page_urls.insert(toc_url.to_string());
@@ -533,16 +668,9 @@ impl BookService {
                 }
                 visited_page_urls.insert(url.clone());
 
-                let res = fetch(
-                    &self.http,
-                    RequestSpec {
-                        url: url.clone(),
-                        method: HttpMethod::GET,
-                        headers: self.request_headers_for_source(user_ns, source).await,
-                        body: None,
-                    },
-                )
-                .await?;
+                let res = self
+                    .fetch_source_url(user_ns, source, &url, &source.book_source_url)
+                    .await?;
                 let (chapters, _) = self.parser.chapter_list(source, &res.body, &res.url);
 
                 for ch in chapters {
@@ -568,16 +696,9 @@ impl BookService {
                 }
                 visited_page_urls.insert(current_url.clone());
 
-                let res = fetch(
-                    &self.http,
-                    RequestSpec {
-                        url: current_url.clone(),
-                        method: HttpMethod::GET,
-                        headers: self.request_headers_for_source(user_ns, source).await,
-                        body: None,
-                    },
-                )
-                .await?;
+                let res = self
+                    .fetch_source_url(user_ns, source, &current_url, &source.book_source_url)
+                    .await?;
                 let (chapters, next_urls) = self.parser.chapter_list(source, &res.body, &res.url);
 
                 for ch in chapters {
@@ -640,17 +761,9 @@ impl BookService {
             visited_urls.insert(current_url.clone());
 
             tracing::debug!("get_content fetching: {}", current_url);
-            let headers = self.request_headers_for_source(user_ns, source).await;
-            let res = fetch(
-                &self.http,
-                RequestSpec {
-                    url: current_url.clone(),
-                    method: HttpMethod::GET,
-                    headers,
-                    body: None,
-                },
-            )
-            .await?;
+            let res = self
+                .fetch_source_url(user_ns, source, &current_url, &source.book_source_url)
+                .await?;
             tracing::debug!("get_content fetch done, body len={}", res.body.len());
             let content = self.parser.content(source, &res.body, &res.url);
             tracing::debug!("get_content parsed content len={}", content.len());
@@ -665,7 +778,12 @@ impl BookService {
             // Check for next page
             if let Some(next_url) = self.parser.next_content_url(source, &res.body, &res.url) {
                 tracing::debug!("get_content found next_url: {}", next_url);
-                current_url = next_url;
+                if should_follow_content_page(chapter_url, &current_url, &next_url) {
+                    current_url = next_url;
+                } else {
+                    tracing::debug!("get_content next_url appears to be next chapter, stopping");
+                    break;
+                }
             } else {
                 tracing::debug!("get_content no more pages");
                 break;
@@ -1245,6 +1363,263 @@ impl BookService {
     }
 }
 
+fn apply_login_check_js(source: &BookSource, res: FetchResponse) -> FetchResponse {
+    let Some(script) = source
+        .login_check_js
+        .as_deref()
+        .filter(|script| !script.trim().is_empty())
+    else {
+        return res;
+    };
+
+    with_js_lib(source.js_lib.as_deref(), || {
+        let str_response = StrResponse::from(res.clone());
+        let mut bindings = HashMap::new();
+        bindings.insert(
+            "result".to_string(),
+            serde_json::to_value(&str_response).unwrap_or_else(|_| json!({})),
+        );
+        match eval_js_with_bindings(script, &res.body, &res.url, &bindings) {
+            Ok(output) if !output.trim().is_empty() => {
+                if let Ok(next) = serde_json::from_str::<StrResponse>(&output) {
+                    FetchResponse::from(next)
+                } else {
+                    FetchResponse {
+                        body: output,
+                        ..res
+                    }
+                }
+            }
+            Ok(_) => res,
+            Err(err) => {
+                tracing::warn!(
+                    "loginCheckJs failed for {}: {:?}",
+                    source.book_source_name,
+                    err
+                );
+                res
+            }
+        }
+    })
+}
+
+fn parse_explore_kinds(source: &BookSource) -> Result<Vec<ExploreKind>, AppError> {
+    let Some(raw) = source
+        .explore_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(Vec::new());
+    };
+
+    let text = with_js_lib(source.js_lib.as_deref(), || {
+        if let Some(script) = raw.strip_prefix("@js:") {
+            eval_js(script, "", &source.book_source_url).map_err(AppError::Internal)
+        } else if let Some(script) = raw
+            .strip_prefix("<js>")
+            .and_then(|value| value.strip_suffix("</js>"))
+        {
+            eval_js(script, "", &source.book_source_url).map_err(AppError::Internal)
+        } else {
+            Ok(raw.to_string())
+        }
+    })?;
+
+    for json_text in [&text, &normalize_relaxed_explore_json(&text)] {
+        if let Ok(kinds) = serde_json::from_str::<Vec<ExploreKind>>(json_text) {
+            return Ok(kinds
+                .into_iter()
+                .filter(|kind| !kind.title.trim().is_empty())
+                .collect());
+        }
+    }
+
+    let splitter = regex::Regex::new(r"(&&|\n)+").unwrap();
+    Ok(splitter
+        .split(&text)
+        .filter_map(|item| {
+            let item = item.trim();
+            if item.is_empty() {
+                return None;
+            }
+            let mut parts = item.splitn(2, "::");
+            let title = parts.next().unwrap_or_default().trim();
+            if title.is_empty() {
+                return None;
+            }
+            let url = parts
+                .next()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string);
+            Some(ExploreKind {
+                title: title.to_string(),
+                url,
+                style: None,
+            })
+        })
+        .collect())
+}
+
+fn normalize_relaxed_explore_json(text: &str) -> String {
+    let mut normalized = String::with_capacity(text.len());
+    let mut in_string = false;
+    let mut quote = '\0';
+    let mut escaped = false;
+
+    for ch in text.chars() {
+        if in_string {
+            normalized.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == quote {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                in_string = true;
+                quote = ch;
+                normalized.push(ch);
+            }
+            '<' => normalized.push('{'),
+            '>' => normalized.push('}'),
+            _ => normalized.push(ch),
+        }
+    }
+
+    normalized
+}
+
+fn parse_window_rate(rate: &str) -> Option<(usize, u64)> {
+    let (limit, window) = rate.split_once('/')?;
+    let limit = limit.trim().parse().ok()?;
+    let window = window.trim().parse().ok()?;
+    Some((limit, window))
+}
+
+fn should_follow_content_page(chapter_url: &str, current_url: &str, next_url: &str) -> bool {
+    let next_url = strip_fragment(next_url);
+    let current_url = strip_fragment(current_url);
+    let chapter_url = strip_fragment(chapter_url);
+
+    if next_url == current_url || next_url == chapter_url {
+        return false;
+    }
+
+    match (
+        url::Url::parse(chapter_url),
+        url::Url::parse(current_url),
+        url::Url::parse(next_url),
+    ) {
+        (Ok(chapter), Ok(current), Ok(next)) => {
+            if chapter.scheme() != next.scheme()
+                || chapter.host_str() != next.host_str()
+                || chapter.port_or_known_default() != next.port_or_known_default()
+            {
+                return false;
+            }
+
+            let chapter_exact = content_path_exact_base(chapter.path());
+            let current_exact = content_path_exact_base(current.path());
+            let next_exact = content_path_exact_base(next.path());
+            let next_page_base = content_path_page_base(next.path());
+
+            next_exact == chapter_exact
+                || next_exact == current_exact
+                || next_page_base == chapter_exact
+                || next_page_base == current_exact
+        }
+        _ => {
+            let chapter_exact = content_path_exact_base(chapter_url);
+            let current_exact = content_path_exact_base(current_url);
+            let next_exact = content_path_exact_base(next_url);
+            let next_page_base = content_path_page_base(next_url);
+
+            next_exact == chapter_exact
+                || next_exact == current_exact
+                || next_page_base == chapter_exact
+                || next_page_base == current_exact
+        }
+    }
+}
+
+fn strip_fragment(url: &str) -> &str {
+    url.split_once('#').map(|(head, _)| head).unwrap_or(url)
+}
+
+fn content_path_exact_base(path: &str) -> String {
+    content_path_base(path, false)
+}
+
+fn content_path_page_base(path: &str) -> String {
+    content_path_base(path, true)
+}
+
+fn content_path_base(path: &str, strip_page_suffix: bool) -> String {
+    let (dir, file) = path.rsplit_once('/').unwrap_or(("", path));
+    let (stem, _ext) = file.rsplit_once('.').unwrap_or((file, ""));
+    let stem = if strip_page_suffix {
+        strip_page_suffix_from_stem(stem)
+    } else {
+        stem
+    };
+    if dir.is_empty() {
+        stem.to_string()
+    } else {
+        format!("{dir}/{stem}")
+    }
+}
+
+fn strip_page_suffix_from_stem(stem: &str) -> &str {
+    for sep in ['-', '_'] {
+        if let Some(idx) = stem.rfind(sep) {
+            let suffix = &stem[idx + sep.len_utf8()..];
+            if !suffix.is_empty()
+                && suffix.chars().all(|ch| ch.is_ascii_digit())
+                && suffix
+                    .parse::<usize>()
+                    .map(|page| page >= 2)
+                    .unwrap_or(false)
+            {
+                return &stem[..idx];
+            }
+        }
+    }
+    stem
+}
+
+fn cookie_domain(source_url: &str) -> String {
+    let normalized = normalize_source_url(source_url);
+    let host = url::Url::parse(&normalized)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_string))
+        .unwrap_or(normalized);
+    if host.parse::<std::net::IpAddr>().is_ok() {
+        return host;
+    }
+    let host = host.strip_prefix("www.").unwrap_or(&host);
+    let parts = host.split('.').collect::<Vec<_>>();
+    if parts.len() <= 2 {
+        return host.to_string();
+    }
+    let second_level = parts[parts.len() - 2];
+    let last = parts[parts.len() - 1];
+    if last.len() == 2
+        && matches!(second_level, "com" | "net" | "org" | "gov" | "edu" | "co")
+        && parts.len() >= 3
+    {
+        parts[parts.len() - 3..].join(".")
+    } else {
+        parts[parts.len() - 2..].join(".")
+    }
+}
+
 fn sanitize_book_urls(book: &mut Book) {
     book.book_url = repair_encoded_url(&book.book_url);
     book.origin = normalize_source_url(&book.origin);
@@ -1326,271 +1701,36 @@ fn content_type_from_ext(ext: &str) -> String {
     .to_string()
 }
 
-fn append_source_headers(source: &BookSource, headers: &mut Vec<(String, String)>) {
-    let Some(header_str) = source.header.as_deref() else {
-        return;
-    };
-    headers.extend(parse_source_headers(header_str));
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn parse_source_headers(header_str: &str) -> Vec<(String, String)> {
-    let trimmed = header_str.trim();
-    if trimmed.is_empty() {
-        return vec![];
+    #[tokio::test]
+    async fn window_rate_waits_when_existing_starts_reach_limit() {
+        let storage_dir =
+            std::env::temp_dir().join(format!("reader-rust-window-rate-{}", std::process::id()));
+        let service = BookService::new(
+            HttpClient::new(5, None).unwrap(),
+            RuleEngine::new().unwrap(),
+            FileCache::new(storage_dir.join("cache")),
+            storage_dir.to_str().unwrap(),
+        );
+        let now = Instant::now();
+        service.rate_states.write().await.insert(
+            "source".to_string(),
+            RateState {
+                window_starts: vec![now, now],
+                ..Default::default()
+            },
+        );
+
+        let result = tokio::time::timeout(
+            Duration::from_millis(20),
+            service.wait_for_window_rate("source", 2, 200),
+        )
+        .await;
+
+        let _ = tokio::fs::remove_dir_all(&storage_dir).await;
+        assert!(result.is_err());
     }
-
-    if let Ok(headers) = serde_json::from_str::<HashMap<String, String>>(trimmed) {
-        return headers
-            .into_iter()
-            .filter(|(key, _)| !key.trim().is_empty())
-            .collect();
-    }
-
-    if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
-        if let Some(object) = value.as_object() {
-            return object
-                .iter()
-                .filter_map(|(key, value)| {
-                    if key.trim().is_empty() {
-                        return None;
-                    }
-                    value.as_str().map(|value| (key.clone(), value.to_string()))
-                })
-                .collect();
-        }
-    }
-
-    parse_legacy_header_object(trimmed)
-}
-
-fn parse_legacy_header_object(raw: &str) -> Vec<(String, String)> {
-    let mut text = raw.trim();
-    if let Some(inner) = text
-        .strip_prefix('{')
-        .and_then(|value| value.strip_suffix('}'))
-    {
-        text = inner;
-    }
-
-    let chars: Vec<char> = text.chars().collect();
-    let mut index = 0usize;
-    let mut headers = Vec::new();
-
-    while index < chars.len() {
-        skip_header_separators(&chars, &mut index);
-        if index >= chars.len() {
-            break;
-        }
-
-        let key = match parse_header_key(&chars, &mut index) {
-            Some(key) => key,
-            None => {
-                index += 1;
-                continue;
-            }
-        };
-
-        skip_header_whitespace(&chars, &mut index);
-        if chars.get(index) != Some(&':') {
-            continue;
-        }
-        index += 1;
-        skip_header_whitespace(&chars, &mut index);
-
-        let value = parse_header_value(&chars, &mut index);
-        if !key.trim().is_empty() {
-            headers.push((key, value));
-        }
-
-        while index < chars.len() && chars[index] != ',' {
-            index += 1;
-        }
-    }
-
-    headers
-}
-
-fn parse_header_key(chars: &[char], index: &mut usize) -> Option<String> {
-    if matches!(chars.get(*index), Some('\'') | Some('"')) {
-        return parse_quoted_header_value(chars, index);
-    }
-
-    let start = *index;
-    while *index < chars.len() && chars[*index] != ':' {
-        *index += 1;
-    }
-    let key = chars[start..*index]
-        .iter()
-        .collect::<String>()
-        .trim()
-        .to_string();
-    if key.is_empty() {
-        None
-    } else {
-        Some(key)
-    }
-}
-
-fn parse_header_value(chars: &[char], index: &mut usize) -> String {
-    if matches!(chars.get(*index), Some('\'') | Some('"')) {
-        return parse_quoted_header_value(chars, index).unwrap_or_default();
-    }
-
-    let start = *index;
-    while *index < chars.len() && chars[*index] != ',' {
-        *index += 1;
-    }
-    chars[start..*index]
-        .iter()
-        .collect::<String>()
-        .trim()
-        .to_string()
-}
-
-fn parse_quoted_header_value(chars: &[char], index: &mut usize) -> Option<String> {
-    let quote = *chars.get(*index)?;
-    if quote != '\'' && quote != '"' {
-        return None;
-    }
-    *index += 1;
-
-    let mut out = String::new();
-    while *index < chars.len() {
-        let ch = chars[*index];
-        *index += 1;
-        if ch == quote {
-            return Some(out);
-        }
-        if ch == '\\' {
-            if let Some(escaped) = chars.get(*index).copied() {
-                *index += 1;
-                out.push(match escaped {
-                    'n' => '\n',
-                    'r' => '\r',
-                    't' => '\t',
-                    other => other,
-                });
-            }
-        } else {
-            out.push(ch);
-        }
-    }
-
-    Some(out)
-}
-
-fn skip_header_separators(chars: &[char], index: &mut usize) {
-    while *index < chars.len() && (chars[*index].is_whitespace() || chars[*index] == ',') {
-        *index += 1;
-    }
-}
-
-fn skip_header_whitespace(chars: &[char], index: &mut usize) {
-    while *index < chars.len() && chars[*index].is_whitespace() {
-        *index += 1;
-    }
-}
-
-fn analyze_url(
-    m_url: &str,
-    key: &str,
-    page: i32,
-    base_url: &str,
-    js_lib: Option<&str>,
-) -> Result<RequestSpec, AppError> {
-    with_js_lib(js_lib, || {
-        tracing::debug!("analyzing url: {}", m_url);
-        let mut rule_url = m_url.to_string();
-        let base_url = normalize_source_url(base_url);
-
-        while let Some(start) = rule_url.find("{{") {
-            if let Some(end) = rule_url[start..].find("}}") {
-                let script = &rule_url[start + 2..start + end];
-                tracing::debug!("evaluating search js: {}", script);
-                let res =
-                    eval_js_search_with_source(script, key, page, &base_url).map_err(|e| {
-                        tracing::error!(
-                            "js eval failed for search url: {:?}, script: {}",
-                            e,
-                            script
-                        );
-                        AppError::Internal(e)
-                    })?;
-                rule_url.replace_range(start..start + end + 2, &res);
-            } else {
-                break;
-            }
-        }
-
-        let key_enc = encode(key);
-        rule_url = rule_url
-            .replace("{key}", &key_enc)
-            .replace("{page}", &page.to_string());
-
-        let parts: Vec<&str> = rule_url.splitn(2, ',').collect();
-        let mut url = parts[0].trim().to_string();
-        if !url.starts_with("http") {
-            url = resolve_url(&base_url, &url);
-        }
-
-        let mut method = HttpMethod::GET;
-        let mut headers = Vec::new();
-        let mut body = None;
-
-        if parts.len() > 1 {
-            let options_str = parts[1].trim();
-            if options_str.starts_with('{') {
-                if let Ok(options) = serde_json::from_str::<serde_json::Value>(options_str) {
-                    if let Some(m) = options.get("method").and_then(|v| v.as_str()) {
-                        if m.to_uppercase() == "POST" {
-                            method = HttpMethod::POST;
-                        }
-                    }
-                    if let Some(b) = options.get("body").and_then(|v| v.as_str()) {
-                        body = Some(b.to_string());
-                    }
-                    if let Some(h) = options.get("headers").and_then(|v| v.as_object()) {
-                        for (k, v) in h {
-                            if let Some(vs) = v.as_str() {
-                                headers.push((k.clone(), vs.to_string()));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(RequestSpec {
-            url,
-            method,
-            headers,
-            body,
-        })
-    })
-}
-
-fn resolve_url(base: &str, url: &str) -> String {
-    let base = normalize_source_url(base);
-    let url = normalize_source_url(url);
-    if url.starts_with("http://") || url.starts_with("https://") {
-        return url.to_string();
-    }
-    if url.starts_with("//") {
-        return format!("https:{}", url);
-    }
-    let base_parsed = url::Url::parse(&base).ok();
-    if url.starts_with('/') {
-        if let Some(mut b) = base_parsed {
-            b.set_fragment(None);
-            b.set_query(None);
-            return format!("{}://{}{}", b.scheme(), b.host_str().unwrap_or(""), url);
-        }
-    }
-    if let Some(mut b) = base_parsed {
-        b.set_fragment(None);
-        if let Ok(joined) = b.join(&url) {
-            return joined.to_string();
-        }
-    }
-    url.to_string()
 }

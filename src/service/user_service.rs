@@ -140,20 +140,27 @@ impl UserService {
         secure_key: Option<&str>,
     ) -> Result<(Option<Value>, bool, bool, bool), AppError> {
         let admin_authorized = self.is_admin(access_token, secure_key).await?;
-        if !self.cfg.secure {
-            return Ok((None, false, self.secure_key_required(), admin_authorized));
-        }
         if let Some(token) = access_token {
-            if let Some(user) = self.check_auth(token).await? {
-                return Ok((
-                    Some(self.format_user(&user)),
-                    true,
-                    self.secure_key_required(),
-                    admin_authorized,
-                ));
+            match self.check_auth(token).await {
+                Ok(Some(user)) => {
+                    return Ok((
+                        Some(self.format_user(&user)),
+                        self.cfg.secure,
+                        self.secure_key_required(),
+                        admin_authorized,
+                    ))
+                }
+                Ok(None) => {}
+                Err(err) if self.cfg.secure => return Err(err),
+                Err(_) => {}
             }
         }
-        Ok((None, true, self.secure_key_required(), admin_authorized))
+        Ok((
+            None,
+            self.cfg.secure,
+            self.secure_key_required(),
+            admin_authorized,
+        ))
     }
 
     pub async fn save_user_config(&self, user_ns: &str, config: Value) -> Result<(), AppError> {
@@ -330,9 +337,6 @@ impl UserService {
     }
 
     pub async fn check_auth(&self, access_token: &str) -> Result<Option<User>, AppError> {
-        if !self.cfg.secure {
-            return Ok(None);
-        }
         self.ensure_admin_user().await?;
         let (username, token) = parse_access_token(access_token)?;
         let mut user = match self.find_user(&username).await? {
@@ -415,24 +419,26 @@ impl UserService {
         secure_key: Option<&str>,
         user_ns: Option<&str>,
     ) -> Result<String, AppError> {
-        if !self.cfg.secure {
-            return Ok("default".to_string());
-        }
-        if let Some(key) = secure_key {
-            if self.secure_key_matches(key) {
-                if let Some(ns) = user_ns {
-                    let ns = ns.trim();
-                    if !ns.is_empty() {
-                        return Ok(ns.to_string());
+        if self.cfg.secure {
+            if let Some(key) = secure_key {
+                if self.secure_key_matches(key) {
+                    if let Some(ns) = user_ns {
+                        let ns = ns.trim();
+                        if !ns.is_empty() {
+                            return Ok(ns.to_string());
+                        }
                     }
+                    return Ok("default".to_string());
                 }
-                return Ok("default".to_string());
             }
         }
         if let Some(token) = access_token {
             if let Ok(Some(user)) = self.check_auth(token).await {
                 return Ok(user.username);
             }
+        }
+        if !self.cfg.secure {
+            return Ok("default".to_string());
         }
         Err(AppError::BadRequest("NEED_LOGIN".to_string()))
     }
@@ -984,6 +990,57 @@ mod tests {
             .await
             .unwrap();
         assert!(!denied);
+
+        let _ = fs::remove_dir_all(temp_dir).await;
+    }
+
+    #[tokio::test]
+    async fn get_user_info_returns_logged_in_user_when_secure_is_disabled() {
+        let (mut service, temp_dir) = create_user_service().await;
+        let login = service
+            .login("reader1", "password123", false, None)
+            .await
+            .unwrap();
+        let access_token = login["accessToken"].as_str().unwrap().to_string();
+        service.cfg.secure = false;
+
+        let (user_info, secure, _, _) = service
+            .get_user_info(Some(&access_token), None)
+            .await
+            .unwrap();
+
+        assert!(!secure);
+        assert_eq!(user_info.unwrap()["username"].as_str().unwrap(), "reader1");
+
+        let _ = fs::remove_dir_all(temp_dir).await;
+    }
+
+    #[tokio::test]
+    async fn secure_disabled_uses_logged_in_namespace_or_default() {
+        let (mut service, temp_dir) = create_user_service().await;
+        let login = service
+            .login("reader1", "password123", false, None)
+            .await
+            .unwrap();
+        let access_token = login["accessToken"].as_str().unwrap().to_string();
+        service.cfg.secure = false;
+
+        let logged_in_ns = service
+            .resolve_user_ns_with_override(Some(&access_token), None, None)
+            .await
+            .unwrap();
+        let anonymous_ns = service
+            .resolve_user_ns_with_override(None, None, None)
+            .await
+            .unwrap();
+        let invalid_token_ns = service
+            .resolve_user_ns_with_override(Some("reader1:bad-token"), None, None)
+            .await
+            .unwrap();
+
+        assert_eq!(logged_in_ns, "reader1");
+        assert_eq!(anonymous_ns, "default");
+        assert_eq!(invalid_token_ns, "default");
 
         let _ = fs::remove_dir_all(temp_dir).await;
     }

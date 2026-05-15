@@ -271,7 +271,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, defineAsyncComponent } from 'vue'
-import { useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { useReaderStore, fontPresets } from '../stores/reader'
 import { useAppStore } from '../stores/app'
 import { getBookInfo } from '../api/bookshelf'
@@ -279,6 +279,7 @@ import { applySystemTheme } from '../utils/systemUi'
 import { countBrowserBookCache } from '../utils/browserCache'
 import { APP_VIEWPORT_CHANGE_EVENT, syncViewportSize } from '../utils/viewport'
 import { isReaderInteractiveClickTarget } from '../utils/readerClick'
+import { createReaderProgressAutoSaveScheduler, createReaderProgressExitSaver } from '../utils/readerProgressAutoSave'
 import type { Book } from '../types'
 
 import ReaderSidebar from '../components/reader/ReaderSidebar.vue'
@@ -304,6 +305,7 @@ const router = useRouter()
 const store = useReaderStore()
 const appStore = useAppStore()
 const READER_POSITION_PREFIX = 'reader-position:'
+const SERVER_PROGRESS_AUTOSAVE_MS = 10000
 
 interface SavedReadingPosition {
   chapterIndex: number
@@ -347,6 +349,16 @@ let suppressPositionSaveUntil = 0
 let suppressContinuousScrollSyncUntil = 0
 let suppressContinuousAutoLoadUntil = 0
 const restoreStabilizeTimers: number[] = []
+const serverProgressAutoSaveScheduler = createReaderProgressAutoSaveScheduler({
+  intervalMs: SERVER_PROGRESS_AUTOSAVE_MS,
+  flush: () => store.flushProgressToServer(),
+})
+const readerProgressExitSaver = createReaderProgressExitSaver({
+  disposeAutoSave: () => serverProgressAutoSaveScheduler.dispose(),
+  savePosition: () => saveReadingPosition({ force: true }),
+  flushToServer: () => store.flushProgressToServer(true),
+  flushToServerKeepalive: () => store.flushProgressToServerKeepalive(true),
+})
 const isContinuousMode = computed(() =>
   config.value.readMethod === '上下滚动' || config.value.readMethod === '上下滚动2',
 )
@@ -611,19 +623,33 @@ function pageBackward() {
 
 // Navigation
 async function goHome() {
-  saveReadingPosition()
-  await store.flushProgressToServer(true)
+  await persistReadingProgressBeforeLeave()
   router.replace('/')
 }
 
 function handlePageHide() {
-  saveReadingPosition()
-  store.flushProgressToServerKeepalive(true)
+  persistReadingProgressKeepalive()
 }
 
 function handleBeforeUnload() {
-  saveReadingPosition()
-  store.flushProgressToServerKeepalive(true)
+  persistReadingProgressKeepalive()
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState !== 'hidden') return
+  persistReadingProgressTemporaryKeepalive()
+}
+
+async function persistReadingProgressBeforeLeave() {
+  await readerProgressExitSaver.flushBeforeRouteLeave()
+}
+
+function persistReadingProgressKeepalive() {
+  readerProgressExitSaver.flushKeepalive()
+}
+
+function persistReadingProgressTemporaryKeepalive() {
+  readerProgressExitSaver.flushTemporaryKeepalive()
 }
 
 async function prevChapter() {
@@ -773,16 +799,17 @@ function loadSavedReadingPosition() {
   }
 }
 
-function saveReadingPosition() {
+function saveReadingPosition(options: { force?: boolean } = {}) {
   const key = getPositionStorageKey()
   const container = scrollContainerRef.value
-  if (!key || !container || store.loading || !store.book || Date.now() < suppressPositionSaveUntil) {
+  const suppressed = !options.force && Date.now() < suppressPositionSaveUntil
+  if (!key || !container || store.loading || !store.book || suppressed) {
     debugPositionLog('skip save', {
       key,
       hasContainer: !!container,
       loading: store.loading,
       hasBook: !!store.book,
-      suppressed: Date.now() < suppressPositionSaveUntil,
+      suppressed,
       currentIndex: store.currentIndex,
     })
     return
@@ -1223,6 +1250,7 @@ function handleScroll() {
     showControls.value = false
   }
   scheduleSaveReadingPosition()
+  serverProgressAutoSaveScheduler.schedule()
 }
 
 function handleTouchStart(event: TouchEvent) {
@@ -1508,6 +1536,11 @@ function openAiBook() {
   })
 }
 
+onBeforeRouteLeave(() => {
+  persistReadingProgressKeepalive()
+  return true
+})
+
 onMounted(async () => {
   syncViewportSize()
   appStore.startReadingSession()
@@ -1529,6 +1562,7 @@ onMounted(async () => {
     window.addEventListener(APP_VIEWPORT_CHANGE_EVENT, handleViewportChange)
     window.addEventListener('pagehide', handlePageHide)
     window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     store.fetchVoices()
   applySystemTheme(store.isNight ? 'dark' : appStore.theme, store.currentTheme.body)
   if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -1551,8 +1585,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-    saveReadingPosition()
-    store.flushProgressToServerKeepalive(true)
+    persistReadingProgressKeepalive()
     appStore.stopReadingSession()
     window.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('mouseup', handleMouseUpSelection)
@@ -1562,6 +1595,7 @@ onUnmounted(() => {
     window.removeEventListener(APP_VIEWPORT_CHANGE_EVENT, handleViewportChange)
     window.removeEventListener('pagehide', handlePageHide)
     window.removeEventListener('beforeunload', handleBeforeUnload)
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
   if (speechTimerTicker) clearInterval(speechTimerTicker)
   if (restorePositionTimer) clearTimeout(restorePositionTimer)
   if (persistPositionTimer) clearTimeout(persistPositionTimer)

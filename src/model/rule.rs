@@ -79,3 +79,18 @@ pub struct ContentRule {
     pub image_decode: Option<String>,
     pub pay_action: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ReviewRule {
+    pub review_url: Option<String>,
+    pub avatar_rule: Option<String>,
+    pub content_rule: Option<String>,
+    pub post_time_rule: Option<String>,
+    pub review_quote_url: Option<String>,
+    pub vote_up_url: Option<String>,
+    pub vote_down_url: Option<String>,
+    pub post_review_url: Option<String>,
+    pub post_quote_url: Option<String>,
+    pub delete_url: Option<String>,
+}

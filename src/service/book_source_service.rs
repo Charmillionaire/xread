@@ -1,8 +1,10 @@
 use crate::error::error::AppError;
-use crate::model::book_source::BookSource;
+use crate::model::book_source::{book_source_from_value, BookSource};
 use crate::storage::db::repo::BookSourceRepo;
 use std::path::PathBuf;
 use tokio::fs;
+
+pub const INVALID_BOOK_SOURCE_GROUP: &str = "失效";
 
 #[derive(Clone)]
 pub struct BookSourceService {
@@ -42,8 +44,10 @@ impl BookSourceService {
     ) -> Result<Option<BookSource>, AppError> {
         let json = self.repo.get(user_ns, book_source_url).await?;
         if let Some(j) = json {
-            let source: BookSource =
+            let value: serde_json::Value =
                 serde_json::from_str(&j).map_err(|e| AppError::BadRequest(e.to_string()))?;
+            let source =
+                book_source_from_value(value).map_err(|e| AppError::BadRequest(e.to_string()))?;
             Ok(Some(source))
         } else {
             Ok(None)
@@ -54,7 +58,11 @@ impl BookSourceService {
         let rows = self.repo.list(user_ns).await?;
         let mut out = Vec::with_capacity(rows.len());
         for j in rows {
-            if let Ok(s) = serde_json::from_str::<BookSource>(&j) {
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&j) {
+                if let Ok(s) = book_source_from_value(value) {
+                    out.push(s);
+                }
+            } else if let Ok(s) = serde_json::from_str::<BookSource>(&j) {
                 out.push(s);
             }
         }
@@ -113,4 +121,57 @@ impl BookSourceService {
             Err(err) => Err(AppError::Internal(err.into())),
         }
     }
+}
+
+pub fn book_source_has_group(source: &BookSource, target: &str) -> bool {
+    source
+        .book_source_group
+        .as_deref()
+        .map(split_source_groups)
+        .unwrap_or_default()
+        .into_iter()
+        .any(|group| group == target)
+}
+
+pub fn set_invalid_book_source_group(source: &mut BookSource, invalid: bool) -> bool {
+    let mut groups = source
+        .book_source_group
+        .as_deref()
+        .map(split_source_groups)
+        .unwrap_or_default();
+    let had_invalid = groups
+        .iter()
+        .any(|group| group == INVALID_BOOK_SOURCE_GROUP);
+
+    if invalid {
+        if had_invalid {
+            return false;
+        }
+        groups.push(INVALID_BOOK_SOURCE_GROUP.to_string());
+    } else {
+        if !had_invalid {
+            return false;
+        }
+        groups.retain(|group| group != INVALID_BOOK_SOURCE_GROUP);
+    }
+
+    source.book_source_group = if groups.is_empty() {
+        None
+    } else {
+        Some(groups.join(","))
+    };
+    true
+}
+
+fn split_source_groups(raw: &str) -> Vec<String> {
+    raw.split(|ch| matches!(ch, ',' | ';' | '；' | '、'))
+        .map(str::trim)
+        .filter(|group| !group.is_empty())
+        .map(str::to_string)
+        .fold(Vec::new(), |mut groups, group| {
+            if !groups.contains(&group) {
+                groups.push(group);
+            }
+            groups
+        })
 }

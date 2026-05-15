@@ -9,7 +9,7 @@ export function parseExploreCategories(rule?: string | null): ExploreCategory[] 
 
   try {
     if (trimmedRule.startsWith('[')) {
-      const parsed = JSON.parse(trimmedRule)
+      const parsed = JSON.parse(normalizeRelaxedExploreJson(trimmedRule))
       if (Array.isArray(parsed)) {
         return parsed
           .map((item) => ({
@@ -32,6 +32,41 @@ export function parseExploreCategories(rule?: string | null): ExploreCategory[] 
       const [title, url] = line.split('::').map((part) => part.trim())
       return title ? [{ title, url: url || '' }] : []
     })
+}
+
+function normalizeRelaxedExploreJson(rule: string) {
+  let normalized = ''
+  let inString = false
+  let quote = ''
+  let escaped = false
+
+  for (const char of rule) {
+    if (inString) {
+      normalized += char
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === quote) {
+        inString = false
+      }
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      inString = true
+      quote = char
+      normalized += char
+    } else if (char === '<') {
+      normalized += '{'
+    } else if (char === '>') {
+      normalized += '}'
+    } else {
+      normalized += char
+    }
+  }
+
+  return normalized
 }
 
 export function isExploreCategorySection(category: ExploreCategory) {

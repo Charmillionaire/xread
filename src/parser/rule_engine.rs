@@ -81,22 +81,7 @@ impl RuleEngine {
 
     /// Strip mode prefix from rule
     fn strip_mode_prefix<'a>(&self, rule: &'a str) -> &'a str {
-        let rule = rule.trim();
-        if let Some(rest) = rule
-            .strip_prefix("<js>")
-            .and_then(|s| s.strip_suffix("</js>"))
-        {
-            return rest;
-        }
-        for prefix in [
-            "@css:", "@CSS:", "@xpath:", "@XPath:", "@XPATH:", "@json:", "@Json:", "@JSON:",
-            "@regex:", "@Regex:", "@js:", "js:",
-        ] {
-            if rule.starts_with(prefix) {
-                return &rule[prefix.len()..];
-            }
-        }
-        rule
+        strip_mode_prefix(rule)
     }
 
     pub fn search_books(&self, source: &BookSource, body: &str, base_url: &str) -> Vec<SearchBook> {
@@ -146,6 +131,11 @@ impl RuleEngine {
             let rule = source
                 .rule_explore
                 .clone()
+                .filter(|rule| {
+                    rule.book_list
+                        .as_deref()
+                        .is_some_and(|value| !value.trim().is_empty())
+                })
                 .unwrap_or_else(|| source.rule_search.clone().unwrap_or_default());
             let (list_rule, reverse) = normalize_list_rule(rule.book_list.as_deref().unwrap_or(""));
             let mode = self.detect_mode(list_rule, body);
@@ -1132,7 +1122,7 @@ fn parse_chapter_list_html(
         let _ = eval_field_html_doc_with_ctx(init, &doc, base_url, ctx);
     }
 
-    let items = html::select_list(&doc, list_sel);
+    let items = html::select_list(&doc, strip_mode_prefix(list_sel));
 
     // Use a set to deduplicate chapters by URL
     let mut seen_urls = std::collections::HashSet::new();
@@ -1433,15 +1423,6 @@ fn resolve_url(base: &str, url: &str) -> String {
         Err(_) => return url.to_string(),
     };
     base_url.set_fragment(None);
-
-    if url.starts_with('/') {
-        return format!(
-            "{}://{}{}",
-            base_url.scheme(),
-            base_url.host_str().unwrap_or(""),
-            url
-        );
-    }
 
     match base_url.join(&url) {
         Ok(u) => u.to_string(),
@@ -2012,6 +1993,25 @@ fn normalize_list_rule(rule: &str) -> (&str, bool) {
     (rule, false)
 }
 
+fn strip_mode_prefix(rule: &str) -> &str {
+    let rule = rule.trim();
+    if let Some(rest) = rule
+        .strip_prefix("<js>")
+        .and_then(|s| s.strip_suffix("</js>"))
+    {
+        return rest;
+    }
+    for prefix in [
+        "@css:", "@CSS:", "@xpath:", "@XPath:", "@XPATH:", "@json:", "@Json:", "@JSON:", "@regex:",
+        "@Regex:", "@js:", "js:",
+    ] {
+        if let Some(rest) = rule.strip_prefix(prefix) {
+            return rest;
+        }
+    }
+    rule
+}
+
 fn strip_js_rule(rule: &str) -> &str {
     let rule = rule.trim();
     if let Some(rest) = rule
@@ -2231,11 +2231,22 @@ fn capture_rule_value(rule: Option<&str>, captures: &regex::Captures<'_>) -> Opt
             .get(1)
             .and_then(|m| m.as_str().parse::<usize>().ok())
             .unwrap_or(0);
+        if index == 0 {
+            return cap
+                .get(0)
+                .map(|m| m.as_str())
+                .unwrap_or_default()
+                .to_string();
+        }
         captures
             .get(index)
-            .map(|m| m.as_str())
-            .unwrap_or("")
-            .to_string()
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_else(|| {
+                cap.get(0)
+                    .map(|m| m.as_str())
+                    .unwrap_or_default()
+                    .to_string()
+            })
     });
     let (pure, regex_part) = split_legado_regex(&replaced);
     let mut output = pure;
