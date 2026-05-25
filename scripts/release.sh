@@ -155,7 +155,11 @@ cargo build --release --target aarch64-unknown-linux-musl
 
 echo "Creating commit and tag..."
 git add Cargo.toml Cargo.lock package.json package-lock.json frontend/package.json frontend/package-lock.json
-git commit -m "release: ${TAG}"
+if git diff --cached --quiet; then
+  echo "Version files already match ${TAG}; tagging current commit."
+else
+  git commit -m "release: ${TAG}"
+fi
 git tag -a "$TAG" -m "$TAG"
 
 echo "Pushing git refs..."

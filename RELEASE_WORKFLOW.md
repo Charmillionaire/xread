@@ -45,6 +45,7 @@ Default behavior with no version argument:
 7. Commit and tag:
 - commit message: `release: vX.Y.Z`
 - annotated tag: `vX.Y.Z`
+- If version files already match the target version, skip the release commit and tag the current commit.
 8. Push branch and tag to GitHub.
 9. Build Docker images (explicit platforms):
 - `--platform linux/amd64` -> `docker.io/givenge/reader-rust:vX.Y.Z-x86_64`
