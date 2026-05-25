@@ -7,6 +7,7 @@ const READER_INTERACTIVE_SELECTOR = [
   '[role="button"]',
   '[contenteditable="true"]',
   '.tts-controls',
+  '.mobile-controls',
   '.reader-search-panel',
   '.selection-menu',
 ].join(', ')

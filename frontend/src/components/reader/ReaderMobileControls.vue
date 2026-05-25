@@ -1,5 +1,12 @@
 <template>
-  <div class="mobile-controls" :style="{ '--popup-bg': theme.popup, '--font-color': theme.fontColor }">
+  <div
+    class="mobile-controls"
+    :style="{ '--popup-bg': theme.popup, '--font-color': theme.fontColor }"
+    @click.stop
+    @touchstart.stop
+    @touchmove.stop
+    @touchend.stop
+  >
     <!-- Top Bar -->
     <Transition name="slide-down">
       <div v-show="show" class="m-top-bar">
@@ -144,6 +151,13 @@ defineEmits<{
 </script>
 
 <style scoped>
+.mobile-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+
 .m-top-bar {
   position: absolute;
   top: 0;
@@ -164,6 +178,7 @@ defineEmits<{
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  pointer-events: auto;
 }
 
 .m-top-item {
@@ -199,6 +214,7 @@ defineEmits<{
   flex-direction: column;
   gap: 16px;
   box-sizing: border-box;
+  pointer-events: auto;
 }
 
 .progress-row {
@@ -276,6 +292,7 @@ defineEmits<{
   max-height: calc(100% - var(--safe-area-top) - var(--safe-area-bottom) - 32px);
   overflow: auto;
   scrollbar-width: none;
+  pointer-events: auto;
 }
 
 .m-float-left { left: calc(16px + var(--safe-area-left)); }

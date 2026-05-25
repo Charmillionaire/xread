@@ -11,7 +11,7 @@ use crate::service::{
     ai_book_service::AiBookService, ai_model_service::AiModelService,
     book_group_service::BookGroupService, book_service::BookService,
     book_source_service::BookSourceService, json_document_service::JsonDocumentService,
-    user_service::UserService,
+    update_service::UpdateService, user_service::UserService,
 };
 use crate::storage::{cache::file_cache::FileCache, db, fs::storage_fs::StorageFs};
 
@@ -51,6 +51,11 @@ pub async fn run() -> anyhow::Result<()> {
         json_document_service.clone(),
         &cfg.storage_dir,
     ));
+    let update_service = Arc::new(UpdateService::new(
+        json_document_service.clone(),
+        cfg.request_timeout_secs,
+        format!("v{}", env!("CARGO_PKG_VERSION")),
+    )?);
 
     let state = AppState {
         config: cfg.clone(),
@@ -61,6 +66,7 @@ pub async fn run() -> anyhow::Result<()> {
         json_document_service,
         ai_book_service,
         ai_model_service,
+        update_service,
     };
 
     let app: Router = api::router::build_router(state);

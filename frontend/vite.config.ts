@@ -27,7 +27,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('/web/src/plugins/chinese.js')) {
+          if (id.includes('/src/utils/chinese.js')) {
             return 'chinese-convert'
           }
           if (id.includes('node_modules/vue') || id.includes('node_modules/pinia') || id.includes('node_modules/vue-router')) {

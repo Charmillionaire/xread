@@ -140,6 +140,10 @@
             <div
               ref="chapterTextRef"
               class="horizontal-pages"
+              :style="{
+                transform: horizontalPageTransform,
+                transitionDuration: horizontalPageTransitionDuration,
+              }"
             >
               <section v-for="(page, idx) in horizontalPages" :key="`h-page-${idx}`" class="horizontal-page">
                 <div
@@ -551,6 +555,16 @@ const {
   isHorizontalPageMode,
   scrollContainerRef,
 )
+
+const horizontalPageTransform = computed(() => {
+  const offset = horizontalPageIndex.value * Math.max(1, horizontalPageStep.value)
+  return `translate3d(${-offset}px, 0, 0)`
+})
+const horizontalPageTransitionDuration = computed(() => {
+  const duration = Number(config.value.animateDuration) || 0
+  if (duration <= 0) return '0ms'
+  return `${Math.min(220, duration)}ms`
+})
 const {
   continuousChapters,
   continuousLoadingNext,
@@ -574,20 +588,30 @@ const {
   scrollContainerRef,
 )
 
+function syncHorizontalPageState() {
+  const maxPage = Math.max(0, horizontalPages.value.length - 1)
+  const progress = maxPage <= 0 ? 1 : horizontalPageIndex.value / maxPage
+  store.setChapterScrollProgress(progress)
+  updateHorizontalEndState()
+  if (config.value.enablePreload && maxPage > 0 && horizontalPageIndex.value >= maxPage - 1) {
+    store.preloadAroundChapter(store.currentIndex)
+  }
+  scheduleSaveReadingPosition()
+  serverProgressAutoSaveScheduler.schedule()
+}
+
 function pageForward() {
   const container = scrollContainerRef.value
   if (!container) return
   if (isHorizontalPageMode.value) {
-    const pageWidth = Math.max(1, horizontalPageStep.value || container.clientWidth)
     const maxPage = Math.max(0, horizontalPages.value.length - 1)
     if (horizontalPageIndex.value >= maxPage) {
       nextChapter()
       return
     }
     horizontalPageIndex.value = Math.min(maxPage, horizontalPageIndex.value + 1)
-    const targetLeft = horizontalPageIndex.value * pageWidth
-    container.scrollTo({ left: targetLeft, behavior: 'auto' })
-    updateHorizontalEndState()
+    container.scrollTo({ left: 0, behavior: 'auto' })
+    syncHorizontalPageState()
     return
   }
   const step = container.clientHeight * 0.88
@@ -602,15 +626,13 @@ function pageBackward() {
   const container = scrollContainerRef.value
   if (!container) return
   if (isHorizontalPageMode.value) {
-    const pageWidth = Math.max(1, horizontalPageStep.value || container.clientWidth)
     if (horizontalPageIndex.value <= 0) {
       prevChapter()
       return
     }
     horizontalPageIndex.value = Math.max(0, horizontalPageIndex.value - 1)
-    const targetLeft = horizontalPageIndex.value * pageWidth
-    container.scrollTo({ left: targetLeft, behavior: 'auto' })
-    updateHorizontalEndState()
+    container.scrollTo({ left: 0, behavior: 'auto' })
+    syncHorizontalPageState()
     return
   }
   const step = container.clientHeight * 0.88
@@ -1104,10 +1126,6 @@ function handleContextMenu(event: Event) {
 }
 
 function handleGlobalClick(e: MouseEvent) {
-  if (showControls.value && !store.activePanel) {
-    showControls.value = false
-    return
-  }
   if (store.activePanel) return
   if (Date.now() < suppressNextTapUntil) return
   if (Date.now() < suppressSelectionCloseUntil.value) return
@@ -1119,6 +1137,10 @@ function handleGlobalClick(e: MouseEvent) {
 
   const target = e.target as HTMLElement | null
   if (isReaderInteractiveClickTarget(target)) return
+  if (showControls.value && !store.activePanel) {
+    showControls.value = false
+    return
+  }
   if (store.isAutoScrolling) return
   
   if (isHorizontalPageMode.value && isMobile.value) {
@@ -1227,17 +1249,21 @@ function handleScroll() {
       loadContinuousNext()
     }
   } else if (container) {
-    const maxScroll = isHorizontalPageMode.value
-      ? Math.max(1, container.scrollWidth - container.clientWidth)
-      : Math.max(1, container.scrollHeight - container.clientHeight)
+    const maxScroll = Math.max(1, container.scrollHeight - container.clientHeight)
     const progress = isHorizontalPageMode.value
-      ? (container.scrollWidth <= container.clientWidth ? 1 : container.scrollLeft / maxScroll)
+      ? (() => {
+          const maxPage = Math.max(0, horizontalPages.value.length - 1)
+          return maxPage <= 0 ? 1 : horizontalPageIndex.value / maxPage
+        })()
       : (container.scrollHeight <= container.clientHeight ? 1 : container.scrollTop / maxScroll)
     store.setChapterScrollProgress(progress)
     if (isHorizontalPageMode.value) {
       updateHorizontalMetrics()
       const maxPage = Math.max(0, horizontalPages.value.length - 1)
-      horizontalPageIndex.value = Math.max(0, Math.min(maxPage, Math.round(container.scrollLeft / Math.max(1, horizontalPageStep.value))))
+      horizontalPageIndex.value = Math.max(0, Math.min(maxPage, horizontalPageIndex.value))
+      if (container.scrollLeft !== 0) {
+        container.scrollTo({ left: 0, behavior: 'auto' })
+      }
       updateHorizontalEndState()
       if (config.value.enablePreload && maxPage > 0 && horizontalPageIndex.value >= maxPage - 1) {
         store.preloadAroundChapter(store.currentIndex)
@@ -1288,6 +1314,11 @@ function handleTouchEnd(event: TouchEvent) {
     touchState.value.moving = false
     return
   }
+  const target = event.target as HTMLElement | null
+  if (isReaderInteractiveClickTarget(target)) {
+    touchState.value.moving = false
+    return
+  }
   const touchDuration = Date.now() - touchState.value.startAt
   const selectedText = window.getSelection?.()?.toString().trim()
   if (selectedText) {
@@ -1321,9 +1352,26 @@ function handleTouchEnd(event: TouchEvent) {
     return
   }
   if (!didPageTurn) {
-    window.setTimeout(() => {
+    const moved = Math.hypot(deltaX, deltaY)
+    if (touchDuration <= 260 && moved < 10) {
+      suppressNextTapUntil = Date.now() + 350
+      if (showControls.value && !store.activePanel) {
+        showControls.value = false
+      } else {
+        const x = touch.clientX / window.innerWidth
+        if (x < 0.3) {
+          clickZoneAction('prev')
+        } else if (x > 0.7) {
+          clickZoneAction('next')
+        } else {
+          clickZoneAction('menu')
+        }
+      }
+    } else {
+      window.setTimeout(() => {
         alignHorizontalToNearestPage(touchState.value.moving)
       }, 120)
+    }
   }
   scheduleSelectionMenuUpdate(260)
 }
@@ -1747,13 +1795,14 @@ watch(
 .reader-view {
   height: 100vh;
   height: 100dvh;
-  height: var(--app-height, 100dvh);
+  height: var(--app-visual-height, var(--app-height, 100dvh));
   width: 100%;
   display: flex;
   position: relative;
   overflow: hidden;
   transition: background 0.3s, color 0.3s;
   padding-top: var(--safe-area-top);
+  padding-bottom: var(--safe-area-bottom);
   box-sizing: border-box;
 }
 
@@ -1776,9 +1825,9 @@ watch(
 }
 
 .reader-scroll-container.horizontal-page-mode {
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
-  touch-action: pan-x pinch-zoom;
+  touch-action: pan-y pinch-zoom;
   overscroll-behavior: none;
 }
 
@@ -1872,6 +1921,10 @@ watch(
   width: max-content;
   height: 100%;
   min-height: 100%;
+  transform: translate3d(0, 0, 0);
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
 }
 
 .horizontal-page {
@@ -1914,6 +1967,9 @@ watch(
 .horizontal-page-content {
   height: 100%;
   overflow: hidden;
+  overflow-wrap: break-word;
+  text-align: left;
+  word-break: normal;
 }
 
 :deep(.horizontal-page-content .horizontal-flow-title) {
@@ -2071,6 +2127,10 @@ watch(
 }
 
 @media (max-width: 768px) {
+  .reader-scroll-container.horizontal-page-mode {
+    scroll-behavior: auto;
+  }
+
   .chapter-content {
     padding: 24px 20px 8px;
     min-height: auto;

@@ -7,6 +7,7 @@ mod book_source;
 mod bookmark;
 mod replace_rule;
 mod rss;
+mod update;
 mod user;
 mod webdav;
 
@@ -28,6 +29,7 @@ pub use rss::{
     delete_rss_source, delete_rss_sources, get_rss_articles, get_rss_content, get_rss_sources,
     read_remote_rss_source_file, read_rss_source_file, save_rss_source, save_rss_sources,
 };
+pub use update::{dismiss_version_update, get_version_update};
 pub use user::{
     add_user, change_password, delete_file, delete_users, get_user_config, get_user_info,
     get_user_list, login, logout, reset_password, save_user_config, update_user, upload_file,

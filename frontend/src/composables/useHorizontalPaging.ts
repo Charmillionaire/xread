@@ -3,6 +3,35 @@ import type { ComputedRef, Ref } from 'vue'
 import type { useReaderStore } from '../stores/reader'
 
 type ReaderStore = ReturnType<typeof useReaderStore>
+const HORIZONTAL_PAGE_SIDE_PADDING = 24
+const HORIZONTAL_PAGE_VERTICAL_PADDING = 24
+const HORIZONTAL_PAGE_MIN_BOTTOM_GUARD = 18
+const HORIZONTAL_PAGE_BOTTOM_GUARD_LINES = 0.5
+const NON_STARTING_PUNCTUATION = new Set([
+  '，',
+  '。',
+  '、',
+  '：',
+  '；',
+  '！',
+  '？',
+  ',',
+  '.',
+  ':',
+  ';',
+  '!',
+  '?',
+  '”',
+  '’',
+  '）',
+  '】',
+  '》',
+  '」',
+  '』',
+])
+const SPLIT_BACKTRACK_BREAKERS = new Set(['，', '。', '；', '！', '？', ',', '.', ';', '!', '?', ' '])
+const PUNCTUATION_ONLY_CHARS = new Set([...NON_STARTING_PUNCTUATION, '“', '‘', '（', '【', '《', '「', '『', '…', '—'])
+const MAX_PUNCTUATION_BACKTRACK = 12
 
 export function useHorizontalPaging(
   store: ReaderStore,
@@ -23,23 +52,6 @@ export function useHorizontalPaging(
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;')
-  }
-
-  function splitTextByPunctuation(text: string) {
-    const result: string[] = []
-    let current = ''
-    const breakers = new Set(['。', '！', '？', '；', '，', '、', '.', '!', '?', ';', ','])
-    for (const ch of text) {
-      current += ch
-      if (breakers.has(ch) && current.trim().length >= 10) {
-        result.push(current.trimEnd())
-        current = ''
-      }
-    }
-    if (current.trim()) {
-      result.push(current.trimEnd())
-    }
-    return result.length ? result : [text]
   }
 
   function parseInlineStyle(styleText: string) {
@@ -73,26 +85,19 @@ export function useHorizontalPaging(
       .join(' ')
   }
 
-  function splitParagraphHtml(paragraphHtml: string) {
+  function normalizeParagraphHtml(paragraphHtml: string) {
     const wrapper = document.createElement('div')
     wrapper.innerHTML = paragraphHtml
     const paragraph = wrapper.querySelector('p')
-    if (!paragraph) return [paragraphHtml]
-    const text = (paragraph.textContent || '').trimEnd()
-    if (!text.trim()) return [paragraphHtml]
+    if (!paragraph) return paragraphHtml
     const style = paragraph.getAttribute('style') || ''
-    const className = paragraph.getAttribute('class') || ''
-    const baseStyle = parseInlineStyle(style)
-    const segments = splitTextByPunctuation(text)
-    return segments.map((segment, idx) => {
-      const styleObj = { ...baseStyle }
-      if (idx < segments.length - 1) delete styleObj['margin-bottom']
-      const styleText = buildInlineStyle(styleObj)
-      const stylePart = styleText ? ` style="${styleText}"` : ''
-      const nextClassName = idx > 0 ? removeIndentClass(className) : className
-      const classPart = nextClassName ? ` class="${nextClassName}"` : ''
-      return `<p${classPart}${stylePart}>${escapeHtml(segment)}</p>`
-    })
+    const styleObj = parseInlineStyle(style)
+    if (paragraph.classList.contains('reader-indent') && !styleObj['text-indent']) {
+      styleObj['text-indent'] = '2em'
+    }
+    const styleText = buildInlineStyle(styleObj)
+    if (styleText) paragraph.setAttribute('style', styleText)
+    return paragraph.outerHTML
   }
 
   function parseParagraphHtml(paragraphHtml: string) {
@@ -113,16 +118,97 @@ export function useHorizontalPaging(
     return `<p${classPart}${stylePart}>${escapeHtml(text)}</p>`
   }
 
+  function firstVisibleChar(text: string) {
+    return text.trimStart().charAt(0)
+  }
+
+  function isPunctuationOnlyText(text: string) {
+    const value = text.trim()
+    return value.length > 0 && value.length <= 3 && Array.from(value).every((char) => PUNCTUATION_ONLY_CHARS.has(char))
+  }
+
+  function adjustFitCountForReadableStart(text: string, fitCount: number) {
+    if (fitCount <= 0 || fitCount >= text.length) return fitCount
+    if (!NON_STARTING_PUNCTUATION.has(firstVisibleChar(text.slice(fitCount)))) return fitCount
+
+    const minIndex = Math.max(1, fitCount - MAX_PUNCTUATION_BACKTRACK)
+    for (let idx = fitCount - 1; idx >= minIndex; idx -= 1) {
+      if (SPLIT_BACKTRACK_BREAKERS.has(text[idx])) {
+        return idx + 1
+      }
+    }
+    return Math.max(1, fitCount - Math.min(4, fitCount - 1))
+  }
+
+  function extractTextFromHtml(html: string) {
+    const wrapper = document.createElement('div')
+    wrapper.innerHTML = html
+    return wrapper.textContent || ''
+  }
+
+  function prependTextToFirstParagraph(html: string, text: string) {
+    const wrapper = document.createElement('div')
+    wrapper.innerHTML = html
+    const paragraph = wrapper.querySelector('p')
+    if (!paragraph) return `${escapeHtml(text)}${html}`
+    paragraph.insertBefore(document.createTextNode(text), paragraph.firstChild)
+    return wrapper.innerHTML
+  }
+
+  function appendTextToLastParagraph(html: string, text: string) {
+    const wrapper = document.createElement('div')
+    wrapper.innerHTML = html
+    const paragraphs = wrapper.querySelectorAll('p')
+    const paragraph = paragraphs[paragraphs.length - 1]
+    if (!paragraph) return `${html}${escapeHtml(text)}`
+    paragraph.appendChild(document.createTextNode(text))
+    return wrapper.innerHTML
+  }
+
+  function mergeOrphanPunctuationPages(sourcePages: string[]) {
+    const pendingPages = [...sourcePages]
+    const mergedPages: string[] = []
+    for (let idx = 0; idx < pendingPages.length; idx += 1) {
+      const page = pendingPages[idx]
+      const text = extractTextFromHtml(page)
+      if (isPunctuationOnlyText(text)) {
+        const punctuation = text.trim()
+        if (mergedPages.length) {
+          mergedPages[mergedPages.length - 1] = appendTextToLastParagraph(mergedPages[mergedPages.length - 1], punctuation)
+          continue
+        }
+        if (idx + 1 < pendingPages.length) {
+          pendingPages[idx + 1] = prependTextToFirstParagraph(pendingPages[idx + 1], punctuation)
+          continue
+        }
+      }
+      mergedPages.push(page)
+    }
+    return mergedPages
+  }
+
   function buildHorizontalParagraphs() {
     const root = document.createElement('div')
     root.innerHTML = formattedContent.value
-    return Array.from(root.querySelectorAll('p')).map((node) => node.outerHTML)
+    return Array.from(root.querySelectorAll('p')).map((node) => normalizeParagraphHtml(node.outerHTML))
   }
 
   function updateHorizontalMetrics() {
     const container = scrollContainerRef.value
     if (!container || !isHorizontalPageMode.value) return
     horizontalPageStep.value = Math.max(1, container.clientWidth)
+  }
+
+  function getHorizontalPageMeasure(container: HTMLElement) {
+    const lineHeightPx = config.value.fontSize * config.value.lineHeight
+    const bottomGuard = Math.max(
+      HORIZONTAL_PAGE_MIN_BOTTOM_GUARD,
+      Math.ceil(lineHeightPx * HORIZONTAL_PAGE_BOTTOM_GUARD_LINES),
+    )
+    return {
+      innerWidth: Math.max(120, horizontalPageStep.value - HORIZONTAL_PAGE_SIDE_PADDING * 2),
+      pageHeight: Math.max(160, container.clientHeight - HORIZONTAL_PAGE_VERTICAL_PADDING * 2 - bottomGuard),
+    }
   }
 
   function updateHorizontalEndState() {
@@ -147,9 +233,7 @@ export function useHorizontalPaging(
 
     updateHorizontalMetrics()
 
-    const sidePadding = 24
-    const innerWidth = Math.max(120, horizontalPageStep.value - sidePadding * 2)
-    const pageHeight = Math.max(200, window.innerHeight - 48)
+    const { innerWidth, pageHeight } = getHorizontalPageMeasure(container)
     const title = (store.currentChapter?.title || '加载中...').trim()
     const titleHtml = `<h1 class="horizontal-flow-title">${escapeHtml(title)}</h1>`
     const paragraphs = buildHorizontalParagraphs()
@@ -168,20 +252,116 @@ export function useHorizontalPaging(
     measurer.style.fontWeight = String(config.value.fontWeight)
     measurer.style.lineHeight = String(config.value.lineHeight)
     measurer.style.fontFamily = currentFontFamily.value || ''
+    measurer.style.wordBreak = 'normal'
+    measurer.style.overflowWrap = 'break-word'
+    measurer.style.textAlign = 'left'
     document.body.appendChild(measurer)
 
     const pages: string[] = []
     let currentParts: string[] = [titleHtml]
 
-    const overflows = (parts: string[]) => {
+    const measureContentHeight = (parts: string[]) => {
       measurer.innerHTML = parts.join('')
-      return measurer.scrollHeight > measurer.clientHeight
+      const children = Array.from(measurer.children) as HTMLElement[]
+      if (!children.length) return 0
+      const top = measurer.getBoundingClientRect().top
+      return children.reduce((bottom, child, idx) => {
+        const rect = child.getBoundingClientRect()
+        const style = window.getComputedStyle(child)
+        const isLastParagraph = idx === children.length - 1 && child.tagName.toLowerCase() === 'p'
+        const marginBottom = isLastParagraph ? 0 : parseFloat(style.marginBottom) || 0
+        return Math.max(bottom, rect.bottom - top + marginBottom)
+      }, 0)
+    }
+
+    const overflows = (parts: string[]) => {
+      return measureContentHeight(parts) > measurer.clientHeight
     }
 
     const flushPage = () => {
       if (!currentParts.length) return
       pages.push(currentParts.join(''))
       currentParts = []
+    }
+
+    const buildSegmentStyle = (style: string, isContinuation: boolean, hasMoreText: boolean) => {
+      const styleObj = parseInlineStyle(style)
+      if (hasMoreText) delete styleObj['margin-bottom']
+      if (isContinuation) delete styleObj['text-indent']
+      return buildInlineStyle(styleObj)
+    }
+
+    const fitParagraphSegment = (
+      blockHtml: string,
+      options: { isContinuation: boolean; minRemainingLines?: number },
+    ) => {
+      const parsed = parseParagraphHtml(blockHtml)
+      if (!parsed || parsed.text.length <= 1) return null
+
+      const { style, text, className } = parsed
+      const currentHeight = measureContentHeight(currentParts)
+      const remainingHeight = measurer.clientHeight - currentHeight
+      const minRemainingHeight = (options.minRemainingLines || 0) * config.value.fontSize * config.value.lineHeight
+      if (remainingHeight < minRemainingHeight) return null
+
+      const segmentClassName = options.isContinuation ? removeIndentClass(className) : className
+      let left = 1
+      let right = text.length
+      let fitCount = 0
+      while (left <= right) {
+        const mid = Math.floor((left + right) / 2)
+        const tryStyle = buildSegmentStyle(style, options.isContinuation, mid < text.length)
+        const tryHtml = buildParagraphHtml(tryStyle, text.slice(0, mid), segmentClassName)
+        if (!overflows([...currentParts, tryHtml])) {
+          fitCount = mid
+          left = mid + 1
+        } else {
+          right = mid - 1
+        }
+      }
+
+      if (fitCount <= 0) return null
+
+      fitCount = adjustFitCountForReadableStart(text, fitCount)
+      if (fitCount <= 0 || (fitCount < text.length && isPunctuationOnlyText(text.slice(0, fitCount)))) return null
+
+      const hasMoreText = fitCount < text.length
+      const fitStyle = buildSegmentStyle(style, options.isContinuation, hasMoreText)
+      return {
+        html: buildParagraphHtml(fitStyle, text.slice(0, fitCount), segmentClassName),
+        remainingHtml: hasMoreText
+          ? buildParagraphHtml(style, text.slice(fitCount), removeIndentClass(className))
+          : '',
+      }
+    }
+
+    const appendOversizedParagraph = (blockHtml: string, isContinuation = false) => {
+      const parsed = parseParagraphHtml(blockHtml)
+      if (!parsed || parsed.text.length <= 1) {
+        pages.push(blockHtml)
+        return
+      }
+
+      let pending = blockHtml
+      let continuation = isContinuation
+      while (pending) {
+        const fitted = fitParagraphSegment(pending, { isContinuation: continuation })
+        if (fitted) {
+          currentParts = [...currentParts, fitted.html]
+          pending = fitted.remainingHtml
+          continuation = true
+          if (pending) flushPage()
+          continue
+        }
+
+        if (currentParts.length) {
+          flushPage()
+          continue
+        }
+
+        pages.push(pending)
+        pending = ''
+      }
     }
 
     const appendBlock = (blockHtml: string) => {
@@ -191,64 +371,25 @@ export function useHorizontalPaging(
         return
       }
 
-      const pieces = splitParagraphHtml(blockHtml)
-      for (const piece of pieces) {
-        let pending = piece
-        while (pending) {
-          const nextPiece = [...currentParts, pending]
-          if (!overflows(nextPiece)) {
-            currentParts = nextPiece
-            pending = ''
-            continue
-          }
-
-          const parsed = parseParagraphHtml(pending)
-          const canSplit = parsed && parsed.text.length > 1
-          if (canSplit) {
-            const { style, text, className } = parsed
-            const styleObj = parseInlineStyle(style)
-            const splitPieceStyle = { ...styleObj }
-            delete splitPieceStyle['margin-bottom']
-            const splitPieceStyleText = buildInlineStyle(splitPieceStyle)
-            const splitPieceClassName = removeIndentClass(className)
-            let left = 1
-            let right = text.length
-            let fitCount = 0
-            while (left <= right) {
-              const mid = Math.floor((left + right) / 2)
-              const tryStyle = mid < text.length ? splitPieceStyleText : style
-              const tryClassName = mid < text.length ? splitPieceClassName : className
-              const tryHtml = buildParagraphHtml(tryStyle, text.slice(0, mid), tryClassName)
-              const tryParts = [...currentParts, tryHtml]
-              if (!overflows(tryParts)) {
-                fitCount = mid
-                left = mid + 1
-              } else {
-                right = mid - 1
-              }
-            }
-
-            if (fitCount > 0) {
-              const fitStyle = fitCount < text.length ? splitPieceStyleText : style
-              const fitClassName = fitCount < text.length ? splitPieceClassName : className
-              const fitHtml = buildParagraphHtml(fitStyle, text.slice(0, fitCount), fitClassName)
-              currentParts = [...currentParts, fitHtml]
-              flushPage()
-              const remain = text.slice(fitCount)
-              pending = remain ? buildParagraphHtml(style, remain, splitPieceClassName) : ''
-              continue
-            }
-          }
-
-          if (currentParts.length) {
+      if (currentParts.length) {
+        const fitted = fitParagraphSegment(blockHtml, { isContinuation: false })
+        if (fitted) {
+          currentParts = [...currentParts, fitted.html]
+          if (fitted.remainingHtml) {
             flushPage()
-            continue
+            appendOversizedParagraph(fitted.remainingHtml, true)
           }
+          return
+        }
 
-          pages.push(pending)
-          pending = ''
+        flushPage()
+        if (!overflows([blockHtml])) {
+          currentParts = [blockHtml]
+          return
         }
       }
+
+      appendOversizedParagraph(blockHtml)
     }
 
     for (const paragraph of paragraphs) {
@@ -265,12 +406,13 @@ export function useHorizontalPaging(
       pages[0] = `${titleHtml}${pages[0]}`
     }
 
-    document.body.removeChild(measurer)
-    horizontalPages.value = pages
-    horizontalPageIndex.value = Math.min(horizontalPageIndex.value, pages.length - 1)
+    const mergedPages = mergeOrphanPunctuationPages(pages)
 
-    const targetLeft = horizontalPageIndex.value * horizontalPageStep.value
-    container.scrollTo({ left: targetLeft, behavior: 'auto' })
+    document.body.removeChild(measurer)
+    horizontalPages.value = mergedPages
+    horizontalPageIndex.value = Math.min(horizontalPageIndex.value, mergedPages.length - 1)
+
+    container.scrollTo({ left: 0, behavior: 'auto' })
     updateHorizontalEndState()
   }
 
@@ -278,13 +420,10 @@ export function useHorizontalPaging(
     const container = scrollContainerRef.value
     if (!container || !isHorizontalPageMode.value || touchMoving) return
     updateHorizontalMetrics()
-    const pageWidth = Math.max(1, horizontalPageStep.value || container.clientWidth)
     const maxPage = Math.max(0, horizontalPages.value.length - 1)
-    const nearestPage = Math.round(container.scrollLeft / pageWidth)
-    horizontalPageIndex.value = Math.max(0, Math.min(maxPage, nearestPage))
-    const targetLeft = horizontalPageIndex.value * pageWidth
-    if (Math.abs(container.scrollLeft - targetLeft) > 2) {
-      container.scrollTo({ left: targetLeft, behavior: 'auto' })
+    horizontalPageIndex.value = Math.max(0, Math.min(maxPage, horizontalPageIndex.value))
+    if (container.scrollLeft !== 0) {
+      container.scrollTo({ left: 0, behavior: 'auto' })
     }
   }
 

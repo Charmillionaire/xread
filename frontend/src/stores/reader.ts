@@ -239,7 +239,7 @@ export const useReaderStore = defineStore('reader', () => {
 
   async function ensureChineseConverterLoaded() {
     if (chineseConverter.value || chineseLoading) return chineseLoading || Promise.resolve()
-    chineseLoading = import('../../../web/src/plugins/chinese.js')
+    chineseLoading = import('../utils/chinese.js')
       .then((module) => {
         chineseConverter.value = module.traditionalized
       })

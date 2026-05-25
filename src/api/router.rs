@@ -264,6 +264,14 @@ pub fn build_router(state: AppState) -> Router {
         .route("/reader3/login", post(handlers::login))
         .route("/reader3/logout", post(handlers::logout))
         .route("/reader3/getUserInfo", get(handlers::get_user_info))
+        .route(
+            "/reader3/getVersionUpdate",
+            get(handlers::get_version_update),
+        )
+        .route(
+            "/reader3/dismissVersionUpdate",
+            post(handlers::dismiss_version_update),
+        )
         .route("/reader3/saveUserConfig", post(handlers::save_user_config))
         .route("/reader3/getUserConfig", get(handlers::get_user_config))
         .route("/reader3/getUserList", get(handlers::get_user_list))

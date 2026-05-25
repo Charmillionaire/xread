@@ -12,17 +12,10 @@ cargo test                   # All tests
 cargo test --lib <test_name> # Single test
 ```
 
-### Frontend (two separate apps)
+### Frontend
 ```bash
-# Vue 3 + Vite + TypeScript (新版前端，默认)
 cd frontend && npm install && npm run dev    # Dev server
 cd frontend && npm run build                 # Builds to frontend/dist/
-
-# Vue 2 + Vue CLI (旧版前端，已废弃)
-cd web && npm install
-cd web && npm run serve                      # Dev server (uses disable-storage.js workaround)
-cd web && npm run build                      # Builds to web/dist/
-cd web && npm run lint                       # ESLint + Prettier
 ```
 
 ### Docker
@@ -58,7 +51,7 @@ Loaded from `.env` file (via `dotenvy`) or environment variables. Separator is `
 Key settings:
 - `SERVER_HOST` / `SERVER_PORT` — default `0.0.0.0:8080`
 - `DATABASE_URL` — SQLite path, default `sqlite:storage/reader.db?mode=rwc`
-- `WEB_ROOT` — static files path, default `web/dist`
+- `WEB_ROOT` — static files path, default `frontend/dist`
 - `SECURE` / `SECURE_KEY` — security mode toggle
 - `INVITE_CODE` — registration gate
 - `USER_LIMIT` / `USER_BOOK_LIMIT` — default 50 / 2000
@@ -97,7 +90,6 @@ JSON objects with `bookSourceUrl`, `bookSourceName`, `searchUrl`/`exploreUrl` (w
 
 ## Important Notes
 
-- **Two frontend apps**: `frontend/` is Vue 3 (newer, default), `web/` is Vue 2 (legacy). Docker images use `frontend/dist/`.
-- **`web/` build workaround**: `vue.config.js` disables localStorage via `disable-storage.js` — do not remove this.
+- **Frontend app**: `frontend/` is the Vue 3 + Vite frontend. Docker images use `frontend/dist/`.
 - **`/storage/` is gitignored**: Contains user data and SQLite DB.
 - **No tests currently**: `cargo test` will pass but there are no test files written yet.

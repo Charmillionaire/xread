@@ -130,6 +130,20 @@ export interface UserInfo {
   isAdmin?: boolean
 }
 
+// ─── 应用更新 ───
+export interface VersionUpdateInfo {
+  currentVersion: string
+  latestVersion: string | null
+  latestName: string | null
+  releaseUrl: string | null
+  publishedAt: string | null
+  updateAvailable: boolean
+  shouldRemind: boolean
+  dismissedVersion: string | null
+  checkedAt: number
+  error: string | null
+}
+
 // ─── 书签 ───
 export interface Bookmark {
   time?: number

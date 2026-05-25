@@ -8,6 +8,12 @@ describe('readerClick', () => {
     expect(isReaderInteractiveClickTarget(target)).toBe(true)
   })
 
+  it('treats mobile controls as interactive so touch pagination does not steal toolbar taps', () => {
+    const target = fakeTarget((selector) => selector.includes('.mobile-controls'))
+
+    expect(isReaderInteractiveClickTarget(target)).toBe(true)
+  })
+
   it('treats plain chapter text as non-interactive', () => {
     const target = fakeTarget(() => false)
 

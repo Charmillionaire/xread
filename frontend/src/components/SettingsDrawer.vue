@@ -173,6 +173,30 @@
               <span>{{ appVersion }}</span>
               <small>当前应用版本</small>
             </div>
+            <template v-if="appStore.canCheckVersionUpdate">
+              <div
+                class="status-card"
+                :class="{ accent: appStore.hasVersionUpdateReminder, muted: appStore.versionUpdateLoading }"
+              >
+                <span>{{ versionUpdateTitle }}</span>
+                <small>{{ versionUpdateMessage }}</small>
+              </div>
+              <div class="btn-group version-actions">
+                <button class="action-btn" :disabled="!appStore.versionUpdate?.releaseUrl" @click="handleOpenRelease">
+                  查看 Release
+                </button>
+                <button
+                  class="action-btn"
+                  :disabled="!appStore.hasVersionUpdateReminder || appStore.versionUpdateLoading"
+                  @click="handleDismissVersionUpdate"
+                >
+                  本版本不再提醒
+                </button>
+                <button class="action-btn" :disabled="appStore.versionUpdateLoading" @click="handleCheckVersionUpdate">
+                  {{ appStore.versionUpdateLoading ? '检查中...' : '重新检查' }}
+                </button>
+              </div>
+            </template>
             <div v-if="appStore.pwaUpdateAvailable" class="status-card accent">
               <span>&#21457;&#29616;&#26032;&#29256;&#26412;</span>
               <small>&#21047;&#26032;&#21518;&#21487;&#20351;&#29992;&#26368;&#26032;&#31163;&#32447;&#36164;&#28304;</small>
@@ -330,6 +354,28 @@ const webdavStatusMessage = computed(() => {
     ? '\u652f\u6301\u5c06\u6570\u636e\u5907\u4efd\u5230\u670d\u52a1\u5668\u3001\u4e0b\u8f7d\u5907\u4efd\u6587\u4ef6\u3001\u4e0a\u4f20\u5907\u4efd\u6587\u4ef6\u5e76\u6267\u884c\u6062\u590d\u3002'
     : '\u8bf7\u5728\u7528\u6237\u7ba1\u7406\u4e2d\u4e3a\u5f53\u524d\u8d26\u53f7\u5f00\u542f\u670d\u52a1\u5668\u5907\u4efd\u6743\u9650\u3002'
 })
+const versionUpdateTitle = computed(() => {
+  const info = appStore.versionUpdate
+  if (appStore.versionUpdateLoading && !info) return '正在检查服务端版本'
+  if (!info) return '服务端版本检查'
+  if (info.error && !info.latestVersion) return '版本检查失败'
+  if (info.updateAvailable) return `发现服务端新版本 ${info.latestVersion}`
+  return '服务端已是最新版本'
+})
+const versionUpdateMessage = computed(() => {
+  const info = appStore.versionUpdate
+  if (appStore.versionUpdateLoading && !info) return '正在从 GitHub Release 获取最新版本。'
+  if (!info) return '管理员可检查 GitHub Release，发现新版后会在设置入口提示。'
+  if (info.error && !info.latestVersion) return info.error
+  if (info.updateAvailable && info.shouldRemind) {
+    return `当前 ${info.currentVersion}，最新 ${info.latestVersion}。`
+  }
+  if (info.updateAvailable) {
+    return `当前 ${info.currentVersion}，最新 ${info.latestVersion}，本版本已设置不再提醒。`
+  }
+  if (info.error) return `当前 ${info.currentVersion}，上次检查失败：${info.error}`
+  return `当前 ${info.currentVersion}。`
+})
 
 watch(
   () => appStore.secureKey,
@@ -442,6 +488,20 @@ function handleApplyUpdate() {
   if (!ok) {
     appStore.showToast('\u5f53\u524d\u6ca1\u6709\u53ef\u5e94\u7528\u7684\u65b0\u7248\u672c', 'warning')
   }
+}
+
+function handleOpenRelease() {
+  const url = appStore.versionUpdate?.releaseUrl
+  if (!url) return
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+async function handleDismissVersionUpdate() {
+  await appStore.dismissVersionUpdateReminder()
+}
+
+async function handleCheckVersionUpdate() {
+  await appStore.checkVersionUpdate(true)
 }
 </script>
 
@@ -632,6 +692,10 @@ function handleApplyUpdate() {
   gap: var(--space-2);
 }
 
+.version-actions {
+  margin-bottom: var(--space-3);
+}
+
 .action-btn {
   display: inline-flex;
   align-items: center;
@@ -723,6 +787,10 @@ function handleApplyUpdate() {
 .status-card.accent {
   background: rgba(201, 127, 58, 0.12);
   border: 1px solid rgba(201, 127, 58, 0.18);
+}
+
+.status-card.muted {
+  opacity: 0.72;
 }
 
 .action-btn:disabled {
