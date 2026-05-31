@@ -1,5 +1,5 @@
-# Dockerfile for aarch64 - using pre-built binary
-# Build binary first: cargo build --release --target aarch64-unknown-linux-musl
+# Dockerfile - using pre-built binary
+# Build binary first: cargo build --release --target x86_64-unknown-linux-musl
 # Build frontend first: cd frontend && npm install && npm run build
 
 FROM alpine:3.19
@@ -9,7 +9,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 
 # Copy pre-built binary
-COPY target/aarch64-unknown-linux-musl/release/reader-rust /app/reader-rust
+COPY target/x86_64-unknown-linux-musl/release/reader-rust /app/reader-rust
 
 # Copy frontend dist
 COPY frontend/dist /app/web/dist

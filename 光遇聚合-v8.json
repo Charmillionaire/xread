@@ -1,0 +1,48 @@
+[
+  {
+    "bookSourceName": "光遇聚合(Reader-Rust)",
+    "bookSourceGroup": "聚合",
+    "bookSourceType": 0,
+    "bookSourceUrl": "光遇聚合",
+    "enabled": true,
+    "enabledExplore": false,
+    "enabledCookieJar": false,
+    "customOrder": -1,
+    "header": "{\"User-Agent\":\"Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36\"}",
+
+    "searchUrl": "https://v1.gyks.cf/search?title={key}&tab=小说&source=全部&page={page}&disabled_sources=0",
+
+    "ruleSearch": {
+      "checkKeyWord": "我的@番茄",
+      "bookList": "$.data",
+      "name": "$.book_name",
+      "author": "$.author",
+      "coverUrl": "$.thumb_url",
+      "intro": "$.abstract",
+      "kind": "{{$.status}},{{$.score}},{{$.tags}},{{$.last_chapter_update_time}}",
+      "lastChapter": "{{$.source}} {{$.last_chapter_title}}",
+      "wordCount": "$.word_number",
+      "bookUrl": "https://v1.gyks.cf/detail?book_id={{$.book_id}}&source={{$.source}}&tab={{$.tab}}"
+    },
+
+    "ruleBookInfo": {
+      "name": "$.data.book_name",
+      "author": "$.data.author",
+      "coverUrl": "$.data.thumb_url",
+      "intro": "$.data.abstract",
+      "lastChapter": "{{$.data.source}} {{$.data.last_chapter_title}} {{$.data.last_chapter_update_time}}",
+      "wordCount": "$.data.word_number",
+      "tocUrl": "https://v1.gyks.cf/catalog?book_id={{$.data.book_id}}&source={{$.data.source}}&tab={{$.data.tab}}"
+    },
+
+    "ruleToc": {
+      "chapterList": "$.data",
+      "chapterName": "js:result.title",
+      "chapterUrl": "js:'https://v1.gyks.cf' + result.content_url"
+    },
+
+    "ruleContent": {
+      "content": "js:var d=JSON.parse(input);d.content||d.data&&d.data.content||'';"
+    }
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "bookSourceName": "光遇聚合(简化版)",
+    "bookSourceGroup": "聚合",
+    "bookSourceType": 0,
+    "bookSourceUrl": "光遇聚合",
+    "enabled": true,
+    "enabledExplore": false,
+    "enabledCookieJar": false,
+    "customOrder": -1,
+    "header": "{\"User-Agent\":\"Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36\"}",
+
+    "searchUrl": "js:let gysearch = { key: key, tab: '小说', sourcesKey: '全部', page: page, disabled_sources: '0' }; gysearch = java.base64Encode(JSON.stringify(gysearch)); 'data:;base64,' + gysearch + ',{\"type\":\"gysearch\"}';",
+
+    "ruleSearch": {
+      "checkKeyWord": "我的@番茄",
+      "bookList": "js:let res = JSON.parse(java.base64Decode(result)); let url = '/search?title=' + encodeURIComponent(res.key) + '&tab=' + res.tab + '&source=' + res.sourcesKey + '&page=' + res.page + '&disabled_sources=' + res.disabled_sources; java.get(baseUrl + url);",
+      "name": "$.book_name",
+      "author": "$.author",
+      "coverUrl": "$.thumb_url",
+      "intro": "$.abstract",
+      "kind": "{{$.status}},{{$.score}},{{$.tags}},{{$.last_chapter_update_time}}",
+      "lastChapter": "{{$.source}} {{$.last_chapter_title}}",
+      "wordCount": "$.word_number",
+      "bookUrl": "js:let gydetail = { book_id: result.book_id, sources: result.source, tab: result.tab || '小说', url: result.toc_url || '' }; gydetail = java.base64Encode(JSON.stringify(gydetail)); 'data:;base64,' + gydetail + ',{\"type\":\"gydetail\"}';"
+    },
+
+    "ruleBookInfo": {
+      "init": "js:let res = {}; if (String(baseUrl).startsWith('data:')) { res = JSON.parse(java.base64Decode(result)); } else { return result; } let requestUrl = baseUrl.split(',')[0].replace('data:;base64,',''); requestUrl = java.base64Decode(requestUrl); let parsed = JSON.parse(requestUrl); let api_url = 'https://v1.gyks.cf/detail?book_id=' + parsed.book_id + '&source=' + parsed.sources + '&tab=' + parsed.tab; java.post(api_url, '{}');",
+      "name": "$.book_name",
+      "author": "$.author",
+      "coverUrl": "$.thumb_url",
+      "intro": "$.abstract",
+      "lastChapter": "{{$.source}} {{$.last_chapter_title}} {{$.last_chapter_update_time}}",
+      "wordCount": "$.word_number",
+      "tocUrl": "js:let res = JSON.parse(java.base64Decode(result)); let book_id = res.book_id; let sources = res.source || res.sources; let tab = res.tab || '小说'; let book_name = res.book_name || ''; let author = res.author || ''; let abstract = res.abstract || ''; let thumb_url = res.thumb_url || ''; let gycontent = { book_id, sources, tab, book_name, author, abstract, thumb_url }; gycontent = java.base64Encode(JSON.stringify(gycontent)); 'data:;base64,' + gycontent + ',{\"type\":\"gycontent\"}';"
+    },
+
+    "ruleToc": {
+      "chapterList": "js:let res = JSON.parse(java.base64Decode(result)); let book_id = res.book_id; let tab = res.tab; let sources = res.sources; let url = res.url || ''; let api_url = 'https://v1.gyks.cf/toc?book_id=' + book_id + '&source=' + sources + '&tab=' + tab; let resp = java.get(api_url); let data = JSON.parse(resp); if (data && data.data) { return JSON.stringify(data.data); } '[]';",
+      "chapterName": "$.title",
+      "chapterUrl": "js:let gycontent = { book_id: java.get('book_id'), item_id: result.item_id, title: result.title, source: result.source || result.sources, tab: result.tab || '小说', url: result.toc_url || '' }; gycontent = java.base64Encode(JSON.stringify(gycontent)); 'data:;base64,' + gycontent + ',{\"type\":\"gycontent\"}';",
+      "updateTime": "$.first_pass_time"
+    },
+
+    "ruleContent": {
+      "content": "js:let res = JSON.parse(java.base64Decode(result)); let book_id = res.book_id; let item_id = res.item_id; let tab = res.tab; let title = res.title; let sources = res.source; let url = res.url || ''; let api_url = 'https://v1.gyks.cf/content?book_id=' + book_id + '&item_id=' + item_id + '&source=' + sources + '&tab=' + tab; let resp = java.get(api_url); let data = JSON.parse(resp); if (data && data.data && data.data.content) { return data.data.content; } if (typeof data.data === 'string') return data.data; JSON.stringify(data);"
+    }
+  }
+]
