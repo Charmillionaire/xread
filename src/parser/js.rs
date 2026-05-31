@@ -13,6 +13,7 @@ use serde_json::Value as JsonValue;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use tracing::info;
 use uuid::Uuid;
 
 static JS_KV: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
@@ -132,6 +133,7 @@ fn eval_js_inner_with_source(
         let globals = ctx.globals();
         let input_value = input.unwrap_or("");
         let base_url_value = base_url.unwrap_or("");
+        let base_url_owned = base_url_value.to_string();
         let shared_js = active_js_lib_script()?;
 
         globals.set("input", input_value)?;
@@ -274,6 +276,84 @@ fn eval_js_inner_with_source(
             "uuid",
             Func::new(|| -> String { Uuid::new_v4().to_string() }),
         )?;
+
+        // 光遇聚合书源扩展 API
+        java_obj.set(
+            "hexDecodeToString",
+            Func::new(|input: String| -> String {
+                let hex = input.trim().replace(" ", "");
+                let bytes: Vec<u8> = (0..hex.len())
+                    .step_by(2)
+                    .filter_map(|i| {
+                        hex.get(i..i + 2)
+                            .and_then(|s| u8::from_str_radix(s, 16).ok())
+                    })
+                    .collect();
+                String::from_utf8(bytes).unwrap_or_default()
+            }),
+        )?;
+        java_obj.set(
+            "toast",
+            Func::new(|msg: String| -> String {
+                info!("[JS toast] {}", msg);
+                String::new()
+            }),
+        )?;
+        java_obj.set(
+            "longToast",
+            Func::new(|msg: String| -> String {
+                info!("[JS longToast] {}", msg);
+                String::new()
+            }),
+        )?;
+        java_obj.set(
+            "log",
+            Func::new(|msg: String| -> String {
+                info!("[JS log] {}", msg);
+                String::new()
+            }),
+        )?;
+        java_obj.set(
+            "getCookie",
+            Func::new(|_url: String| -> String {
+                String::new()
+            }),
+        )?;
+        java_obj.set(
+            "getWebViewUA",
+            Func::new(|| -> String {
+                "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36".to_string()
+            }),
+        )?;
+        java_obj.set(
+            "startBrowser",
+            Func::new(|url: String, _title: String| -> String {
+                info!("[JS startBrowser] url={}", url);
+                url
+            }),
+        )?;
+        java_obj.set(
+            "showBrowser",
+            Func::new(|url: String| -> String {
+                info!("[JS showBrowser] url={}", url);
+                url
+            }),
+        )?;
+        java_obj.set(
+            "refreshExplore",
+            Func::new(|| -> String {
+                String::new()
+            }),
+        )?;
+        java_obj.set(
+            "reLoginView",
+            Func::new(|| -> String {
+                String::new()
+            }),
+        )?;
+        java_obj.set("qread", Object::new(ctx.clone())?)?;
+        java_obj.set("lang", Object::new(ctx.clone())?)?;
+
         globals.set("java", java_obj)?;
 
         globals.set(
@@ -302,6 +382,44 @@ fn eval_js_inner_with_source(
         globals.set(
             "strip_ws",
             Func::new(|input: String| -> String { strip_whitespace(&input) }),
+        )?;
+
+        // 光遇聚合书源扩展全局函数
+        globals.set(
+            "getVariable",
+            Func::new(|key: String| -> Option<String> {
+                let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.get(&key).cloned()
+            }),
+        )?;
+        globals.set(
+            "setVariable",
+            Func::new(|key: String, val: String| -> bool {
+                let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.insert(key, val);
+                true
+            }),
+        )?;
+        globals.set(
+            "deleteVariable",
+            Func::new(|key: String| -> bool {
+                let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.remove(&key);
+                true
+            }),
+        )?;
+        let base_url_for_request = base_url_owned.clone();
+        globals.set(
+            "request",
+            Func::new(move |url: String, method: Option<String>, body: Option<String>, _req: Option<bool>, _index: Option<i32>| -> String {
+                let method = method.unwrap_or_else(|| "GET".to_string()).to_uppercase();
+                let full_url = if url.starts_with("http") {
+                    url
+                } else {
+                    format!("{}{}", base_url_for_request, url)
+                };
+                java_request_simple(&method, &full_url, body).unwrap_or_default()
+            }),
         )?;
 
         globals.set("book", Object::new(ctx.clone())?)?;
