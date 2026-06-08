@@ -106,7 +106,7 @@ pub fn parse_txt_chapters(book_url: &str, text: &str) -> Vec<ParsedTxtChapter> {
             .get(heading_index + 1)
             .map(|(start, _, _)| *start)
             .unwrap_or(text.len());
-        let end = trim_chapter_end(text, next_start);
+        let end = trim_chapter_end(text, next_start).max(content_start);
         let index = chapters.len() as i32;
         chapters.push(ParsedTxtChapter {
             title: title.clone(),

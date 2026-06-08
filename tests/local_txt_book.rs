@@ -29,6 +29,19 @@ fn txt_parser_falls_back_to_single_body_chapter() {
 }
 
 #[test]
+fn txt_parser_allows_empty_chapters_between_adjacent_headings() {
+    let text = "第1章 空章\n第二章 正文\n第二章内容。\n";
+
+    let chapters = parse_txt_chapters("local-txt:empty", text);
+
+    assert_eq!(chapters.len(), 2);
+    assert_eq!(chapters[0].title, "第1章 空章");
+    assert_eq!(chapters[0].content, "");
+    assert_eq!(chapters[1].title, "第二章 正文");
+    assert_eq!(chapters[1].content.trim(), "第二章内容。");
+}
+
+#[test]
 fn txt_chapter_urls_are_stable_by_book_url_and_index() {
     assert_eq!(
         build_chapter_url("local-txt:abc123", 7),
