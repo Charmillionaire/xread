@@ -141,6 +141,7 @@ import { useReaderStore } from '../../stores/reader'
 import { useAppStore } from '../../stores/app'
 import type { Bookmark } from '../../types'
 import { listBrowserCachedChapterUrls } from '../../utils/browserCache'
+import { isLocalTxtBook } from '../../utils/localBook'
 
 const props = withDefaults(defineProps<{
   initialTab?: 'chapters' | 'bookmarks'
@@ -227,7 +228,7 @@ async function refreshCatalog() {
 }
 
 async function refreshCachedChapterState() {
-  if (!store.book || !store.chapters.length) {
+  if (!store.book || isLocalTxtBook(store.book) || !store.chapters.length) {
     cachedChapterUrls.value = new Set()
     return
   }

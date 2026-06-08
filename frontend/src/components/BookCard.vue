@@ -102,6 +102,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { getCoverUrl } from '../api/bookshelf'
+import { isLocalTxtBook } from '../utils/localBook'
 import type { Book, SearchBook } from '../types'
 
 const props = defineProps<{
@@ -156,8 +157,8 @@ const unreadCount = computed(() => {
   return Math.max(0, b.totalChapterNum - 1 - b.durChapterIndex)
 })
 
-const browserCachedCount = computed(() => Math.max(0, asBook.value.browserCachedChapterCount || 0))
-const serverCachedCount = computed(() => Math.max(0, asBook.value.cachedChapterCount || 0))
+const browserCachedCount = computed(() => isLocalTxtBook(asBook.value) ? 0 : Math.max(0, asBook.value.browserCachedChapterCount || 0))
+const serverCachedCount = computed(() => isLocalTxtBook(asBook.value) ? 0 : Math.max(0, asBook.value.cachedChapterCount || 0))
 const latestChapterText = computed(() => {
   if (props.isSearch) {
     return asSearchBook.value.lastChapter || asBook.value.latestChapterTitle || ''

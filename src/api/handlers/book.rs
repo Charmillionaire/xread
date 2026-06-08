@@ -1293,18 +1293,11 @@ pub async fn get_shelf_book_with_cache_info(
         let mut cached_count = 0usize;
 
         if is_local_txt_origin(&book.origin) || is_local_txt_url(&book.book_url) {
-            if let Ok(chapters) = state
-                .local_txt_book_service
-                .get_chapter_list(&user_ns, &book.book_url)
-                .await
-            {
-                cached_count = chapters.len();
-            }
             let mut val = serde_json::to_value(&book).unwrap_or(serde_json::json!({}));
             if let Value::Object(ref mut map) = val {
                 map.insert(
                     "cachedChapterCount".to_string(),
-                    serde_json::json!(cached_count),
+                    serde_json::json!(cache_count_for_shelf_display(&book, cached_count)),
                 );
             }
             result.push(val);
@@ -2623,6 +2616,14 @@ fn build_available_book_source_response(
     }
 }
 
+fn cache_count_for_shelf_display(book: &Book, cached_count: usize) -> usize {
+    if is_local_txt_origin(&book.origin) || is_local_txt_url(&book.book_url) {
+        0
+    } else {
+        cached_count
+    }
+}
+
 fn available_source_sse_result_key(book: &SearchBook) -> String {
     format!("{}::{}", book.origin, book.book_url)
 }
@@ -2713,9 +2714,10 @@ fn take_available_source_sse_matches(
 #[cfg(test)]
 mod tests {
     use super::{
-        book_matches_delete_target, build_available_book_source_response, fallback_available_book,
-        should_use_available_source_cache, take_available_source_cached_matches,
-        take_available_source_sse_matches, GetAvailableBookSourceRequest,
+        book_matches_delete_target, build_available_book_source_response,
+        cache_count_for_shelf_display, fallback_available_book, should_use_available_source_cache,
+        take_available_source_cached_matches, take_available_source_sse_matches,
+        GetAvailableBookSourceRequest,
     };
     use crate::model::{book::Book, search::SearchBook};
     use std::collections::HashSet;
@@ -2774,6 +2776,17 @@ mod tests {
         assert_eq!(response.books[19].name, "Book 19");
         assert_eq!(response.last_index, 11);
         assert!(response.has_more);
+    }
+
+    #[test]
+    fn local_txt_books_do_not_report_remote_cache_count_for_shelf_display() {
+        let book = Book {
+            origin: "local-txt".to_string(),
+            book_url: "local-txt:abc".to_string(),
+            ..Book::default()
+        };
+
+        assert_eq!(cache_count_for_shelf_display(&book, 42), 0);
     }
 
     #[test]
