@@ -11,6 +11,7 @@ pub const LOCAL_TXT_ORIGIN: &str = "local-txt";
 pub const LOCAL_TXT_ORIGIN_NAME: &str = "本地 TXT";
 pub const MAX_TXT_UPLOAD_BYTES: usize = 50 * 1024 * 1024;
 const LOCAL_BOOK_DIR: &str = "local_books";
+const LOCAL_TXT_HASH_LEN: usize = 32;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -308,11 +309,20 @@ impl LocalTxtBookService {
             .ok_or_else(|| AppError::BadRequest("章节不存在".to_string()))?;
         let text = fs::read_to_string(self.book_dir(user_ns, &book_url)?.join("book.txt"))
             .await
-            .map_err(|e| AppError::Internal(e.into()))?;
+            .map_err(map_local_txt_read_error)?;
         if chapter.start > chapter.end || chapter.end > text.len() {
             return Err(AppError::BadRequest("章节索引无效".to_string()));
         }
         Ok(text[chapter.start..chapter.end].to_string())
+    }
+
+    pub async fn delete_book_files(&self, user_ns: &str, book_url: &str) -> Result<bool, AppError> {
+        let book_dir = self.book_dir(user_ns, book_url)?;
+        match fs::remove_dir_all(book_dir).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(err) => Err(AppError::Internal(err.into())),
+        }
     }
 
     fn local_root(&self, user_ns: &str) -> PathBuf {
@@ -323,10 +333,7 @@ impl LocalTxtBookService {
     }
 
     fn book_dir(&self, user_ns: &str, book_url: &str) -> Result<PathBuf, AppError> {
-        let hash = book_url
-            .strip_prefix("local-txt:")
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| AppError::BadRequest("本地 TXT 地址无效".to_string()))?;
+        let hash = local_txt_hash_from_url(book_url)?;
         Ok(self.local_root(user_ns).join(hash))
     }
 
@@ -334,7 +341,7 @@ impl LocalTxtBookService {
         let path = self.book_dir(user_ns, book_url)?.join("chapters.json");
         let data = fs::read_to_string(path)
             .await
-            .map_err(|e| AppError::Internal(e.into()))?;
+            .map_err(map_local_txt_read_error)?;
         serde_json::from_str(&data).map_err(|e| AppError::BadRequest(e.to_string()))
     }
 }
@@ -351,7 +358,7 @@ fn fallback_chapter(book_url: &str, text: &str) -> Vec<ParsedTxtChapter> {
 }
 
 fn chapter_heading_regex() -> Option<Regex> {
-    Regex::new(r"^(?:第[\p{N}零〇一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+[章节回卷部集篇]|卷[\p{N}零〇一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+)\b.*$").ok()
+    Regex::new(r"^(?:第[\p{N}零〇一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+[章节回卷部集篇]|卷[\p{N}零〇一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+)(?:$|[\s:：、.．\-—].*|[^\s:：、.．\-—](?:.*[^。！？!?；;，,、])?)$").ok()
 }
 
 fn is_chapter_heading(line: &str, re: &Regex) -> bool {
@@ -394,4 +401,22 @@ fn parse_chapter_url(chapter_url: &str) -> Result<(String, i32), AppError> {
         .parse::<i32>()
         .map_err(|_| AppError::BadRequest("章节序号无效".to_string()))?;
     Ok((book_url.to_string(), index))
+}
+
+fn local_txt_hash_from_url(book_url: &str) -> Result<&str, AppError> {
+    let hash = book_url
+        .strip_prefix("local-txt:")
+        .filter(|value| {
+            value.len() == LOCAL_TXT_HASH_LEN && value.chars().all(|ch| ch.is_ascii_hexdigit())
+        })
+        .ok_or_else(|| AppError::BadRequest("本地 TXT 地址无效".to_string()))?;
+    Ok(hash)
+}
+
+fn map_local_txt_read_error(err: std::io::Error) -> AppError {
+    if err.kind() == std::io::ErrorKind::NotFound {
+        AppError::BadRequest("本地 TXT 不存在".to_string())
+    } else {
+        AppError::Internal(err.into())
+    }
 }

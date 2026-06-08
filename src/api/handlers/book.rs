@@ -1154,6 +1154,7 @@ pub async fn delete_book(
         return Err(AppError::BadRequest("书架书籍不存在".to_string()));
     }
     cleanup_ai_book_memories(&state, &user_ns, &removed_books).await;
+    cleanup_local_txt_book_files(&state, &user_ns, &removed_books).await;
     Ok(Json(ApiResponse::ok(serde_json::json!("删除书籍成功"))))
 }
 
@@ -1170,6 +1171,7 @@ pub async fn delete_books(
     let removed_books = find_matching_books(&state, &user_ns, &books).await?;
     let count = state.book_service.delete_books(&user_ns, books).await?;
     cleanup_ai_book_memories(&state, &user_ns, &removed_books).await;
+    cleanup_local_txt_book_files(&state, &user_ns, &removed_books).await;
     Ok(Json(ApiResponse::ok(serde_json::json!({"deleted": count}))))
 }
 
@@ -2549,9 +2551,35 @@ async fn cleanup_ai_book_memories(state: &AppState, user_ns: &str, books: &[Book
     }
 }
 
+async fn cleanup_local_txt_book_files(state: &AppState, user_ns: &str, books: &[Book]) {
+    for book in books {
+        if !(is_local_txt_origin(&book.origin) || is_local_txt_url(&book.book_url)) {
+            continue;
+        }
+        if let Err(err) = state
+            .local_txt_book_service
+            .delete_book_files(user_ns, &book.book_url)
+            .await
+        {
+            tracing::warn!(
+                "failed to delete local txt book files for {}: {:?}",
+                book.book_url,
+                err
+            );
+        }
+    }
+}
+
 fn book_matches_delete_target(shelf_book: &Book, target: &Book) -> bool {
     if !target.book_url.is_empty() && shelf_book.book_url == target.book_url {
         return true;
+    }
+    if is_local_txt_origin(&shelf_book.origin)
+        || is_local_txt_url(&shelf_book.book_url)
+        || is_local_txt_origin(&target.origin)
+        || is_local_txt_url(&target.book_url)
+    {
+        return false;
     }
     !target.name.is_empty()
         && !target.author.is_empty()

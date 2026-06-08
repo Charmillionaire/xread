@@ -17,6 +17,19 @@ fn txt_parser_splits_common_chapter_headings() {
 }
 
 #[test]
+fn txt_parser_splits_no_space_chapter_headings() {
+    let text = "第一章初见\n第一章正文。\n第2章重逢\n第二章正文。\n";
+
+    let chapters = parse_txt_chapters("local-txt:nospace", text);
+
+    assert_eq!(chapters.len(), 2);
+    assert_eq!(chapters[0].title, "第一章初见");
+    assert_eq!(chapters[0].content.trim(), "第一章正文。");
+    assert_eq!(chapters[1].title, "第2章重逢");
+    assert_eq!(chapters[1].content.trim(), "第二章正文。");
+}
+
+#[test]
 fn txt_parser_falls_back_to_single_body_chapter() {
     let text = "没有章节标题\n只有正文\n";
 
@@ -98,6 +111,55 @@ async fn txt_import_rejects_non_txt_files() {
         .expect_err("non txt file should be rejected");
 
     assert!(err.to_string().contains(".txt"));
+    let _ = std::fs::remove_dir_all(storage_dir);
+}
+
+#[tokio::test]
+async fn txt_service_rejects_non_hash_local_txt_urls() {
+    let storage_dir = std::env::temp_dir().join(format!(
+        "reader-rust-local-txt-path-test-{}",
+        std::process::id()
+    ));
+    let service = reader_rust::service::local_txt_book::LocalTxtBookService::new(&storage_dir);
+
+    let err = service
+        .get_chapter_list("alice", "local-txt:/tmp/escape")
+        .await
+        .expect_err("absolute local txt paths should be rejected");
+
+    assert!(err.to_string().contains("本地 TXT 地址无效"));
+    let _ = std::fs::remove_dir_all(storage_dir);
+}
+
+#[tokio::test]
+async fn txt_delete_removes_imported_book_files() {
+    let storage_dir = std::env::temp_dir().join(format!(
+        "reader-rust-local-txt-delete-test-{}",
+        std::process::id()
+    ));
+    if storage_dir.exists() {
+        std::fs::remove_dir_all(&storage_dir).unwrap();
+    }
+    let service = reader_rust::service::local_txt_book::LocalTxtBookService::new(&storage_dir);
+    let book = service
+        .import_txt_book("alice", "待删除.txt", "第一章 开始\n正文".as_bytes())
+        .await
+        .unwrap();
+    let chapters = service
+        .get_chapter_list("alice", &book.book_url)
+        .await
+        .unwrap();
+
+    assert!(service
+        .delete_book_files("alice", &book.book_url)
+        .await
+        .unwrap());
+    let err = service
+        .get_content("alice", &chapters[0].url)
+        .await
+        .expect_err("deleted local txt content should not remain readable");
+
+    assert!(err.to_string().contains("不存在") || err.to_string().contains("No such file"));
     let _ = std::fs::remove_dir_all(storage_dir);
 }
 

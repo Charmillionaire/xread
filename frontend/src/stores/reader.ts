@@ -1277,7 +1277,8 @@ export const useReaderStore = defineStore('reader', () => {
 
     const chapter = chapters.value[index]
 
-    const useBrowserCache = !isLocalTxtBook(book.value)
+    const isLocalTxt = isLocalTxtBook(book.value)
+    const useBrowserCache = !isLocalTxt
     const browserCached = useBrowserCache
       ? await getBrowserCachedChapter(book.value.bookUrl, chapter.url).catch(() => null)
       : null
@@ -1286,7 +1287,7 @@ export const useReaderStore = defineStore('reader', () => {
       return browserCached
     }
 
-    if (!appStore.isOnline) {
+    if (!appStore.isOnline && !isLocalTxt) {
       if (browserCached) {
         return browserCached
       }
