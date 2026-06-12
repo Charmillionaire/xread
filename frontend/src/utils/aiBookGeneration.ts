@@ -115,6 +115,7 @@ type AiBookToolResult = {
 }
 
 const MAX_AI_BOOK_AGENT_STEPS = 6
+const MAX_AI_BOOK_SUMMARY_CHARS = 1200
 const AI_BOOK_TOOL_GET_MEMORY = 'get_current_memory'
 const AI_BOOK_TOOL_GET_CHAPTER = 'get_completed_chapter'
 const AI_BOOK_TOOL_SAVE_PATCH = 'save_memory_patch'
@@ -201,9 +202,13 @@ export function buildAiBookPromptMessages({
         `必须先调用 ${AI_BOOK_TOOL_GET_MEMORY} 和 ${AI_BOOK_TOOL_GET_CHAPTER}，最后调用 ${AI_BOOK_TOOL_SAVE_PATCH} 完成更新。`,
         '不要在普通文本中输出最终 JSON；最终结果必须放在 save_memory_patch 工具参数里。',
         '无法确认的信息必须标记为“推断”或“未知”。',
-        'summary 用于记录已读剧情进展；worldview 不是章节简介。',
+        'summary 是截至当前已处理章节的累计剧情摘要，不是单章摘要；必须保留并压缩已有 summary，再融入当前章节新增进展。',
+        'summary 必须持续压缩，建议 300-800 字；章节很多时只保留主线、重大转折、核心谜团和当前状态，不要逐章累加。',
+        'summary 禁止以“本章”“第X章”“章节名：”开头；不要只复述当前章节，也不要丢弃前面章节的关键进展。',
+        'summary 是唯一可以记录章节剧情进展的位置；worldview 不是章节简介。',
         'worldview 必须是跨章节可复用的设定集条目，只记录规则、制度、势力、历史、技术/魔法、社会文化、地理环境、组织体系、未确认设定。',
-        'worldview 禁止写成本章剧情复述、人物行动流水账、案件经过、章节摘要；不要使用“本章”“这一章”“第X章”作为设定标题或内容主体。',
+        'worldview 禁止写成本章剧情复述、人物行动流水账、案件经过、章节摘要；不要使用“本章”“这一章”“第X章”“第三章《标题》”作为设定标题或内容主体。',
+        '如果当前章节没有新增稳定设定，worldview 必须输出 []；不要为了凑条目把章节内容改写成长段概述。',
         '世界观必须按 category 分类，例如：基础规则、势力制度、历史传说、技术/魔法、社会文化、地理环境、组织体系、未确认信息。',
         '角色和关系必须填写 importance: high|medium|low；只保留推动剧情、反复出现或明确影响主角行动的 high/medium 项。',
         '不要输出不重要、路人、一次性提及、无状态变化的角色；不要输出寒暄、同村、路过、单纯“认识”等低价值关系。',
@@ -221,11 +226,11 @@ export function buildAiBookPromptMessages({
         task: 'tool-calling-ai-book-memory-update',
         finalTool: AI_BOOK_TOOL_SAVE_PATCH,
         patchSchema: {
-          summary: 'string，已读剧情进展摘要，允许写章节事件',
+          summary: 'string，300-800 字累计已读剧情摘要，必须压缩旧 summary + 当前章节新增进展；禁止写成单章摘要或逐章流水账',
           worldview: [{
             category: '基础规则|势力制度|历史传说|技术/魔法|社会文化|地理环境|组织体系|未确认信息',
-            title: 'string，设定名，不要写“本章/第X章/剧情”',
-            content: 'string，稳定设定说明，不要写章节流水账',
+            title: 'string，设定名，只能是概念/规则/组织/地点体系名，不要写“本章/第X章/剧情/章节名”',
+            content: 'string，稳定设定说明；禁止以章节号、章节名、时间顺序或角色行动复述开头',
             confidence: '已知|推断|未知',
             importance: 'high|medium|low',
           }],
@@ -262,7 +267,9 @@ export function buildAiBookPromptMessages({
         },
         qualityRules: [
           'worldview 必须有 category；同一 category 下不要重复 title；只写设定，不写本章简介。',
+          'summary 必须是累计压缩摘要；如果已有 summary，先保留旧摘要中的主线，再合并当前章节新增变化，全篇控制在 300-800 字。',
           '剧情经过、角色行动、调查过程、战斗过程写入 summary 或角色状态，不要写入 worldview。',
+          'worldview 宁可为空，也不要输出“第X章《标题》：角色先做A、随后做B”的单章总结。',
           'characters 只输出重要角色；背景人物、一次性称呼、无独立状态者不要输出。',
           'relationships 只输出重要关系；同一 source/target/relation 只保留一条，不要反向重复。',
           'locations 必须尽量给 parentName 形成正确层级，父级尺度必须大于子级；无法确认父级时留空。',
@@ -528,9 +535,15 @@ export async function uploadGeneratedMap({
   useBackendProxy = false,
   fetchImpl = fetch,
 }: UploadGeneratedMapParams) {
-  const blob = b64Json
-    ? base64ToBlob(b64Json, 'image/png')
-    : await fetchImageBlob(imageUrl || '', fetchImpl, useBackendProxy)
+  const imageSource = imageUrl || ''
+  let blob: Blob
+  if (b64Json) {
+    blob = base64ToBlob(b64Json, 'image/png')
+  } else if (isDataImageUrl(imageSource)) {
+    blob = dataUrlToBlob(imageSource)
+  } else {
+    blob = await fetchImageBlob(imageSource, fetchImpl, useBackendProxy)
+  }
 
   const formData = new FormData()
   formData.append('file', blob, filename)
@@ -645,7 +658,7 @@ function coerceModelUpdate(raw: AiBookRawModelUpdate, previous: AiBookMemory, bo
     processedChapterIndex: chapter.index,
     processedChapterTitle: chapter.title,
     updatedAt: Date.now(),
-    summary: typeof rawMemory.summary === 'string' ? rawMemory.summary : previous.summary || '',
+    summary: normalizeSummary(rawMemory.summary, previous.summary),
     worldview,
     characters,
     relationships,
@@ -667,6 +680,39 @@ type UnknownRecord = Record<string, unknown>
 function mergeIncrementalItems(previousItems: unknown[] | undefined, nextItems: unknown) {
   const previousArray = Array.isArray(previousItems) ? previousItems : []
   return Array.isArray(nextItems) ? [...previousArray, ...nextItems] : previousArray
+}
+
+function normalizeSummary(nextSummary: unknown, previousSummary: string | undefined) {
+  const previous = (previousSummary || '').trim()
+  if (typeof nextSummary !== 'string') return previous
+
+  const next = nextSummary.trim()
+  if (!next) return limitSummaryLength(previous)
+  if (!previous) return limitSummaryLength(stripSingleChapterSummaryHeading(next))
+  if (startsWithSingleChapterSummary(next)) return limitSummaryLength(previous)
+  return limitSummaryLength(next)
+}
+
+function startsWithSingleChapterSummary(value: string) {
+  return /^(?:本章|本节|这一章)[：:，,]/.test(value.trim())
+    || /^第\s*(?:\d+|[零〇一二两三四五六七八九十百千万]+)\s*[章节回话卷篇][^。！？；]{0,40}[：:]/.test(value.trim())
+}
+
+function stripSingleChapterSummaryHeading(value: string) {
+  return value
+    .trim()
+    .replace(/^(?:本章|本节|这一章)[：:，,]\s*/, '')
+    .replace(/^第\s*(?:\d+|[零〇一二两三四五六七八九十百千万]+)\s*[章节回话卷篇][^。！？；]{0,40}[：:]\s*/, '')
+    .trim()
+}
+
+function limitSummaryLength(value: string) {
+  const chars = [...value.trim()]
+  if (chars.length <= MAX_AI_BOOK_SUMMARY_CHARS) return value.trim()
+
+  const headLength = Math.floor((MAX_AI_BOOK_SUMMARY_CHARS - 2) * 0.55)
+  const tailLength = MAX_AI_BOOK_SUMMARY_CHARS - 2 - headLength
+  return `${chars.slice(0, headLength).join('')}……${chars.slice(-tailLength).join('')}`
 }
 
 function shouldAcceptMapRegeneration({
@@ -733,9 +779,49 @@ function isChapterSummaryWorldview(title: string, content: string, category: str
   if (/^(本章|本节|这一章|此章|第.+章)/.test(content.trim())) {
     return true
   }
+  if (isNarrativeRecapText(title, content)) {
+    return true
+  }
   const plotVerbs = ['搜查', '担心', '登上', '指出', '加入', '透露', '引出', '随后']
   const plotHits = plotVerbs.filter((term) => contentKey.includes(normalizeKey(term))).length
   return content.length > 80 && plotHits >= 3 && !isSettingCategory(category)
+}
+
+function isNarrativeRecapText(title: string, content: string) {
+  const trimmed = content.trim()
+  const combined = `${title} ${trimmed}`
+  const normalized = normalizeKey(combined)
+  const sentenceCount = trimmed
+    .split(/[。！？；]/)
+    .filter((part) => part.trim().length > 0)
+    .length
+  const chapterReference = /第\s*(?:\d+|[零〇一二两三四五六七八九十百千万]+)\s*[章节回话卷篇]/.test(combined)
+    || ['本章', '这一章', '当前章节', '章节内容'].some((term) => normalized.includes(normalizeKey(term)))
+  const narrativeTerms = [
+    '随后',
+    '然后',
+    '接着',
+    '回到',
+    '看到',
+    '告诉',
+    '解释',
+    '拒绝',
+    '催促',
+    '等待',
+    '躺在',
+    '坐在',
+    '担心',
+    '考虑',
+    '讲述',
+    '寻找',
+    '清晨',
+    '下午',
+    '晚上',
+    '第二天',
+  ]
+  const narrativeHits = narrativeTerms.filter((term) => normalized.includes(normalizeKey(term))).length
+  return (chapterReference && trimmed.length > 60 && narrativeHits >= 2)
+    || (trimmed.length > 140 && sentenceCount >= 4 && narrativeHits >= 4)
 }
 
 function isSettingCategory(category: string) {
@@ -1122,6 +1208,30 @@ function base64ToBlob(value: string, contentType: string) {
     bytes[index] = binary.charCodeAt(index)
   }
   return new Blob([bytes], { type: contentType })
+}
+
+function isDataImageUrl(value: string) {
+  return value.trim().toLowerCase().startsWith('data:image/')
+}
+
+function dataUrlToBlob(value: string) {
+  const dataUrl = value.trim()
+  const commaIndex = dataUrl.indexOf(',')
+  if (commaIndex < 0 || !dataUrl.toLowerCase().startsWith('data:')) {
+    throw new Error('地图图片 data URL 无效')
+  }
+
+  const metadata = dataUrl.slice(5, commaIndex)
+  const data = dataUrl.slice(commaIndex + 1)
+  const parts = metadata.split(';').filter(Boolean)
+  const contentType = parts[0] || 'text/plain'
+  if (!contentType.toLowerCase().startsWith('image/')) {
+    throw new Error('地图图片 data URL 不是图片')
+  }
+  if (parts.some((part) => part.toLowerCase() === 'base64')) {
+    return base64ToBlob(data.trim(), contentType)
+  }
+  return new Blob([decodeURIComponent(data)], { type: contentType })
 }
 
 async function fetchImageBlob(imageUrl: string, fetchImpl: typeof fetch, useBackendProxy: boolean) {
