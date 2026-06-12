@@ -74,6 +74,7 @@ import type { Book } from '../types'
 import { deleteBrowserBookCache, listBrowserCacheSummary } from '../utils/browserCache'
 import { cacheBookToBrowser } from '../utils/bookCache'
 import { cacheBookSSE } from '../api/cache'
+import { isLocalTxtBook } from '../utils/localBook'
 
 const props = defineProps<{
   modelValue: boolean
@@ -94,14 +95,16 @@ const mergedBooks = computed(() => {
   const serverMap = new Map(serverBooks.value.map((book) => [book.bookUrl, book.cachedChapterCount || 0]))
   const browserMap = new Map(browserSummaries.value.map((item) => [item.bookUrl, item.cachedChapterCount]))
 
-  return shelfStore.books.map((book) => ({
-    book,
-    bookUrl: book.bookUrl,
-    name: book.name,
-    author: book.author,
-    serverCachedCount: serverMap.get(book.bookUrl) || 0,
-    browserCachedCount: browserMap.get(book.bookUrl) || 0,
-  }))
+  return shelfStore.books
+    .filter((book) => !isLocalTxtBook(book))
+    .map((book) => ({
+      book,
+      bookUrl: book.bookUrl,
+      name: book.name,
+      author: book.author,
+      serverCachedCount: serverMap.get(book.bookUrl) || 0,
+      browserCachedCount: browserMap.get(book.bookUrl) || 0,
+    }))
 })
 
 const offlineReadyCount = computed(() => mergedBooks.value.filter((item) => item.browserCachedCount > 0).length)

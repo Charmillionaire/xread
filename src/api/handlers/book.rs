@@ -2,6 +2,7 @@ use crate::api::auth::AuthContext;
 use crate::api::AppState;
 use crate::error::error::{ApiResponse, AppError};
 use crate::model::{book::Book, book_source::BookSource, search::SearchBook};
+use crate::service::local_txt_book::{is_local_txt_origin, is_local_txt_url, LOCAL_TXT_ORIGIN};
 use crate::util::text::{normalize_source_url, repair_encoded_url};
 use axum::body::Body;
 use axum::body::Bytes;
@@ -9,7 +10,7 @@ use axum::http::{header, StatusCode};
 use axum::response::sse::Event;
 use axum::response::{IntoResponse, Response, Sse};
 use axum::{
-    extract::{Query, State},
+    extract::{Multipart, Query, State},
     Json,
 };
 use futures::stream::FuturesUnordered;
@@ -448,6 +449,20 @@ pub async fn get_book_info(
         .url
         .ok_or_else(|| AppError::BadRequest("url required".to_string()))?;
     let url = repair_encoded_url(&url);
+    if is_local_txt_url(&url)
+        || req
+            .book_source_url
+            .as_deref()
+            .is_some_and(is_local_txt_origin)
+    {
+        let book = state
+            .local_txt_book_service
+            .get_book_info(&user_ns, &url)
+            .await?;
+        return Ok(Json(ApiResponse::ok(
+            serde_json::to_value(book).unwrap_or_default(),
+        )));
+    }
     let source = resolve_book_source(
         &state,
         &user_ns,
@@ -495,6 +510,27 @@ pub async fn get_chapter_list(
     }
 
     let do_refresh = req.refresh.unwrap_or(0) > 0;
+
+    if req
+        .book_source_url
+        .as_deref()
+        .is_some_and(is_local_txt_origin)
+        || req.book_url.as_deref().is_some_and(is_local_txt_url)
+        || req.toc_url.as_deref().is_some_and(is_local_txt_url)
+    {
+        let book_url = req
+            .book_url
+            .as_deref()
+            .or(req.toc_url.as_deref())
+            .ok_or_else(|| AppError::BadRequest("tocUrl or bookUrl required".to_string()))?;
+        let chapters = state
+            .local_txt_book_service
+            .get_chapter_list(&user_ns, &repair_encoded_url(book_url))
+            .await?;
+        return Ok(Json(ApiResponse::ok(
+            serde_json::to_value(chapters).unwrap_or_default(),
+        )));
+    }
 
     let source = resolve_book_source(
         &state,
@@ -646,6 +682,33 @@ pub async fn get_book_content(
     }
 
     let do_refresh = req.refresh.unwrap_or(0) > 0;
+
+    if req
+        .book_source_url
+        .as_deref()
+        .is_some_and(is_local_txt_origin)
+        || req.chapter_url.as_deref().is_some_and(is_local_txt_url)
+    {
+        let url = req
+            .chapter_url
+            .as_deref()
+            .ok_or_else(|| AppError::BadRequest("chapterUrl required".to_string()))?;
+        let chapter_url = if is_local_txt_url(url) && !url.contains('#') {
+            let index = req.index.unwrap_or(0).max(0) as usize;
+            format!(
+                "{}#{}",
+                repair_encoded_url(url).trim_end_matches('#'),
+                index
+            )
+        } else {
+            repair_encoded_url(url)
+        };
+        let content = state
+            .local_txt_book_service
+            .get_content(&user_ns, &chapter_url)
+            .await?;
+        return Ok(Json(ApiResponse::ok(serde_json::Value::String(content))));
+    }
 
     // Determine book_url and chapter_url
     let (book_url, chapter_url) = if let Some(url) = &req.chapter_url {
@@ -842,6 +905,49 @@ pub async fn get_bookshelf(
     let list = state.book_service.get_bookshelf(&user_ns).await?;
     Ok(Json(ApiResponse::ok(
         serde_json::to_value(list).unwrap_or_default(),
+    )))
+}
+
+pub async fn upload_txt_book(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    mut multipart: Multipart,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+
+    let mut file_name = String::new();
+    let mut bytes: Option<Bytes> = None;
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?
+    {
+        let field_name = field.name().unwrap_or_default().to_string();
+        if field_name != "file" {
+            continue;
+        }
+        file_name = field.file_name().unwrap_or("book.txt").to_string();
+        bytes = Some(
+            field
+                .bytes()
+                .await
+                .map_err(|e| AppError::BadRequest(e.to_string()))?,
+        );
+        break;
+    }
+
+    let bytes = bytes.ok_or_else(|| AppError::BadRequest("file required".to_string()))?;
+    let book = state
+        .local_txt_book_service
+        .import_txt_book(&user_ns, &file_name, &bytes)
+        .await?;
+    let saved = state.book_service.save_book(&user_ns, book).await?;
+    Ok(Json(ApiResponse::ok(
+        serde_json::to_value(saved).unwrap_or_default(),
     )))
 }
 
@@ -1048,6 +1154,7 @@ pub async fn delete_book(
         return Err(AppError::BadRequest("书架书籍不存在".to_string()));
     }
     cleanup_ai_book_memories(&state, &user_ns, &removed_books).await;
+    cleanup_local_txt_book_files(&state, &user_ns, &removed_books).await;
     Ok(Json(ApiResponse::ok(serde_json::json!("删除书籍成功"))))
 }
 
@@ -1064,6 +1171,7 @@ pub async fn delete_books(
     let removed_books = find_matching_books(&state, &user_ns, &books).await?;
     let count = state.book_service.delete_books(&user_ns, books).await?;
     cleanup_ai_book_memories(&state, &user_ns, &removed_books).await;
+    cleanup_local_txt_book_files(&state, &user_ns, &removed_books).await;
     Ok(Json(ApiResponse::ok(serde_json::json!({"deleted": count}))))
 }
 
@@ -1097,7 +1205,21 @@ pub async fn save_book_progress(
 
     let mut updated = shelf_book.clone();
     let mut chapter_title: Option<String> = None;
-    if let (Some(toc_url), Ok(Some(source))) = (
+    if is_local_txt_origin(&shelf_book.origin) || is_local_txt_url(&shelf_book.book_url) {
+        if let Ok(chapters) = state
+            .local_txt_book_service
+            .get_chapter_list(&user_ns, &shelf_book.book_url)
+            .await
+        {
+            if index >= 0 && (index as usize) < chapters.len() {
+                chapter_title = Some(chapters[index as usize].title.clone());
+            }
+            updated.total_chapter_num = Some(chapters.len() as i32);
+            if let Some(last) = chapters.last() {
+                updated.latest_chapter_title = Some(last.title.clone());
+            }
+        }
+    } else if let (Some(toc_url), Ok(Some(source))) = (
         shelf_book.toc_url.clone(),
         state
             .book_source_service
@@ -1171,6 +1293,18 @@ pub async fn get_shelf_book_with_cache_info(
 
     for book in books {
         let mut cached_count = 0usize;
+
+        if is_local_txt_origin(&book.origin) || is_local_txt_url(&book.book_url) {
+            let mut val = serde_json::to_value(&book).unwrap_or(serde_json::json!({}));
+            if let Value::Object(ref mut map) = val {
+                map.insert(
+                    "cachedChapterCount".to_string(),
+                    serde_json::json!(cache_count_for_shelf_display(&book, cached_count)),
+                );
+            }
+            result.push(val);
+            continue;
+        }
 
         let candidate_toc_urls = if let Some(toc_url) = &book.toc_url {
             vec![toc_url.clone(), book.book_url.clone()]
@@ -2263,6 +2397,15 @@ async fn resolve_book_source(
     if let Some(src) = book_source {
         return Ok(src);
     }
+    if book_source_url.as_deref().is_some_and(is_local_txt_origin)
+        || book_url.is_some_and(is_local_txt_url)
+    {
+        return Ok(BookSource {
+            book_source_name: "本地 TXT".to_string(),
+            book_source_url: LOCAL_TXT_ORIGIN.to_string(),
+            ..BookSource::default()
+        });
+    }
     if let Some(url) = &book_source_url {
         let normalized = normalize_source_url(url);
         if !normalized.is_empty() {
@@ -2408,9 +2551,35 @@ async fn cleanup_ai_book_memories(state: &AppState, user_ns: &str, books: &[Book
     }
 }
 
+async fn cleanup_local_txt_book_files(state: &AppState, user_ns: &str, books: &[Book]) {
+    for book in books {
+        if !(is_local_txt_origin(&book.origin) || is_local_txt_url(&book.book_url)) {
+            continue;
+        }
+        if let Err(err) = state
+            .local_txt_book_service
+            .delete_book_files(user_ns, &book.book_url)
+            .await
+        {
+            tracing::warn!(
+                "failed to delete local txt book files for {}: {:?}",
+                book.book_url,
+                err
+            );
+        }
+    }
+}
+
 fn book_matches_delete_target(shelf_book: &Book, target: &Book) -> bool {
     if !target.book_url.is_empty() && shelf_book.book_url == target.book_url {
         return true;
+    }
+    if is_local_txt_origin(&shelf_book.origin)
+        || is_local_txt_url(&shelf_book.book_url)
+        || is_local_txt_origin(&target.origin)
+        || is_local_txt_url(&target.book_url)
+    {
+        return false;
     }
     !target.name.is_empty()
         && !target.author.is_empty()
@@ -2472,6 +2641,14 @@ fn build_available_book_source_response(
         books,
         last_index,
         has_more,
+    }
+}
+
+fn cache_count_for_shelf_display(book: &Book, cached_count: usize) -> usize {
+    if is_local_txt_origin(&book.origin) || is_local_txt_url(&book.book_url) {
+        0
+    } else {
+        cached_count
     }
 }
 
@@ -2565,9 +2742,10 @@ fn take_available_source_sse_matches(
 #[cfg(test)]
 mod tests {
     use super::{
-        book_matches_delete_target, build_available_book_source_response, fallback_available_book,
-        should_use_available_source_cache, take_available_source_cached_matches,
-        take_available_source_sse_matches, GetAvailableBookSourceRequest,
+        book_matches_delete_target, build_available_book_source_response,
+        cache_count_for_shelf_display, fallback_available_book, should_use_available_source_cache,
+        take_available_source_cached_matches, take_available_source_sse_matches,
+        GetAvailableBookSourceRequest,
     };
     use crate::model::{book::Book, search::SearchBook};
     use std::collections::HashSet;
@@ -2626,6 +2804,17 @@ mod tests {
         assert_eq!(response.books[19].name, "Book 19");
         assert_eq!(response.last_index, 11);
         assert!(response.has_more);
+    }
+
+    #[test]
+    fn local_txt_books_do_not_report_remote_cache_count_for_shelf_display() {
+        let book = Book {
+            origin: "local-txt".to_string(),
+            book_url: "local-txt:abc".to_string(),
+            ..Book::default()
+        };
+
+        assert_eq!(cache_count_for_shelf_display(&book, 42), 0);
     }
 
     #[test]
