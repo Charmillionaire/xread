@@ -25,7 +25,9 @@ pub struct AiBookMemory {
 pub struct AiBookNote {
     pub title: String,
     pub content: String,
+    pub category: Option<String>,
     pub confidence: Option<String>,
+    pub importance: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -38,6 +40,7 @@ pub struct AiBookCharacter {
     pub location: Option<String>,
     pub description: Option<String>,
     pub last_seen_chapter: Option<String>,
+    pub importance: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -48,6 +51,7 @@ pub struct AiBookRelationship {
     pub relation: String,
     pub status: Option<String>,
     pub description: Option<String>,
+    pub importance: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -55,10 +59,12 @@ pub struct AiBookRelationship {
 pub struct AiBookLocation {
     pub name: String,
     pub kind: Option<String>,
+    pub parent_name: Option<String>,
     pub description: String,
     pub status: Option<String>,
     pub related_characters: Vec<String>,
     pub first_seen_chapter: Option<String>,
+    pub importance: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -68,4 +74,6 @@ pub struct AiBookMap {
     pub prompt: Option<String>,
     pub updated_at: Option<i64>,
     pub source_chapter_index: Option<i32>,
+    pub fallback: Option<String>,
+    pub fallback_reason: Option<String>,
 }

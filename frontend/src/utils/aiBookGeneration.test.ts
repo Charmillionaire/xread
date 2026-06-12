@@ -68,11 +68,17 @@ describe('aiBookGeneration', () => {
     expect(serialized).toContain('第八章 北境')
     expect(serialized).not.toContain('主角抵达北境，只知道旧神传说真假未明。')
     expect(serialized).not.toContain('previousMemory')
+    expect(serialized).toContain('累计剧情摘要')
+    expect(serialized).toContain('300-800 字')
+    expect(serialized).toContain('不要逐章累加')
+    expect(serialized).toContain('禁止以“本章”“第X章”“章节名：”开头')
     expect(serialized).toContain('mapPrompt')
     expect(serialized).toContain('俯视地图')
     expect(serialized).toContain('不要写成场景照片')
     expect(serialized).toContain('category')
     expect(serialized).toContain('worldview 不是章节简介')
+    expect(serialized).toContain('worldview 必须输出 []')
+    expect(serialized).toContain('宁可为空')
     expect(serialized).toContain('parentName')
     expect(serialized).toContain('国家 > 区域/郡 > 城市')
     expect(serialized).toContain('禁止把国家挂在城市下面')
@@ -313,6 +319,13 @@ describe('aiBookGeneration', () => {
                     importance: 'high',
                   },
                   {
+                    category: '基础设定',
+                    title: '梦境与巫师线索',
+                    content: '卢米安坐在屋顶沉思，他一直渴望获得超凡力量但奥萝尔拒绝教他，称这条路危险痛苦。回到房间后看到奥萝尔在用香槟金色钢笔给笔友写信，奥萝尔解释笔友是通过报纸专栏等认识的书信朋友，其中有厉害的人，电池灯就是笔友送的。卢米安躺在床上担心奥萝尔的秘密带来危险。随后卢米安反复做灰色雾气的梦，无论往哪走都会回到自己的卧室，频率越来越高几乎每天都会做。清晨卢米安告诉奥萝尔又做那个梦了，奥萝尔说之前的方案没用，考虑给他找一个真正的催眠师。卢米安想成为巫师解开梦境秘密，奥萝尔拒绝并说这个世界变得越来越危险，催促他准备考试。',
+                    confidence: '已知',
+                    importance: 'high',
+                  },
+                  {
                     category: '基础规则',
                     title: '超凡领域',
                     content: '存在普通执法体系之外的超凡领域，接触者可能成为重点目标。',
@@ -360,7 +373,7 @@ describe('aiBookGeneration', () => {
           message: {
             content: JSON.stringify({
               memory: {
-                summary: '主角离开旧村，抵达北境。',
+                summary: '第十章「北境」：林舟离开旧村，抵达北境。',
                 worldview: [
                   { category: '地理环境', title: '北境', content: '北境是寒冷边境区域，已出现新的线索。', confidence: '已知' },
                 ],
@@ -408,6 +421,7 @@ describe('aiBookGeneration', () => {
       fetchImpl: fetchMock as unknown as typeof fetch,
     })
 
+    expect(update.memory.summary).toBe('主角仍在旧村。')
     expect(update.memory.worldview.map((item) => item.title)).toEqual(['灵脉', '北境'])
     expect(update.memory.characters.map((item) => item.name)).toEqual(['林舟', '沈月'])
     expect(update.memory.characters.find((item) => item.name === '林舟')).toMatchObject({
@@ -419,6 +433,52 @@ describe('aiBookGeneration', () => {
       '林舟-临时同伴-沈月',
     ])
     expect(update.memory.locations.map((item) => item.name)).toEqual(['旧村', '北境'])
+  })
+
+  it('keeps cumulative summaries bounded instead of growing by chapter', async () => {
+    const longSummary = `主线开端。${'主角持续调查线索，局势逐步升级。'.repeat(120)}当前进展仍集中在北境。`
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => ({
+      ok: true,
+      json: async () => ({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              memory: {
+                summary: longSummary,
+                worldview: [],
+                characters: [],
+                relationships: [],
+                locations: [],
+              },
+              shouldRegenerateMap: false,
+            }),
+          },
+        }],
+      }),
+    }))
+
+    const update = await requestAiBookMemoryUpdate({
+      config: readyConfig,
+      book: { name: '山海旧事', author: '佚名', bookUrl: 'book-1', origin: 'source-1' },
+      chapter: { title: '第一千章', url: 'chapter-1000', index: 999 },
+      chapterContent: '主角继续调查。',
+      memory: {
+        bookUrl: 'book-1',
+        enabled: true,
+        updatedAt: 0,
+        summary: '旧累计摘要。',
+        worldview: [],
+        characters: [],
+        relationships: [],
+        locations: [],
+      },
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    })
+
+    expect([...update.memory.summary || '']).toHaveLength(1200)
+    expect(update.memory.summary).toContain('……')
+    expect(update.memory.summary).toContain('主线开端')
+    expect(update.memory.summary).toContain('当前进展仍集中在北境')
   })
 
   it('does not regenerate the world map when requested without location changes', async () => {
@@ -598,6 +658,44 @@ describe('aiBookGeneration', () => {
         body: JSON.stringify({ url: 'https://cdn.example.test/map.png' }),
       }),
     )
+  })
+
+  it('uploads generated data image URLs without backend proxy download', async () => {
+    installLocalStorage()
+    localStorage.setItem('accessToken', 'alice-token')
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      if (url === '/reader3/aiProxyImage') {
+        throw new Error('data image URLs should not be proxied')
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          isSuccess: true,
+          data: ['/assets/alice/ai-maps/map.png'],
+        }),
+      }
+    }) as unknown as typeof fetch
+
+    const url = await uploadGeneratedMap({
+      imageUrl: `data:image/png;base64,${btoa('fake-png')}`,
+      filename: 'map.png',
+      useBackendProxy: true,
+      fetchImpl: fetchMock,
+    })
+
+    expect(url).toBe('/assets/alice/ai-maps/map.png')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/reader3/uploadFile?type=ai-maps',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'alice-token',
+        }),
+        body: expect.any(FormData),
+      }),
+    )
+    expect(fetchMock).not.toHaveBeenCalledWith('/reader3/aiProxyImage', expect.anything())
   })
 
   it('routes text model calls through the backend proxy when enabled', async () => {

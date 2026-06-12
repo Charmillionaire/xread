@@ -1802,7 +1802,6 @@ watch(
   overflow: hidden;
   transition: background 0.3s, color 0.3s;
   padding-top: var(--safe-area-top);
-  padding-bottom: var(--safe-area-bottom);
   box-sizing: border-box;
 }
 
