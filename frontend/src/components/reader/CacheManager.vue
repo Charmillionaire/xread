@@ -13,7 +13,7 @@
     </div>
 
     <div class="cache-body">
-      <div v-if="!isLocalTxt" class="summary-grid">
+      <div v-if="!isLocalBookInServer" class="summary-grid">
         <div class="summary-card">
           <span class="summary-label">服务端缓存</span>
           <strong>{{ serverCachedCount }}</strong>
@@ -42,8 +42,8 @@
       </div>
 
       <div v-else class="cache-sections">
-        <div v-if="isLocalTxt" class="info-card">
-          <p>本地 TXT 已存放在服务端书架文件中，不需要额外缓存；阅读时会直接读取上传后的本地文件。</p>
+        <div v-if="isLocalBookInServer" class="info-card">
+          <p>本地书已存放在服务端书架文件中，不需要额外缓存；阅读时会直接读取上传后的本地文件。</p>
         </div>
 
         <template v-else>
@@ -114,7 +114,7 @@ import { cacheBookSSE } from '../../api/cache'
 import { getBookshelfWithCacheInfo, deleteBookCache } from '../../api/bookshelf'
 import { countBrowserBookCache, deleteBrowserBookCache } from '../../utils/browserCache'
 import { cacheBookToBrowser, resolveBookChapters } from '../../utils/bookCache'
-import { isLocalTxtBook } from '../../utils/localBook'
+import { isLocalBook } from '../../utils/localBook'
 
 const store = useReaderStore()
 const appStore = useAppStore()
@@ -126,7 +126,7 @@ const currentStatus = ref('准备中...')
 const currentChapterName = ref('')
 const serverCachedCount = ref(0)
 const browserCachedCount = ref(0)
-const isLocalTxt = computed(() => isLocalTxtBook(store.book))
+const isLocalBookInServer = computed(() => isLocalBook(store.book))
 let sse: EventSource | null = null
 let browserSignal = { cancelled: false }
 
@@ -140,7 +140,7 @@ onUnmounted(() => {
 
 async function refreshStats() {
   if (!store.book) return
-  if (isLocalTxt.value) {
+  if (isLocalBookInServer.value) {
     serverCachedCount.value = 0
     browserCachedCount.value = 0
     return
@@ -155,7 +155,7 @@ async function refreshStats() {
 }
 
 function startServerCaching(count: number) {
-  if (!store.book || isLocalTxt.value) return
+  if (!store.book || isLocalBookInServer.value) return
   stopWorking()
   working.value = true
   progress.value = 0
@@ -211,7 +211,7 @@ function startServerCaching(count: number) {
 }
 
 async function startBrowserCaching(count: number) {
-  if (!store.book || isLocalTxt.value) return
+  if (!store.book || isLocalBookInServer.value) return
   stopWorking()
   browserSignal = { cancelled: false }
   working.value = true
@@ -253,14 +253,14 @@ async function startBrowserCaching(count: number) {
 }
 
 async function clearServerCache() {
-  if (!store.book || isLocalTxt.value) return
+  if (!store.book || isLocalBookInServer.value) return
   await deleteBookCache(store.book.bookUrl)
   appStore.showToast('服务端缓存已清除', 'success')
   await refreshStats()
 }
 
 async function clearBrowserCache() {
-  if (!store.book || isLocalTxt.value) return
+  if (!store.book || isLocalBookInServer.value) return
   await deleteBrowserBookCache(store.book.bookUrl)
   appStore.showToast('浏览器缓存已清除', 'success')
   await refreshStats()

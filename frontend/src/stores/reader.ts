@@ -18,7 +18,7 @@ import {
 import { getReplaceRules } from '../api/replaceRule'
 import type { Book, BookChapter, Bookmark, ReplaceRule } from '../types'
 import { getBrowserCachedChapter, setBrowserCachedChapter } from '../utils/browserCache'
-import { isLocalTxtBook } from '../utils/localBook'
+import { isLocalBook } from '../utils/localBook'
 import { saveRecentReadBook } from '../utils/recentBooks'
 import {
   DEFAULT_OPENAI_BASE_URL,
@@ -1277,8 +1277,8 @@ export const useReaderStore = defineStore('reader', () => {
 
     const chapter = chapters.value[index]
 
-    const isLocalTxt = isLocalTxtBook(book.value)
-    const useBrowserCache = !isLocalTxt
+    const isLocal = isLocalBook(book.value)
+    const useBrowserCache = !isLocal
     const browserCached = useBrowserCache
       ? await getBrowserCachedChapter(book.value.bookUrl, chapter.url).catch(() => null)
       : null
@@ -1287,7 +1287,7 @@ export const useReaderStore = defineStore('reader', () => {
       return browserCached
     }
 
-    if (!appStore.isOnline && !isLocalTxt) {
+    if (!appStore.isOnline && !isLocal) {
       if (browserCached) {
         return browserCached
       }

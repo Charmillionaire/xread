@@ -119,6 +119,7 @@ pub fn build_router(state: AppState) -> Router {
             post(handlers::remove_book_group_multi),
         )
         .route("/reader3/uploadTxtBook", post(handlers::upload_txt_book))
+        .route("/reader3/uploadEpubBook", post(handlers::upload_epub_book))
         .route("/reader3/saveBook", post(handlers::save_book))
         .route("/reader3/saveBooks", post(handlers::save_books))
         .route("/reader3/setBookSource", post(handlers::set_book_source))
@@ -173,6 +174,10 @@ pub fn build_router(state: AppState) -> Router {
             get(handlers::book_source_debug_sse),
         )
         .route("/reader3/cover", get(handlers::get_book_cover))
+        .route(
+            "/reader3/localEpubAsset",
+            get(handlers::get_local_epub_asset),
+        )
         .route("/reader3/getRssSources", get(handlers::get_rss_sources))
         .route("/reader3/saveRssSource", post(handlers::save_rss_source))
         .route("/reader3/saveRssSources", post(handlers::save_rss_sources))

@@ -12,7 +12,7 @@ import {
 } from '../api/bookshelf'
 import type { Book, BookGroup, SearchBook } from '../types'
 import { deleteBrowserBookCache, listBrowserCacheSummary } from '../utils/browserCache'
-import { isLocalTxtBook } from '../utils/localBook'
+import { isLocalBook } from '../utils/localBook'
 import { clearRecentReadBooks, getRecentReadBookKey, loadRecentReadBooks, removeRecentReadBook } from '../utils/recentBooks'
 
 export const useBookshelfStore = defineStore('bookshelf', () => {
@@ -39,7 +39,7 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
         : entry
       return {
         ...merged,
-        browserCachedChapterCount: isLocalTxtBook(merged) ? 0 : browserMap.get(merged.bookUrl) || merged.browserCachedChapterCount || 0,
+        browserCachedChapterCount: isLocalBook(merged) ? 0 : browserMap.get(merged.bookUrl) || merged.browserCachedChapterCount || 0,
       }
     })
   }
@@ -64,7 +64,7 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
       const browserMap = new Map(browserSummaries.map((item) => [item.bookUrl, item.cachedChapterCount]))
       books.value = serverBooks.map((book) => ({
         ...book,
-        browserCachedChapterCount: isLocalTxtBook(book) ? 0 : browserMap.get(book.bookUrl) || 0,
+        browserCachedChapterCount: isLocalBook(book) ? 0 : browserMap.get(book.bookUrl) || 0,
       }))
       await refreshRecentBooks()
     } finally {
@@ -82,7 +82,7 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
       const browserMap = new Map(browserSummaries.map((item) => [item.bookUrl, item.cachedChapterCount]))
       books.value = serverBooks.map((book) => ({
         ...book,
-        browserCachedChapterCount: isLocalTxtBook(book) ? 0 : browserMap.get(book.bookUrl) || 0,
+        browserCachedChapterCount: isLocalBook(book) ? 0 : browserMap.get(book.bookUrl) || 0,
       }))
       await refreshRecentBooks()
     } finally {

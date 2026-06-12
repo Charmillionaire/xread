@@ -1570,15 +1570,17 @@ fn cookie_domain(source_url: &str) -> String {
     }
 }
 
-fn is_local_txt_book(book: &Book) -> bool {
-    book.origin.trim() == "local-txt" || book.book_url.trim().starts_with("local-txt:")
+fn is_local_book(book: &Book) -> bool {
+    matches!(book.origin.trim(), "local-txt" | "local-epub")
+        || book.book_url.trim().starts_with("local-txt:")
+        || book.book_url.trim().starts_with("local-epub:")
 }
 
 fn books_match_for_save(existing: &Book, incoming: &Book) -> bool {
     if existing.book_url == incoming.book_url {
         return true;
     }
-    if is_local_txt_book(existing) || is_local_txt_book(incoming) {
+    if is_local_book(existing) || is_local_book(incoming) {
         return false;
     }
     !existing.name.is_empty()
@@ -1590,7 +1592,7 @@ fn books_match_for_delete(existing: &Book, target: &Book) -> bool {
     if !target.book_url.is_empty() && existing.book_url == target.book_url {
         return true;
     }
-    if is_local_txt_book(existing) || is_local_txt_book(target) {
+    if is_local_book(existing) || is_local_book(target) {
         return false;
     }
     !target.name.is_empty()

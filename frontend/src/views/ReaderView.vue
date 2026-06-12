@@ -278,7 +278,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick, defineAsyncComp
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { useReaderStore, fontPresets } from '../stores/reader'
 import { useAppStore } from '../stores/app'
-import { getBookInfo } from '../api/bookshelf'
+import { getBookInfo, withAuthQuery } from '../api/bookshelf'
 import { applySystemTheme } from '../utils/systemUi'
 import { countBrowserBookCache } from '../utils/browserCache'
 import { APP_VIEWPORT_CHANGE_EVENT, syncViewportSize } from '../utils/viewport'
@@ -484,25 +484,18 @@ const currentFontFamily = computed(() => {
 
 function formatChapterHtml(rawText: string) {
   if (!rawText) return ''
-  let text = rawText
-
-  if (showSearch.value && searchQuery.value) {
-    try {
-      const regex = new RegExp(`(${searchQuery.value})`, 'gi')
-      text = text.replace(regex, '<mark class="search-highlight">$1</mark>')
-    } catch { /* invalid regex */ }
-  }
-
+  const text = rawText
   const stripLeadingIndent = (line: string) => line.replace(/^[\u3000\u00A0 \t]+/, '')
+  const wrapper = document.createElement('div')
 
   if (/<[a-z][\s\S]*>/i.test(text)) {
-    const wrapper = document.createElement('div')
     wrapper.innerHTML = text
     const paragraphs = Array.from(wrapper.querySelectorAll('p')) as HTMLParagraphElement[]
     if (paragraphs.length) {
       paragraphs.forEach((paragraph) => {
         const plainText = (paragraph.textContent || '').replace(/^[\u3000\u00A0 \t]+/, '').trim()
-        if (!plainText) {
+        const hasRenderableChildren = Boolean(paragraph.querySelector('img, br, ruby, table, ul, ol'))
+        if (!plainText && !hasRenderableChildren) {
           paragraph.remove()
           return
         }
@@ -511,19 +504,83 @@ function formatChapterHtml(rawText: string) {
         paragraph.style.marginBottom = `${config.value.paragraphSpacing}em`
         paragraph.classList.toggle('reader-indent', config.value.firstLineIndent)
       })
-      return wrapper.innerHTML
     }
+  } else {
+    wrapper.innerHTML = text
+      .split(/\n/)
+      .filter((line: string) => line.trim())
+      .map((line: string) => {
+        const shouldIndent = config.value.firstLineIndent
+        const content = escapeHtmlText(stripLeadingIndent(line.trimEnd()))
+        return `<p${shouldIndent ? ' class="reader-indent"' : ''} style="margin-top: 0; margin-bottom: ${config.value.paragraphSpacing}em;">${content}</p>`
+      })
+      .join('')
   }
 
-  return text
-    .split(/\n/)
-    .filter((line: string) => line.trim())
-    .map((line: string) => {
-      const shouldIndent = config.value.firstLineIndent
-      const content = stripLeadingIndent(line.trimEnd())
-      return `<p${shouldIndent ? ' class="reader-indent"' : ''} style="margin-top: 0; margin-bottom: ${config.value.paragraphSpacing}em;">${content}</p>`
-    })
-    .join('')
+  appendLocalEpubAssetAuth(wrapper)
+  highlightSearchText(wrapper)
+  return wrapper.innerHTML
+}
+
+function appendLocalEpubAssetAuth(root: HTMLElement) {
+  const images = Array.from(root.querySelectorAll('img')) as HTMLImageElement[]
+  images.forEach((image) => {
+    const src = image.getAttribute('src') || ''
+    if (src.startsWith('/reader3/localEpubAsset')) {
+      image.setAttribute('src', withAuthQuery(src))
+    }
+  })
+}
+
+function highlightSearchText(root: HTMLElement) {
+  if (!showSearch.value || !searchQuery.value) return
+  const regex = new RegExp(escapeRegExp(searchQuery.value), 'gi')
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement
+      if (!parent || ['MARK', 'SCRIPT', 'STYLE'].includes(parent.tagName)) {
+        return NodeFilter.FILTER_REJECT
+      }
+      regex.lastIndex = 0
+      return regex.test(node.textContent || '') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+    },
+  })
+  const nodes: Text[] = []
+  while (walker.nextNode()) {
+    nodes.push(walker.currentNode as Text)
+  }
+  nodes.forEach((node) => {
+    const value = node.textContent || ''
+    regex.lastIndex = 0
+    const fragment = document.createDocumentFragment()
+    let cursor = 0
+    for (const match of value.matchAll(regex)) {
+      const index = match.index ?? 0
+      if (index > cursor) {
+        fragment.appendChild(document.createTextNode(value.slice(cursor, index)))
+      }
+      const mark = document.createElement('mark')
+      mark.className = 'search-highlight'
+      mark.textContent = match[0]
+      fragment.appendChild(mark)
+      cursor = index + match[0].length
+    }
+    if (cursor < value.length) {
+      fragment.appendChild(document.createTextNode(value.slice(cursor)))
+    }
+    node.parentNode?.replaceChild(fragment, node)
+  })
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function escapeHtmlText(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }
 
 function renderChapterHtml(rawText: string) {

@@ -74,7 +74,7 @@ import type { Book } from '../types'
 import { deleteBrowserBookCache, listBrowserCacheSummary } from '../utils/browserCache'
 import { cacheBookToBrowser } from '../utils/bookCache'
 import { cacheBookSSE } from '../api/cache'
-import { isLocalTxtBook } from '../utils/localBook'
+import { isLocalBook } from '../utils/localBook'
 
 const props = defineProps<{
   modelValue: boolean
@@ -96,7 +96,7 @@ const mergedBooks = computed(() => {
   const browserMap = new Map(browserSummaries.value.map((item) => [item.bookUrl, item.cachedChapterCount]))
 
   return shelfStore.books
-    .filter((book) => !isLocalTxtBook(book))
+    .filter((book) => !isLocalBook(book))
     .map((book) => ({
       book,
       bookUrl: book.bookUrl,

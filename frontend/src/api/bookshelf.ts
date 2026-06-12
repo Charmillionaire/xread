@@ -1,5 +1,6 @@
 import http from './http'
 import type { Book, BookChapter, BookGroup } from '../types'
+import { appendAuthQueryParams } from '../utils/secureAccess'
 
 export function getBookshelf() {
   return http.get<Book[]>('/getBookshelf').then((r) => r.data)
@@ -25,6 +26,14 @@ export function uploadTxtBook(file: File) {
   const formData = new FormData()
   formData.append('file', file)
   return http.post<Book>('/uploadTxtBook', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data)
+}
+
+export function uploadEpubBook(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return http.post<Book>('/uploadEpubBook', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data)
 }
@@ -99,8 +108,19 @@ export function setBookSource(params: {
 // ─── Cover helper ───
 export function getCoverUrl(coverUrl?: string) {
   if (!coverUrl) return ''
+  if (coverUrl.startsWith('/reader3/localEpubAsset')) {
+    return withAuthQuery(coverUrl)
+  }
   if (coverUrl.startsWith('http') || coverUrl.startsWith('/')) {
     return `/reader3/cover?path=${encodeURIComponent(coverUrl)}`
   }
   return coverUrl
+}
+
+export function withAuthQuery(url: string) {
+  if (!url.startsWith('/reader3/localEpubAsset')) return url
+  const [path, rawQuery = ''] = url.split('?')
+  const params = new URLSearchParams(rawQuery)
+  appendAuthQueryParams(params)
+  return `${path}?${params.toString()}`
 }
