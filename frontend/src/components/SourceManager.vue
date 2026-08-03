@@ -520,7 +520,9 @@ async function handleSourceLogin() {
 /** 判断 loginUrl 是否为 JS 登录脚本（而非登录页 URL）。 */
 function isJsLoginUrl(loginUrl: string): boolean {
   const t = loginUrl.trim()
-  if (t.includes('://')) return false
+  // 仅“以” http(s):// 开头才是真实登录页 URL；
+  // 不能用 t.includes('://') 判断——光遇等 JS 脚本内部可能含 http://(用于跳转/浏览器打开)
+  if (t.startsWith('http://') || t.startsWith('https://')) return false
   if (t.startsWith('@js:') || t.startsWith('<js>')) return true
   return (
     (t.startsWith('//') && t.includes('function ')) ||
