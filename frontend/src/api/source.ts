@@ -10,15 +10,31 @@ export function getDefaultBookSourceOwner() {
   return http.get<{ username: string | null }>('/getDefaultBookSourceOwner').then((r) => r.data)
 }
 
-export function loginBookSource(bookSourceUrl: string) {
-  return http.post<{
-    success: boolean
-    status: number
-    url: string
-    checkResult?: string | null
-    bodyPreview?: string
-    bodyHtml?: string
-  }>('/loginBookSource', { bookSourceUrl }).then((r) => r.data)
+export interface LoginCredentials {
+  username?: string
+  password?: string
+}
+
+export function loginBookSource(
+  bookSourceUrl: string,
+  credentials?: LoginCredentials,
+) {
+  return http
+    .post<{
+      success: boolean
+      message?: string
+      status: number
+      url: string
+      checkResult?: string | null
+      cookie?: string
+      result?: string
+      bodyPreview?: string
+      bodyHtml?: string
+    }>('/loginBookSource', {
+      bookSourceUrl,
+      ...(credentials ?? {}),
+    })
+    .then((r) => r.data)
 }
 
 export function getBookSource(bookSourceUrl: string) {

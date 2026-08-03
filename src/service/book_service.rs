@@ -10,7 +10,7 @@ use crate::model::{
     book_source::{BookSource, ExploreKind},
     search::SearchBook,
 };
-use crate::parser::js::{eval_js, eval_js_with_bindings, with_js_lib};
+use crate::parser::js::{eval_js, eval_js_with_bindings, eval_js_with_source_bindings, get_js_cookie, with_js_lib};
 use crate::parser::rule_engine::RuleEngine;
 use crate::storage::cache::file_cache::FileCache;
 use crate::util::hash::md5_hex;
@@ -355,13 +355,62 @@ impl BookService {
 
     pub async fn login_book_source(
         &self,
+        user_ns: &str,
         source: &BookSource,
+        username: Option<&str>,
+        password: Option<&str>,
     ) -> Result<serde_json::Value, AppError> {
         let login_url = source
             .login_url
             .clone()
             .filter(|v| !v.trim().is_empty())
             .ok_or_else(|| AppError::BadRequest("missing loginUrl".to_string()))?;
+
+        if is_js_login_url(&login_url) {
+            let username = username
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| AppError::BadRequest("该书源需要输入账号/邮箱".to_string()))?;
+            let password = password
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| AppError::BadRequest("该书源需要输入密码".to_string()))?;
+
+            let mut bindings = HashMap::new();
+            bindings.insert(
+                "result".to_string(),
+                serde_json::json!({"邮箱": username, "用户名": username, "账号": username, "密码": password}),
+            );
+            let script = format!(
+                "{}\n;typeof login === 'function' ? login.call(globalThis, true) : ''",
+                strip_js_wrapper(&login_url)
+            );
+            let output = with_js_lib(source.js_lib.as_deref(), || {
+                eval_js_with_source_bindings(
+                    &script,
+                    "",
+                    &source.book_source_url,
+                    &source.book_source_url,
+                    &bindings,
+                )
+            })
+            .map_err(|e| AppError::BadRequest(format!("JS 登录执行失败: {e}")))?;
+            let cookie = get_js_cookie(None).or_else(|| get_js_cookie(Some(&source.book_source_url)));
+            let cookie = cookie.filter(|v| !v.trim().is_empty());
+            if let Some(cookie) = cookie.as_deref() {
+                self.set_source_cookie(user_ns, &source.book_source_url, cookie).await;
+            } else {
+                return Ok(serde_json::json!({
+                    "success": false,
+                    "message": "登录脚本未生成 Cookie",
+                    "result": output,
+                }));
+            }
+            return Ok(serde_json::json!({
+                "success": true,
+                "message": "登录成功",
+                "cookie": cookie,
+                "result": output,
+            }));
+        }
 
         let spec = analyze_url(&login_url, "", 1, &source.book_source_url, source)?;
 
@@ -1699,6 +1748,48 @@ fn content_type_from_ext(ext: &str) -> String {
         _ => "application/octet-stream",
     }
     .to_string()
+}
+
+/// 判空某书源的 loginUrl 是否为「JS 登录脚本」（而非真实登录页 URL）。
+/// 光遇聚合等重度书源的 loginUrl 是纯 JS（`//登陆\nfunction login(flag){...}`，
+/// 内部也可能包含 https:// 等代码），需要走 JS 登录路径；而普通书源的 loginUrl
+/// 是 `http(s)://...` 登录页。判断依据优先看「开头特征」而非 contains。
+fn is_js_login_url(login_url: &str) -> bool {
+    let t = login_url.trim();
+    if t.is_empty() {
+        return false;
+    }
+    // 真实登录页 URL：以 http:// 或 https:// 开头（不以 http 开头也当作 JS 处理）
+    if t.starts_with("http://") || t.starts_with("https://") {
+        return false;
+    }
+    // 明确 JS 前缀
+    if t.starts_with("@js:") || t.starts_with("<js>") {
+        return true;
+    }
+    // 光遇风格：`//登陆` 注释开头 + 含 function login/register
+    // 注意：不能用 contains("function ") 判断（JS 里可能有其他 function），
+    // 但以 // 开头的非 URL 字符串基本可确认为 JS 注释脚本。
+    if t.starts_with("//") && (t.contains("function login") || t.contains("function register")) {
+        return true;
+    }
+    // 其它明确含登录函数声明的
+    if t.starts_with("function ") && (t.contains("function login") || t.contains("function register")) {
+        return true;
+    }
+    false
+}
+
+/// 去掉 JS 登录脚本的外层包装（`<js>...</js>` / `@js:` 前缀），露出纯 JS。
+fn strip_js_wrapper(login_url: &str) -> String {
+    let t = login_url.trim();
+    if let Some(rest) = t.strip_prefix("@js:") {
+        return rest.to_string();
+    }
+    if let Some(rest) = t.strip_prefix("<js>") {
+        return rest.strip_suffix("</js>").unwrap_or(rest).to_string();
+    }
+    t.to_string()
 }
 
 #[cfg(test)]

@@ -114,6 +114,38 @@
         </div>
       </div>
     </Transition>
+
+    <!-- JS 登录书源（光遇等）账号密码弹窗 -->
+    <Transition name="scale">
+      <div v-if="credentialLoginVisible" class="login-preview-container" @click.self="credentialLoginVisible = false">
+        <div class="login-preview-modal credential-modal">
+          <div class="login-preview-header">
+            <div>
+              <h3>书源账号登录</h3>
+              <p>{{ pendingLoginSource?.bookSourceName || pendingLoginSource?.bookSourceUrl }}</p>
+            </div>
+            <button class="icon-btn" type="button" @click="credentialLoginVisible = false" title="关闭">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <form class="credential-form" @submit.prevent="submitCredentialLogin">
+            <label>
+              <span>账号 / 邮箱</span>
+              <input v-model="credentialUsername" type="text" placeholder="请输入账号或邮箱" autocomplete="username" />
+            </label>
+            <label>
+              <span>密码</span>
+              <input v-model="credentialPassword" type="password" placeholder="请输入密码" autocomplete="current-password" />
+            </label>
+            <button class="credential-submit" type="submit" :disabled="credentialSubmitting">
+              {{ credentialSubmitting ? '登录中…' : '登 录' }}
+            </button>
+          </form>
+        </div>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
@@ -183,6 +215,13 @@ const sourceLoginLoading = ref(false)
 const loginPreviewVisible = ref(false)
 const loginPreviewUrl = ref('')
 const loginPreviewFrameUrl = ref('')
+
+// JS 登录书源（光遇等）的账号密码输入弹窗
+const credentialLoginVisible = ref(false)
+const credentialSubmitting = ref(false)
+const credentialUsername = ref('')
+const credentialPassword = ref('')
+const pendingLoginSource = ref<BookSource | null>(null)
 
 const groupList = computed(() => getBookSourceGroups(sources.value))
 
@@ -444,6 +483,13 @@ async function handleSourceLogin() {
       throw new Error('当前书源未配置 loginUrl')
     }
 
+    // JS 登录书源（如光遇聚合：loginUrl 是脚本而非登录页 URL）→ 弹出账号密码输入
+    if (isJsLoginUrl(parsed.loginUrl)) {
+      pendingLoginSource.value = parsed
+      credentialLoginVisible.value = true
+      return
+    }
+
     sourceLoginLoading.value = true
     if (!editingSource.value || editingSource.value.bookSourceUrl !== parsed.bookSourceUrl) {
       await saveBookSource(parsed)
@@ -468,6 +514,50 @@ async function handleSourceLogin() {
     appStore.showToast((e as Error).message || '书源登录失败', 'error')
   } finally {
     sourceLoginLoading.value = false
+  }
+}
+
+/** 判断 loginUrl 是否为 JS 登录脚本（而非登录页 URL）。 */
+function isJsLoginUrl(loginUrl: string): boolean {
+  const t = loginUrl.trim()
+  if (t.includes('://')) return false
+  if (t.startsWith('@js:') || t.startsWith('<js>')) return true
+  return (
+    (t.startsWith('//') && t.includes('function ')) ||
+    t.includes('function login') ||
+    t.includes('function register')
+  )
+}
+
+/** 提交 JS 登录的账号密码 */
+async function submitCredentialLogin() {
+  const src = pendingLoginSource.value
+  if (!src || !credentialUsername.value.trim() || !credentialPassword.value) {
+    appStore.showToast('请输入账号和密码', 'error')
+    return
+  }
+  credentialSubmitting.value = true
+  try {
+    if (!editingSource.value || editingSource.value.bookSourceUrl !== src.bookSourceUrl) {
+      await saveBookSource(src)
+      await loadSources()
+      const latest = sources.value.find((item) => item.bookSourceUrl === src.bookSourceUrl)
+      if (latest) editSource(latest)
+    }
+    const result = await loginBookSource(src.bookSourceUrl, {
+      username: credentialUsername.value.trim(),
+      password: credentialPassword.value,
+    })
+    if (result.success) {
+      appStore.showToast(result.message || '登录成功', 'success')
+      credentialLoginVisible.value = false
+    } else {
+      appStore.showToast(result.message || '登录未成功', 'error')
+    }
+  } catch (e: unknown) {
+    appStore.showToast((e as Error).message || '登录失败', 'error')
+  } finally {
+    credentialSubmitting.value = false
   }
 }
 
@@ -750,6 +840,57 @@ watch(() => props.modelValue, (v) => {
   width: 100%;
   border: none;
   background: #fff;
+}
+
+.credential-modal {
+  display: flex;
+  flex-direction: column;
+  max-width: 420px;
+}
+
+.credential-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 2px 8px;
+}
+
+.credential-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-secondary, #555);
+}
+
+.credential-form input {
+  padding: 10px 12px;
+  border: 1.5px solid var(--color-border, #ddd);
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  background: var(--color-bg, #fff);
+}
+
+.credential-form input:focus {
+  border-color: var(--color-primary, #4a90d9);
+}
+
+.credential-submit {
+  margin-top: 6px;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-primary, #4a90d9);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.credential-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 900px) {

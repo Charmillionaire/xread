@@ -17,6 +17,11 @@ use tracing::info;
 use uuid::Uuid;
 
 static JS_KV: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+/// 书源首次无源变量时的默认值：预置含 hosts 的云端配置，
+/// 避免光遇等 jsLib 里 getVariable('云端配置').version / ['hosts'] 访问 null 崩溃。
+/// 与 jsLib 头部 let hosts = [...] 保持一致。
+static DEFAULT_VARIABLE_JSON: &str = r#"{"云端配置":{"version":"","hosts":["https://v1.gyks.cf","https://v2.gyks.cf","https://v3.gyks.cf","https://v4.gyks.cf","https://v5.gyks.cf","https://v6.gyks.cf","https://v7.gyks.cf","http://101.35.133.34:8888"]}}"#;
 static JS_LIB_CACHE: Lazy<Mutex<HashMap<String, String>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 static JS_HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
@@ -25,6 +30,8 @@ static JS_HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
         .gzip(true)
         .brotli(true)
         .deflate(true)
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(20))
         .build()
         .expect("failed to build JS HTTP client")
 });
@@ -69,6 +76,48 @@ pub fn eval_js_with_bindings(
         None,
         Some(bindings),
     )
+}
+
+/// Evaluate a script with source-scoped host objects and JSON bindings.
+/// This is used by source login scripts, which need the same `source` API as
+/// search/content scripts while receiving credentials through `result`.
+pub fn eval_js_with_source_bindings(
+    script: &str,
+    input: &str,
+    base_url: &str,
+    source_key: &str,
+    bindings: &HashMap<String, JsonValue>,
+) -> anyhow::Result<String> {
+    eval_js_inner_with_source(
+        script,
+        Some(input),
+        Some(base_url),
+        None,
+        None,
+        Some(source_key),
+        Some(bindings),
+    )
+}
+
+/// Read a cookie captured by the JS host. Kept deliberately narrow so the
+/// service layer does not depend on the JS KV implementation details.
+pub fn get_js_cookie(url: Option<&str>) -> Option<String> {
+    let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+    let key = match url {
+        Some(url) => format!("__cookie_{}", url),
+        None => "__cookie_all".to_string(),
+    };
+    if let Some(c) = map.get(&key) {
+        if !c.trim().is_empty() {
+            return Some(c.clone());
+        }
+    }
+    // 兼容 setAllCookies 按 host 逐域写 cookie 的情况：扫描所有 __cookie_ 键，
+    // 返回第一个非空 cookie（光遇这类书源登录后 cookie 存在 __cookie_{host} 下）。
+    map.iter()
+        .filter(|(k, v)| k.starts_with("__cookie_") && !v.trim().is_empty())
+        .map(|(_, v)| v.clone())
+        .next()
 }
 
 pub fn eval_js_search_with_source(
@@ -157,12 +206,92 @@ fn eval_js_inner_with_source(
         let sk_clone = source_key_val.clone();
         source_obj.set("key", source_key_val)?;
         source_obj.set("getKey", Func::new(move || sk_clone.clone()))?;
+
+        // ---- 光遇聚合等重度书源所需：源级变量 / 登录信息存取（参考 Rimchars BaseSource）----
+        // jsLib 内部基于 source.getVariable()（无参整段 JSON）/ source.setVariable(String) 实现
+        // key 版 getVariable(k)。首次无变量时返回含默认云端配置的对象，避免
+        // getVariable('云端配置').version / ['hosts'] 访问 null 崩溃。
+        let source_key_for_var = source_key.unwrap_or("").to_string();
+        let var_key = format!("sourceVariable_{}", source_key_for_var);
+        let var_key2 = var_key.clone();
+        let var_key_get = var_key.clone();
+        let login_key = format!("userInfo_{}", source_key_for_var);
+        let login_key2 = login_key.clone();
+        source_obj.set(
+            "getVariable",
+            Func::new(move || -> String {
+                let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                let raw = map.get(&var_key).cloned();
+                drop(map);
+                match raw {
+                    Some(s) if !s.trim().is_empty() => s,
+                    // 首次无变量：预置含 hosts 的云端配置默认对象
+                    _ => DEFAULT_VARIABLE_JSON.to_string(),
+                }
+            }),
+        )?;
+        source_obj.set(
+            "setVariable",
+            Func::new(move |val: String| -> bool {
+                let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.insert(var_key2.clone(), val);
+                true
+            }),
+        )?;
+        source_obj.set(
+            "putVariable",
+            Func::new(move |val: String| -> bool {
+                let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.insert(var_key_get.clone(), val);
+                true
+            }),
+        )?;
+        source_obj.set(
+            "getLoginInfo",
+            Func::new(move || -> Option<String> {
+                let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.get(&login_key).cloned()
+            }),
+        )?;
+        source_obj.set(
+            "putLoginInfo",
+            Func::new(move |val: String| -> bool {
+                let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.insert(login_key2.clone(), val);
+                true
+            }),
+        )?;
         globals.set("source", source_obj)?;
 
+        // ── Cookie 存储 ──
+        // 使用 JS_KV 的 __cookie_{url} 键存储每域 cookie，
+        // 保持 JS 层与 service 层低耦合（service 登录后从 JS_KV 读取并落库）。
         let cookie_obj = Object::new(ctx.clone())?;
         cookie_obj.set(
+            "setCookie",
+            Func::new(move |url: String, cookie: String| -> bool {
+                let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                let key = format!("__cookie_{}", url);
+                map.insert(key, cookie);
+                true
+            }),
+        )?;
+        cookie_obj.set(
+            "getCookie",
+            Func::new(move |url: String| -> Option<String> {
+                let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                let key = format!("__cookie_{}", url);
+                map.get(&key).cloned()
+            }),
+        )?;
+        cookie_obj.set(
             "removeCookie",
-            Func::new(|_key: String| -> String { "".to_string() }),
+            Func::new(move |url: String| -> bool {
+                let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                let key = format!("__cookie_{}", url);
+                map.remove(&key);
+                true
+            }),
         )?;
         globals.set("cookie", cookie_obj)?;
 
@@ -315,8 +444,17 @@ fn eval_js_inner_with_source(
         )?;
         java_obj.set(
             "getCookie",
-            Func::new(|_url: String| -> String {
-                String::new()
+            Func::new(|url: String| -> String {
+                let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.get(&format!("__cookie_{}", url)).cloned().unwrap_or_default()
+            }),
+        )?;
+        java_obj.set(
+            "setAllCookies",
+            Func::new(|cookie: String| -> bool {
+                let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.insert("__cookie_all".to_string(), cookie);
+                true
             }),
         )?;
         java_obj.set(
@@ -385,11 +523,12 @@ fn eval_js_inner_with_source(
         )?;
 
         // 光遇聚合书源扩展全局函数
+        // 取不到时返回空对象 {}（而非 null），避免 getVariable('云端配置').version 崩溃
         globals.set(
             "getVariable",
-            Func::new(|key: String| -> Option<String> {
+            Func::new(|key: String| -> String {
                 let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
-                map.get(&key).cloned()
+                map.get(&key).cloned().unwrap_or_else(|| "{}".to_string())
             }),
         )?;
         globals.set(
@@ -480,7 +619,13 @@ fn java_aes_base64_decode_to_string(input: &str, key: &str, algorithm: &str, iv:
 }
 
 fn eval_script<'js>(ctx: rquickjs::Ctx<'js>, script: &str) -> anyhow::Result<Value<'js>> {
-    match ctx.eval(script) {
+    // 使用非严格全局模式（strict:false）执行书源脚本：
+    // QuickJS 默认 strict=true 会让普通函数调用时 this=undefined，
+    // 而 Legado(Rhino) 书源 jsLib 大量依赖 this.xxx（this 指向全局）。
+    // 设为非严格后，普通函数调用 this 指向 globalThis，兼容光遇等重度书源。
+    let mut opts = rquickjs::context::EvalOptions::default();
+    opts.strict = false;
+    match ctx.eval_with_options::<Value<'js>, String>(script.to_string(), opts) {
         Ok(v) => Ok(v),
         Err(e) => {
             if let Some(exception) = ctx.catch().into_exception() {

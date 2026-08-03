@@ -28,6 +28,16 @@ const MAX_TEST_SOURCE_BATCH_SIZE: usize = 100;
 pub struct BookSourceUrlParam {
     #[serde(rename = "bookSourceUrl")]
     book_source_url: Option<String>,
+    /// JS 登录书源（如光遇）所需的账号/邮箱与密码
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub password: Option<String>,
+    /// 兼容前端可能传的“邮箱/密码”别名（与书目 jsLib 字段名一致）
+    #[serde(alias = "邮箱", default)]
+    pub email: Option<String>,
+    #[serde(alias = "密码", default)]
+    pub pwd: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -201,7 +211,12 @@ pub async fn login_book_source(
         .get(&user_ns, &url)
         .await?
         .ok_or_else(|| AppError::NotFound("bookSource not found".to_string()))?;
-    let result = state.book_service.login_book_source(&source).await?;
+    let username = param.username.or(param.email).filter(|v| !v.trim().is_empty());
+    let password = param.password.or(param.pwd).filter(|v| !v.trim().is_empty());
+    let result = state
+        .book_service
+        .login_book_source(&user_ns, &source, username.as_deref(), password.as_deref())
+        .await?;
     Ok(Json(ApiResponse::ok(result)))
 }
 

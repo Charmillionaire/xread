@@ -149,7 +149,10 @@ pub fn migrate_legacy_book_source_value(mut value: Value) -> Value {
         }
     }
 
-    for key in ["searchUrl", "exploreUrl", "loginUrl"] {
+    // 注意：loginUrl 不做 URL 规则转换——它可能是登录页 URL，
+    // 也可能是光遇这类书源的 JS 登录脚本（`//登陆\nfunction login...`），
+    // convert_legacy_url_rule 按 URL 规则改造会破坏 JS 内容。
+    for key in ["searchUrl", "exploreUrl"] {
         if let Some(Value::String(raw)) = obj.get(key).cloned() {
             obj.insert(
                 key.to_string(),
