@@ -48,8 +48,10 @@ jobs:
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        # 个人账号推用户级 GHCR 包时,GITHUB_TOKEN(由 github-actions bot 持有)
+        # 对 ghcr.io/<user>/<pkg> 用户级包没有写权限,换成 PAT 登录解决。
+        username: Charmillionaire
+        password: ${{ secrets.GHCR_TOKEN }}
 
     - name: Extract metadata
       id: meta
