@@ -1783,7 +1783,11 @@ fn eval_field_json_with_ctx(
     let (pure, js) = extract_js(&pure_rule);
 
     let mut text = if pure.is_empty() {
-        "".to_string()
+        if js.is_some() {
+            v.to_string()
+        } else {
+            "".to_string()
+        }
     } else if pure.contains("{{") && pure.contains("}}") {
         pure.to_string()
     } else if pure.contains('/')

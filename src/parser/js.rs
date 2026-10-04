@@ -186,8 +186,14 @@ fn eval_js_inner_with_source(
         let shared_js = active_js_lib_script()?;
 
         globals.set("input", input_value)?;
-        globals.set("result", input_value)?;
         globals.set("src", input_value)?;
+        // 如果 input_value 是合法 JSON 对象/数组，尝试挂载 parsed 对象并保留 JSON 字符串特性，
+        // 使得无论是 result.book_id 还是 JSON.parse(result) 都能无缝兼容
+        if let Ok(js_parsed) = ctx.json_parse(input_value.to_string()) {
+            globals.set("result", js_parsed)?;
+        } else {
+            globals.set("result", input_value)?;
+        }
         globals.set("base_url", base_url_value)?;
         globals.set("baseUrl", base_url_value)?;
         if let Some(key) = key {
