@@ -1,4 +1,5 @@
 use crate::crawler::http_client::HttpClient;
+use base64::Engine;
 use encoding_rs::Encoding;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -71,7 +72,77 @@ pub struct StrResponse {
     pub is_successful: bool,
 }
 
+/// Handle data: URLs by decoding them locally instead of making HTTP requests.
+/// - `data:;base64,<b64>`: base64-decode the content and expose it as text
+/// - `data:,<text>`: return the text as-is
+fn handle_data_url(url: &str) -> Option<FetchResponse> {
+    let url = url.trim();
+    if !url.starts_with("data:") {
+        return None;
+    }
+    let after_data = &url[5..]; // skip "data:"
+
+    // data:;base64,<b64> or data:;base64,<b64>
+    if let Some(b64_part) = after_data
+        .strip_prefix(";base64,")
+        .or_else(|| after_data.strip_prefix("base64,"))
+    {
+        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64_part.trim()) {
+            let body = String::from_utf8_lossy(&bytes).into_owned();
+            return Some(FetchResponse {
+                url: url.to_string(),
+                status: 200,
+                body,
+                content_type: Some("text/plain; charset=utf-8".to_string()),
+                headers: vec![],
+                is_successful: true,
+            });
+        }
+    }
+
+    if let Some(text) = after_data
+        .strip_prefix(',')
+        .or_else(|| after_data.strip_prefix("text/plain,"))
+    {
+        return Some(FetchResponse {
+            url: url.to_string(),
+            status: 200,
+            body: text.to_string(),
+            content_type: Some("text/plain; charset=utf-8".to_string()),
+            headers: vec![],
+            is_successful: true,
+        });
+    }
+
+    // data:;base64 without comma (unlikely but handle gracefully)
+    if after_data.starts_with(";base64") || after_data.starts_with("base64") {
+        // Try to find the comma
+        if let Some(comma_pos) = after_data.find(',') {
+            let b64_part = &after_data[comma_pos + 1..];
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64_part.trim()) {
+                let body = String::from_utf8_lossy(&bytes).into_owned();
+                return Some(FetchResponse {
+                    url: url.to_string(),
+                    status: 200,
+                    body,
+                    content_type: Some("text/plain; charset=utf-8".to_string()),
+                    headers: vec![],
+                    is_successful: true,
+                });
+            }
+        }
+    }
+
+    None
+}
+
 pub async fn fetch(client: &HttpClient, req: RequestSpec) -> anyhow::Result<FetchResponse> {
+    // Check for data: URLs first — decode locally instead of HTTP
+    if let Some(data_resp) = handle_data_url(&req.url) {
+        tracing::debug!("data: URL handled locally, url={}", &req.url[..req.url.len().min(80)]);
+        return Ok(data_resp);
+    }
+
     let mut last_err: Option<anyhow::Error> = None;
     let max_retries = req.retry;
     for attempt in 0..=max_retries {
