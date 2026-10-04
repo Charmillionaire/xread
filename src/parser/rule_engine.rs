@@ -404,12 +404,28 @@ impl RuleEngine {
         rule: &SearchRule,
         list_rule: &str,
     ) -> Vec<SearchBook> {
-        let output = match eval_js(self.strip_mode_prefix(list_rule), body, base_url) {
+        let (script, output_rule) = split_js_output_rule(list_rule);
+        let output = match eval_js(script, body, base_url) {
             Ok(result) => result,
             Err(_) => return vec![],
         };
 
-        if let Some(items) = parse_js_output_items(&output) {
+        let items = if let Some(rule) = output_rule {
+            let Ok(value) = serde_json::from_str::<Value>(output.trim()) else {
+                return vec![];
+            };
+            let selected = jsonpath::jsonpath_query(&value, rule);
+            if selected.is_empty() {
+                return vec![];
+            }
+            selected
+        } else if let Some(items) = parse_js_output_items(&output) {
+            items
+        } else {
+            Vec::new()
+        };
+
+        if !items.is_empty() {
             let mut out = Vec::with_capacity(items.len());
             for item in items {
                 if let Some(book) = build_search_book_from_json(source, &item, base_url, rule) {
@@ -1995,11 +2011,12 @@ fn normalize_list_rule(rule: &str) -> (&str, bool) {
 
 fn strip_mode_prefix(rule: &str) -> &str {
     let rule = rule.trim();
-    if let Some(rest) = rule
-        .strip_prefix("<js>")
-        .and_then(|s| s.strip_suffix("</js>"))
-    {
-        return rest;
+    // Handle <js>code</js>suffix pattern: extract just the JS code between <js> and </js>,
+    // ignoring any trailing content (e.g. "$.data" after </js>).
+    if let Some(rest) = rule.strip_prefix("<js>") {
+        if let Some(js_end) = rest.find("</js>") {
+            return rest[..js_end].trim();
+        }
     }
     for prefix in [
         "@css:", "@CSS:", "@xpath:", "@XPath:", "@XPATH:", "@json:", "@Json:", "@JSON:", "@regex:",
@@ -2014,11 +2031,11 @@ fn strip_mode_prefix(rule: &str) -> &str {
 
 fn strip_js_rule(rule: &str) -> &str {
     let rule = rule.trim();
-    if let Some(rest) = rule
-        .strip_prefix("<js>")
-        .and_then(|s| s.strip_suffix("</js>"))
-    {
-        return rest;
+    // Handle <js>code</js>suffix pattern
+    if let Some(rest) = rule.strip_prefix("<js>") {
+        if let Some(js_end) = rest.find("</js>") {
+            return rest[..js_end].trim();
+        }
     }
     if let Some(rest) = rule.strip_prefix("@js:") {
         return rest;
@@ -2027,6 +2044,26 @@ fn strip_js_rule(rule: &str) -> &str {
         return rest;
     }
     rule
+}
+
+/// Split a Legado book-list rule such as `<js>request(url)</js>$.data` into
+/// the executable JS and the JSONPath applied to its returned JSON.
+fn split_js_output_rule(rule: &str) -> (&str, Option<&str>) {
+    let rule = rule.trim();
+    if let Some(rest) = rule.strip_prefix("<js>") {
+        if let Some(end) = rest.find("</js>") {
+            let script = rest[..end].trim();
+            let suffix = rest[end + "</js>".len()..].trim();
+            return (script, (!suffix.is_empty()).then_some(suffix));
+        }
+    }
+    if let Some(script) = rule.strip_prefix("@js:") {
+        return (script.trim(), None);
+    }
+    if let Some(script) = rule.strip_prefix("js:") {
+        return (script.trim(), None);
+    }
+    (rule, None)
 }
 
 fn prepare_toc_body(body: &str, base_url: &str, rule: &TocRule) -> String {
