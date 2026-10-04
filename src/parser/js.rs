@@ -411,6 +411,12 @@ fn eval_js_inner_with_source(
             "hexDecodeToString",
             Func::new(|input: String| -> String {
                 let hex = input.trim().replace(" ", "");
+                // Legado sources sometimes pass plain UTF-8 data here (notably
+                // data: URL intermediates). Preserve it when the input is not
+                // valid hex rather than silently turning it into garbage.
+                if hex.is_empty() || hex.len() % 2 != 0 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                    return input;
+                }
                 let bytes: Vec<u8> = (0..hex.len())
                     .step_by(2)
                     .filter_map(|i| {
@@ -418,7 +424,7 @@ fn eval_js_inner_with_source(
                             .and_then(|s| u8::from_str_radix(s, 16).ok())
                     })
                     .collect();
-                String::from_utf8(bytes).unwrap_or_default()
+                String::from_utf8(bytes).unwrap_or(input)
             }),
         )?;
         java_obj.set(
@@ -619,7 +625,9 @@ fn java_aes_base64_decode_to_string(input: &str, key: &str, algorithm: &str, iv:
 }
 
 fn eval_script<'js>(ctx: rquickjs::Ctx<'js>, script: &str) -> anyhow::Result<Value<'js>> {
-    // 使用非严格全局模式（strict:false）执行书源脚本：
+    // Legado/Rhino accepts `\\{` in source strings as a literal `{`; QuickJS
+    // rejects it as an invalid escape. Normalize this narrow compatibility spelling.
+    let script = script.replace("\\{", "{");
     // QuickJS 默认 strict=true 会让普通函数调用时 this=undefined，
     // 而 Legado(Rhino) 书源 jsLib 大量依赖 this.xxx（this 指向全局）。
     // 设为非严格后，普通函数调用 this 指向 globalThis，兼容光遇等重度书源。
