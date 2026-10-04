@@ -15,6 +15,7 @@ pub struct AppConfig {
     pub invite_code: String,
     pub user_limit: u32,
     pub user_book_limit: u32,
+    pub user_local_book_limit: u32,
 }
 
 impl Default for AppConfig {
@@ -33,6 +34,7 @@ impl Default for AppConfig {
             invite_code: "".to_string(),
             user_limit: 50,
             user_book_limit: 2000,
+            user_local_book_limit: 0,
         }
     }
 }
@@ -54,6 +56,10 @@ pub fn load() -> anyhow::Result<AppConfig> {
         .set_default("invite_code", defaults.invite_code)?
         .set_default("user_limit", defaults.user_limit as i64)?
         .set_default("user_book_limit", defaults.user_book_limit as i64)?
+        .set_default(
+            "user_local_book_limit",
+            defaults.user_local_book_limit as i64,
+        )?
         .add_source(config::Environment::default().try_parsing(true))
         .build()?;
     Ok(cfg.try_deserialize()?)

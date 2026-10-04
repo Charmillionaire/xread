@@ -31,6 +31,18 @@
               <span class="shelf-btn-label">取消全选</span>
             </button>
           </template>
+          <button class="shelf-btn" type="button" title="导入本地书" aria-label="导入本地书" @click="triggerLocalBookUpload" :disabled="localBookUploading">
+            <svg v-if="!localBookUploading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3v12" />
+              <path d="m7 8 5-5 5 5" />
+              <path d="M5 21h14" />
+            </svg>
+            <svg v-else class="spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 0 0-15.55-6.2L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+            <span class="shelf-btn-label">{{ localBookUploading ? '导入中' : '导入本地书' }}</span>
+          </button>
           <button class="shelf-btn" type="button" title="刷新书架" aria-label="刷新书架" @click="handleRefreshBooks" :disabled="shelfStore.refreshing">
             <svg :class="{ spinning: shelfStore.refreshing }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 12a9 9 0 0 0-15.55-6.2L3 8" />
@@ -74,6 +86,14 @@
           </button>
         </div>
       </div>
+
+      <input
+        ref="localBookFileInputRef"
+        type="file"
+        accept=".txt,.epub,text/plain,application/epub+zip"
+        class="hidden-input"
+        @change="handleLocalBookFileChange"
+      />
 
       <!-- Group Tabs -->
       <div class="group-tabs">
@@ -151,6 +171,7 @@ import { useRouter } from 'vue-router'
 import { useBookshelfStore } from '../stores/bookshelf'
 import { useReaderStore } from '../stores/reader'
 import { useAppStore } from '../stores/app'
+import { uploadEpubBook, uploadTxtBook } from '../api/bookshelf'
 import BookGrid from '../components/BookGrid.vue'
 import BookDetailModal from '../components/BookDetailModal.vue'
 import GroupSelectModal from '../components/bookshelf/GroupSelectModal.vue'
@@ -170,6 +191,8 @@ const showGroupManager = ref(false)
 const showCacheManager = ref(false)
 const selectedBook = ref<Book | SearchBook | null>(null)
 const openingBookUrl = ref('')
+const localBookFileInputRef = ref<HTMLInputElement | null>(null)
+const localBookUploading = ref(false)
 
 onMounted(async () => {
   await appStore.fetchUserInfo()
@@ -185,6 +208,38 @@ onMounted(async () => {
     }
   }
 })
+
+function triggerLocalBookUpload() {
+  if (localBookUploading.value) return
+  localBookFileInputRef.value?.click()
+}
+
+async function handleLocalBookFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  const lowerName = file.name.toLowerCase()
+  if (!lowerName.endsWith('.txt') && !lowerName.endsWith('.epub')) {
+    appStore.showToast('只支持导入 .txt 或 .epub 文件', 'warning')
+    return
+  }
+
+  localBookUploading.value = true
+  try {
+    const book = lowerName.endsWith('.epub')
+      ? await uploadEpubBook(file)
+      : await uploadTxtBook(file)
+    await shelfStore.fetchBooks()
+    appStore.showToast(`已导入《${book.name}》`, 'success')
+    await handleBookClick(book)
+  } catch (e: unknown) {
+    appStore.showToast((e as Error).message || '本地书导入失败', 'error')
+  } finally {
+    localBookUploading.value = false
+  }
+}
 
 async function handleBookClick(book: Book | SearchBook) {
   const b = book as Book
@@ -299,6 +354,10 @@ async function handleRefreshBooks() {
   min-height: 0;
 }
 
+
+.hidden-input {
+  display: none;
+}
 
 .shelf-header {
   display: flex;

@@ -54,7 +54,11 @@ export function useReaderAutoPlayback(
       ? Array.from(scrollContainerRef.value?.querySelectorAll('.chapter-text[data-role="continuous"]') || []) as HTMLElement[]
       : (chapterTextRef.value ? [chapterTextRef.value] : [])
     if (!roots.length) return [] as HTMLElement[]
-    const allElements = roots.flatMap((root) => Array.from(root.querySelectorAll('p')) as HTMLElement[])
+    const allElements = roots.flatMap((root) => {
+      const paragraphs = Array.from(root.querySelectorAll('p')) as HTMLElement[]
+      if (paragraphs.length) return paragraphs
+      return root.innerText.trim() ? [root] : []
+    })
     const list: HTMLElement[] = []
     let lastText = ''
     allElements.forEach((el) => {

@@ -443,6 +443,18 @@ impl UserService {
         Err(AppError::BadRequest("NEED_LOGIN".to_string()))
     }
 
+    pub async fn require_login_user_ns(
+        &self,
+        access_token: Option<&str>,
+    ) -> Result<String, AppError> {
+        let token = access_token.ok_or_else(|| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+        let user = self
+            .check_auth(token)
+            .await?
+            .ok_or_else(|| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+        Ok(user.username)
+    }
+
     pub async fn verify_basic_webdav(
         &self,
         username: &str,
@@ -830,10 +842,14 @@ mod tests {
     use crate::storage::db;
 
     async fn create_user_service() -> (UserService, PathBuf) {
+        create_user_service_with_secure(true).await
+    }
+
+    async fn create_user_service_with_secure(secure: bool) -> (UserService, PathBuf) {
         let temp_dir =
             std::env::temp_dir().join(format!("reader-rust-user-service-{}", random_string(8)));
         let cfg = AppConfig {
-            secure: true,
+            secure,
             storage_dir: temp_dir.to_string_lossy().to_string(),
             ..AppConfig::default()
         };
@@ -841,6 +857,30 @@ mod tests {
         let database_url = format!("sqlite:{}?mode=rwc", temp_dir.join("reader.db").display());
         let pool = db::init_pool(&database_url).await.unwrap();
         (UserService::new(cfg, pool), temp_dir)
+    }
+
+    #[tokio::test]
+    async fn require_login_user_ns_rejects_missing_token_when_secure_is_disabled() {
+        let (service, temp_dir) = create_user_service_with_secure(false).await;
+
+        let err = service.require_login_user_ns(None).await.unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(message) if message == "NEED_LOGIN"));
+
+        let login = service
+            .login("reader1", "password123", false, None)
+            .await
+            .unwrap();
+        let access_token = login["accessToken"].as_str().unwrap();
+
+        assert_eq!(
+            service
+                .require_login_user_ns(Some(access_token))
+                .await
+                .unwrap(),
+            "reader1"
+        );
+
+        let _ = fs::remove_dir_all(temp_dir).await;
     }
 
     #[tokio::test]

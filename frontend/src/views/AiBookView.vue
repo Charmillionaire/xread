@@ -52,29 +52,35 @@
       <main class="ai-content">
         <section v-if="activeTab === 'overview'" class="overview-grid">
           <div class="overview-main">
-            <h2>世界观</h2>
-            <p class="summary">{{ memory.summary || '暂无资料' }}</p>
-            <div class="worldview-groups">
-              <section v-for="group in worldviewGroups" :key="group.category" class="worldview-group">
-                <div class="group-head">
-                  <button class="group-toggle" @click="toggleWorldviewGroup(group.category)">
-                    <span>{{ group.collapsed ? '+' : '-' }}</span>
-                    <h3>{{ group.category }}</h3>
-                  </button>
-                  <span>{{ group.items.length }}</span>
-                </div>
-                <div v-if="!group.collapsed" class="group-items">
-                  <article v-for="note in group.items" :key="`${group.category}-${note.title}`" class="note-item">
-                    <div class="item-title">
-                      <h4>{{ note.title }}</h4>
-                      <span v-if="note.confidence">{{ note.confidence }}</span>
-                    </div>
-                    <p>{{ note.content }}</p>
-                  </article>
-                </div>
-              </section>
-            </div>
-            <EmptyState v-if="!worldviewGroups.length" text="暂无世界观资料" />
+            <h2>总览</h2>
+            <section class="overview-section">
+              <h3>剧情摘要</h3>
+              <p class="summary">{{ memory.summary || '暂无资料' }}</p>
+            </section>
+            <section class="overview-section">
+              <h3>世界观资料</h3>
+              <div class="worldview-groups">
+                <section v-for="group in worldviewGroups" :key="group.category" class="worldview-group">
+                  <div class="group-head">
+                    <button class="group-toggle" @click="toggleWorldviewGroup(group.category)">
+                      <span>{{ group.collapsed ? '+' : '-' }}</span>
+                      <h3>{{ group.category }}</h3>
+                    </button>
+                    <span>{{ group.items.length }}</span>
+                  </div>
+                  <div v-if="!group.collapsed" class="group-items">
+                    <article v-for="note in group.items" :key="`${group.category}-${note.title}`" class="note-item">
+                      <div class="item-title">
+                        <h4>{{ note.title }}</h4>
+                        <span v-if="note.confidence">{{ note.confidence }}</span>
+                      </div>
+                      <p>{{ note.content }}</p>
+                    </article>
+                  </div>
+                </section>
+              </div>
+              <EmptyState v-if="!worldviewGroups.length" text="暂无世界观资料" />
+            </section>
           </div>
 
           <aside class="overview-side">
@@ -1262,8 +1268,17 @@ function cloneServerModelConfig(config: AiServerModelConfig): AiServerModelConfi
   font-size: 18px;
 }
 
+.overview-section + .overview-section {
+  margin-top: 20px;
+}
+
+.overview-section > h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
 .summary {
-  margin: 0 0 18px;
+  margin: 0;
   line-height: 1.8;
   color: var(--color-text-secondary);
 }

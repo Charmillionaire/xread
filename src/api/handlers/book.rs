@@ -2,6 +2,12 @@ use crate::api::auth::AuthContext;
 use crate::api::AppState;
 use crate::error::error::{ApiResponse, AppError};
 use crate::model::{book::Book, book_source::BookSource, search::SearchBook};
+use crate::service::local_epub_book::{
+    is_local_epub_origin, is_local_epub_url, LOCAL_EPUB_ORIGIN, MAX_EPUB_UPLOAD_BYTES,
+};
+use crate::service::local_txt_book::{
+    is_local_txt_origin, is_local_txt_url, LOCAL_TXT_ORIGIN, MAX_TXT_UPLOAD_BYTES,
+};
 use crate::util::text::{normalize_source_url, repair_encoded_url};
 use axum::body::Body;
 use axum::body::Bytes;
@@ -9,7 +15,7 @@ use axum::http::{header, StatusCode};
 use axum::response::sse::Event;
 use axum::response::{IntoResponse, Response, Sse};
 use axum::{
-    extract::{Query, State},
+    extract::{multipart::Field, Multipart, Query, State},
     Json,
 };
 use futures::stream::FuturesUnordered;
@@ -125,6 +131,13 @@ pub struct GetShelfBookRequest {
 #[derive(Debug, Deserialize)]
 pub struct CoverQuery {
     path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LocalEpubAssetQuery {
+    #[serde(rename = "bookUrl")]
+    book_url: String,
+    path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -448,6 +461,34 @@ pub async fn get_book_info(
         .url
         .ok_or_else(|| AppError::BadRequest("url required".to_string()))?;
     let url = repair_encoded_url(&url);
+    if is_local_txt_url(&url)
+        || req
+            .book_source_url
+            .as_deref()
+            .is_some_and(is_local_txt_origin)
+    {
+        let book = state
+            .local_txt_book_service
+            .get_book_info(&user_ns, &url)
+            .await?;
+        return Ok(Json(ApiResponse::ok(
+            serde_json::to_value(book).unwrap_or_default(),
+        )));
+    }
+    if is_local_epub_url(&url)
+        || req
+            .book_source_url
+            .as_deref()
+            .is_some_and(is_local_epub_origin)
+    {
+        let book = state
+            .local_epub_book_service
+            .get_book_info(&user_ns, &url)
+            .await?;
+        return Ok(Json(ApiResponse::ok(
+            serde_json::to_value(book).unwrap_or_default(),
+        )));
+    }
     let source = resolve_book_source(
         &state,
         &user_ns,
@@ -495,6 +536,48 @@ pub async fn get_chapter_list(
     }
 
     let do_refresh = req.refresh.unwrap_or(0) > 0;
+
+    if req
+        .book_source_url
+        .as_deref()
+        .is_some_and(is_local_txt_origin)
+        || req.book_url.as_deref().is_some_and(is_local_txt_url)
+        || req.toc_url.as_deref().is_some_and(is_local_txt_url)
+    {
+        let book_url = req
+            .book_url
+            .as_deref()
+            .or(req.toc_url.as_deref())
+            .ok_or_else(|| AppError::BadRequest("tocUrl or bookUrl required".to_string()))?;
+        let chapters = state
+            .local_txt_book_service
+            .get_chapter_list(&user_ns, &repair_encoded_url(book_url))
+            .await?;
+        return Ok(Json(ApiResponse::ok(
+            serde_json::to_value(chapters).unwrap_or_default(),
+        )));
+    }
+
+    if req
+        .book_source_url
+        .as_deref()
+        .is_some_and(is_local_epub_origin)
+        || req.book_url.as_deref().is_some_and(is_local_epub_url)
+        || req.toc_url.as_deref().is_some_and(is_local_epub_url)
+    {
+        let book_url = req
+            .book_url
+            .as_deref()
+            .or(req.toc_url.as_deref())
+            .ok_or_else(|| AppError::BadRequest("tocUrl or bookUrl required".to_string()))?;
+        let chapters = state
+            .local_epub_book_service
+            .get_chapter_list(&user_ns, &repair_encoded_url(book_url))
+            .await?;
+        return Ok(Json(ApiResponse::ok(
+            serde_json::to_value(chapters).unwrap_or_default(),
+        )));
+    }
 
     let source = resolve_book_source(
         &state,
@@ -646,6 +729,60 @@ pub async fn get_book_content(
     }
 
     let do_refresh = req.refresh.unwrap_or(0) > 0;
+
+    if req
+        .book_source_url
+        .as_deref()
+        .is_some_and(is_local_txt_origin)
+        || req.chapter_url.as_deref().is_some_and(is_local_txt_url)
+    {
+        let url = req
+            .chapter_url
+            .as_deref()
+            .ok_or_else(|| AppError::BadRequest("chapterUrl required".to_string()))?;
+        let chapter_url = if is_local_txt_url(url) && !url.contains('#') {
+            let index = req.index.unwrap_or(0).max(0) as usize;
+            format!(
+                "{}#{}",
+                repair_encoded_url(url).trim_end_matches('#'),
+                index
+            )
+        } else {
+            repair_encoded_url(url)
+        };
+        let content = state
+            .local_txt_book_service
+            .get_content(&user_ns, &chapter_url)
+            .await?;
+        return Ok(Json(ApiResponse::ok(serde_json::Value::String(content))));
+    }
+
+    if req
+        .book_source_url
+        .as_deref()
+        .is_some_and(is_local_epub_origin)
+        || req.chapter_url.as_deref().is_some_and(is_local_epub_url)
+    {
+        let url = req
+            .chapter_url
+            .as_deref()
+            .ok_or_else(|| AppError::BadRequest("chapterUrl required".to_string()))?;
+        let chapter_url = if is_local_epub_url(url) && !url.contains('#') {
+            let index = req.index.unwrap_or(0).max(0) as usize;
+            format!(
+                "{}#{}",
+                repair_encoded_url(url).trim_end_matches('#'),
+                index
+            )
+        } else {
+            repair_encoded_url(url)
+        };
+        let content = state
+            .local_epub_book_service
+            .get_content(&user_ns, &chapter_url)
+            .await?;
+        return Ok(Json(ApiResponse::ok(serde_json::Value::String(content))));
+    }
 
     // Determine book_url and chapter_url
     let (book_url, chapter_url) = if let Some(url) = &req.chapter_url {
@@ -842,6 +979,153 @@ pub async fn get_bookshelf(
     let list = state.book_service.get_bookshelf(&user_ns).await?;
     Ok(Json(ApiResponse::ok(
         serde_json::to_value(list).unwrap_or_default(),
+    )))
+}
+
+async fn read_limited_multipart_field(
+    mut field: Field<'_>,
+    max_bytes: usize,
+    too_large_message: &str,
+) -> Result<Vec<u8>, AppError> {
+    let mut bytes = Vec::new();
+    while let Some(chunk) = field
+        .chunk()
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?
+    {
+        if bytes.len().saturating_add(chunk.len()) > max_bytes {
+            return Err(AppError::BadRequest(too_large_message.to_string()));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
+}
+
+async fn ensure_user_local_book_limit(
+    state: &AppState,
+    user_ns: &str,
+    incoming_book_url: &str,
+) -> Result<(), AppError> {
+    let limit = state.config.user_local_book_limit;
+    if limit == 0 {
+        return Ok(());
+    }
+    let books = state.book_service.get_bookshelf(user_ns).await?;
+    if local_book_limit_exceeded(&books, incoming_book_url, limit) {
+        return Err(AppError::BadRequest(format!(
+            "本地书籍数量不能超过 {limit} 本"
+        )));
+    }
+    Ok(())
+}
+
+pub async fn upload_txt_book(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    mut multipart: Multipart,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .require_login_user_ns(auth.access_token())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+
+    let mut file_name = String::new();
+    let mut bytes: Option<Vec<u8>> = None;
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?
+    {
+        let field_name = field.name().unwrap_or_default().to_string();
+        if field_name != "file" {
+            continue;
+        }
+        file_name = field.file_name().unwrap_or("book.txt").to_string();
+        bytes = Some(
+            read_limited_multipart_field(field, MAX_TXT_UPLOAD_BYTES, "TXT 文件不能超过 50MB")
+                .await?,
+        );
+        break;
+    }
+
+    let bytes = bytes.ok_or_else(|| AppError::BadRequest("file required".to_string()))?;
+    let book = state
+        .local_txt_book_service
+        .import_txt_book(&user_ns, &file_name, &bytes)
+        .await?;
+    if let Err(err) = ensure_user_local_book_limit(&state, &user_ns, &book.book_url).await {
+        if let Err(cleanup_err) = state
+            .local_txt_book_service
+            .delete_book_files(&user_ns, &book.book_url)
+            .await
+        {
+            tracing::warn!(
+                "failed to clean up rejected local txt book {}: {:?}",
+                book.book_url,
+                cleanup_err
+            );
+        }
+        return Err(err);
+    }
+    let saved = state.book_service.save_book(&user_ns, book).await?;
+    Ok(Json(ApiResponse::ok(
+        serde_json::to_value(saved).unwrap_or_default(),
+    )))
+}
+
+pub async fn upload_epub_book(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    mut multipart: Multipart,
+) -> Result<Json<ApiResponse<Value>>, AppError> {
+    let user_ns = state
+        .user_service
+        .require_login_user_ns(auth.access_token())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+
+    let mut file_name = String::new();
+    let mut bytes: Option<Vec<u8>> = None;
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?
+    {
+        let field_name = field.name().unwrap_or_default().to_string();
+        if field_name != "file" {
+            continue;
+        }
+        file_name = field.file_name().unwrap_or("book.epub").to_string();
+        bytes = Some(
+            read_limited_multipart_field(field, MAX_EPUB_UPLOAD_BYTES, "EPUB 文件不能超过 80MB")
+                .await?,
+        );
+        break;
+    }
+
+    let bytes = bytes.ok_or_else(|| AppError::BadRequest("file required".to_string()))?;
+    let book = state
+        .local_epub_book_service
+        .import_epub_book(&user_ns, &file_name, &bytes)
+        .await?;
+    if let Err(err) = ensure_user_local_book_limit(&state, &user_ns, &book.book_url).await {
+        if let Err(cleanup_err) = state
+            .local_epub_book_service
+            .delete_book_files(&user_ns, &book.book_url)
+            .await
+        {
+            tracing::warn!(
+                "failed to clean up rejected local epub book {}: {:?}",
+                book.book_url,
+                cleanup_err
+            );
+        }
+        return Err(err);
+    }
+    let saved = state.book_service.save_book(&user_ns, book).await?;
+    Ok(Json(ApiResponse::ok(
+        serde_json::to_value(saved).unwrap_or_default(),
     )))
 }
 
@@ -1048,6 +1332,7 @@ pub async fn delete_book(
         return Err(AppError::BadRequest("书架书籍不存在".to_string()));
     }
     cleanup_ai_book_memories(&state, &user_ns, &removed_books).await;
+    cleanup_local_book_files(&state, &user_ns, &removed_books).await;
     Ok(Json(ApiResponse::ok(serde_json::json!("删除书籍成功"))))
 }
 
@@ -1064,6 +1349,7 @@ pub async fn delete_books(
     let removed_books = find_matching_books(&state, &user_ns, &books).await?;
     let count = state.book_service.delete_books(&user_ns, books).await?;
     cleanup_ai_book_memories(&state, &user_ns, &removed_books).await;
+    cleanup_local_book_files(&state, &user_ns, &removed_books).await;
     Ok(Json(ApiResponse::ok(serde_json::json!({"deleted": count}))))
 }
 
@@ -1097,7 +1383,35 @@ pub async fn save_book_progress(
 
     let mut updated = shelf_book.clone();
     let mut chapter_title: Option<String> = None;
-    if let (Some(toc_url), Ok(Some(source))) = (
+    if is_local_txt_origin(&shelf_book.origin) || is_local_txt_url(&shelf_book.book_url) {
+        if let Ok(chapters) = state
+            .local_txt_book_service
+            .get_chapter_list(&user_ns, &shelf_book.book_url)
+            .await
+        {
+            if index >= 0 && (index as usize) < chapters.len() {
+                chapter_title = Some(chapters[index as usize].title.clone());
+            }
+            updated.total_chapter_num = Some(chapters.len() as i32);
+            if let Some(last) = chapters.last() {
+                updated.latest_chapter_title = Some(last.title.clone());
+            }
+        }
+    } else if is_local_epub_origin(&shelf_book.origin) || is_local_epub_url(&shelf_book.book_url) {
+        if let Ok(chapters) = state
+            .local_epub_book_service
+            .get_chapter_list(&user_ns, &shelf_book.book_url)
+            .await
+        {
+            if index >= 0 && (index as usize) < chapters.len() {
+                chapter_title = Some(chapters[index as usize].title.clone());
+            }
+            updated.total_chapter_num = Some(chapters.len() as i32);
+            if let Some(last) = chapters.last() {
+                updated.latest_chapter_title = Some(last.title.clone());
+            }
+        }
+    } else if let (Some(toc_url), Ok(Some(source))) = (
         shelf_book.toc_url.clone(),
         state
             .book_source_service
@@ -1171,6 +1485,18 @@ pub async fn get_shelf_book_with_cache_info(
 
     for book in books {
         let mut cached_count = 0usize;
+
+        if is_local_book(&book) {
+            let mut val = serde_json::to_value(&book).unwrap_or(serde_json::json!({}));
+            if let Value::Object(ref mut map) = val {
+                map.insert(
+                    "cachedChapterCount".to_string(),
+                    serde_json::json!(cache_count_for_shelf_display(&book, cached_count)),
+                );
+            }
+            result.push(val);
+            continue;
+        }
 
         let candidate_toc_urls = if let Some(toc_url) = &book.toc_url {
             vec![toc_url.clone(), book.book_url.clone()]
@@ -1270,6 +1596,32 @@ pub async fn get_book_cover(
         }
         Err(_) => Ok(StatusCode::NOT_FOUND.into_response()),
     }
+}
+
+pub async fn get_local_epub_asset(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(q): Query<LocalEpubAssetQuery>,
+) -> Result<Response, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+    let asset = state
+        .local_epub_book_service
+        .get_asset(&user_ns, &q.book_url, &q.path)
+        .await?;
+    let mut resp = Response::new(Body::from(asset.bytes));
+    let headers = resp.headers_mut();
+    headers.insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("private, max-age=3600"),
+    );
+    if let Ok(v) = header::HeaderValue::from_str(&asset.content_type) {
+        headers.insert(header::CONTENT_TYPE, v);
+    }
+    Ok(resp)
 }
 
 pub async fn get_invalid_book_sources(
@@ -2263,6 +2615,24 @@ async fn resolve_book_source(
     if let Some(src) = book_source {
         return Ok(src);
     }
+    if book_source_url.as_deref().is_some_and(is_local_txt_origin)
+        || book_url.is_some_and(is_local_txt_url)
+    {
+        return Ok(BookSource {
+            book_source_name: "本地 TXT".to_string(),
+            book_source_url: LOCAL_TXT_ORIGIN.to_string(),
+            ..BookSource::default()
+        });
+    }
+    if book_source_url.as_deref().is_some_and(is_local_epub_origin)
+        || book_url.is_some_and(is_local_epub_url)
+    {
+        return Ok(BookSource {
+            book_source_name: "本地 EPUB".to_string(),
+            book_source_url: LOCAL_EPUB_ORIGIN.to_string(),
+            ..BookSource::default()
+        });
+    }
     if let Some(url) = &book_source_url {
         let normalized = normalize_source_url(url);
         if !normalized.is_empty() {
@@ -2408,9 +2778,42 @@ async fn cleanup_ai_book_memories(state: &AppState, user_ns: &str, books: &[Book
     }
 }
 
+async fn cleanup_local_book_files(state: &AppState, user_ns: &str, books: &[Book]) {
+    for book in books {
+        if is_local_txt_origin(&book.origin) || is_local_txt_url(&book.book_url) {
+            if let Err(err) = state
+                .local_txt_book_service
+                .delete_book_files(user_ns, &book.book_url)
+                .await
+            {
+                tracing::warn!(
+                    "failed to delete local txt book files for {}: {:?}",
+                    book.book_url,
+                    err
+                );
+            }
+        } else if is_local_epub_origin(&book.origin) || is_local_epub_url(&book.book_url) {
+            if let Err(err) = state
+                .local_epub_book_service
+                .delete_book_files(user_ns, &book.book_url)
+                .await
+            {
+                tracing::warn!(
+                    "failed to delete local epub book files for {}: {:?}",
+                    book.book_url,
+                    err
+                );
+            }
+        }
+    }
+}
+
 fn book_matches_delete_target(shelf_book: &Book, target: &Book) -> bool {
     if !target.book_url.is_empty() && shelf_book.book_url == target.book_url {
         return true;
+    }
+    if is_local_book(shelf_book) || is_local_book(target) {
+        return false;
     }
     !target.name.is_empty()
         && !target.author.is_empty()
@@ -2473,6 +2876,34 @@ fn build_available_book_source_response(
         last_index,
         has_more,
     }
+}
+
+fn cache_count_for_shelf_display(book: &Book, cached_count: usize) -> usize {
+    if is_local_book(book) {
+        0
+    } else {
+        cached_count
+    }
+}
+
+fn is_local_book(book: &Book) -> bool {
+    is_local_txt_origin(&book.origin)
+        || is_local_txt_url(&book.book_url)
+        || is_local_epub_origin(&book.origin)
+        || is_local_epub_url(&book.book_url)
+}
+
+fn local_book_limit_exceeded(books: &[Book], incoming_book_url: &str, limit: u32) -> bool {
+    if limit == 0 {
+        return false;
+    }
+    if books
+        .iter()
+        .any(|book| is_local_book(book) && book.book_url == incoming_book_url)
+    {
+        return false;
+    }
+    books.iter().filter(|book| is_local_book(book)).count() >= limit as usize
 }
 
 fn available_source_sse_result_key(book: &SearchBook) -> String {
@@ -2565,7 +2996,8 @@ fn take_available_source_sse_matches(
 #[cfg(test)]
 mod tests {
     use super::{
-        book_matches_delete_target, build_available_book_source_response, fallback_available_book,
+        book_matches_delete_target, build_available_book_source_response,
+        cache_count_for_shelf_display, fallback_available_book, local_book_limit_exceeded,
         should_use_available_source_cache, take_available_source_cached_matches,
         take_available_source_sse_matches, GetAvailableBookSourceRequest,
     };
@@ -2626,6 +3058,43 @@ mod tests {
         assert_eq!(response.books[19].name, "Book 19");
         assert_eq!(response.last_index, 11);
         assert!(response.has_more);
+    }
+
+    #[test]
+    fn local_txt_books_do_not_report_remote_cache_count_for_shelf_display() {
+        let book = Book {
+            origin: "local-txt".to_string(),
+            book_url: "local-txt:abc".to_string(),
+            ..Book::default()
+        };
+
+        assert_eq!(cache_count_for_shelf_display(&book, 42), 0);
+    }
+
+    #[test]
+    fn local_book_limit_counts_txt_and_epub_but_allows_existing_book() {
+        let books = vec![
+            Book {
+                origin: "local-txt".to_string(),
+                book_url: "local-txt:abc".to_string(),
+                ..Book::default()
+            },
+            Book {
+                origin: "local-epub".to_string(),
+                book_url: "local-epub:def".to_string(),
+                ..Book::default()
+            },
+            Book {
+                origin: "https://source.test".to_string(),
+                book_url: "https://source.test/book/1".to_string(),
+                ..Book::default()
+            },
+        ];
+
+        assert!(!local_book_limit_exceeded(&books, "local-epub:new", 0));
+        assert!(local_book_limit_exceeded(&books, "local-epub:new", 2));
+        assert!(!local_book_limit_exceeded(&books, "local-epub:def", 2));
+        assert!(!local_book_limit_exceeded(&books, "local-epub:new", 3));
     }
 
     #[test]
