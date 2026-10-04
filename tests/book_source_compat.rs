@@ -550,3 +550,34 @@ fn explore_kinds_accept_relaxed_angle_item_objects() {
         Some(&json!(0.25))
     );
 }
+
+#[test]
+fn legacy_page_brace_conversion_keeps_js_object_literals_intact() {
+    // 回归：{1,2} 这类「页码多选」需要转成 <1,2>，但同一语法也是 JS 对象
+    // 字面量。早期实现无条件替换，会把书源里的 JS 改成非法语法
+    // （`let gysearch = {` → `let gysearch = <`），搜索链路直接抛
+    // `unexpected token: '<'`。
+    let source = book_source_from_value(json!({
+        "bookSourceName": "GY",
+        "bookSourceUrl": "光遇聚合",
+        "searchUrl": "<js>\nlet gysearch = {\n    key: key,\n    tab: tab\n};\nJSON.stringify(gysearch);\n</js>",
+        "exploreUrl": "/page/{{page}}/rank/{1,2}"
+    }))
+    .unwrap();
+
+    let search = source.search_url.unwrap_or_default();
+    assert!(
+        search.contains("let gysearch = {"),
+        "JS 对象字面量被破坏: {search}"
+    );
+    assert!(
+        !search.contains("let gysearch = <"),
+        "JS 对象字面量被错误转换成尖括号: {search}"
+    );
+
+    let explore = source.explore_url.unwrap_or_default();
+    assert!(
+        explore.contains("<1,2>"),
+        "页码多选未按预期转换: {explore}"
+    );
+}

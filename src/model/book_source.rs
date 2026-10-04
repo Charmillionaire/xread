@@ -341,6 +341,23 @@ fn extract_legacy_header(input: &str) -> Option<(usize, usize, String)> {
 }
 
 fn convert_legacy_page_braces(input: &str) -> String {
+    // Legado 旧式「页码多选」写法 `{1,2}` 需要转换成 `<1,2>`。
+    //
+    // 但同样的花括号语法也是 JS 对象字面量，无条件替换会把书源里的
+    // JS 规则改成非法语法（例如 `let gysearch = {\n key: key, ...\n}`
+    // 会变成 `let gysearch = <\n key: key, ...\n>`，QuickJS 直接报
+    // `unexpected token: '<'`，搜索整条链路随之失败）。
+    //
+    // 页码多选是纯值列表，因此只在内容不含冒号（非对象属性）且不含
+    // 换行（非多行对象）时才转换。
     let re = regex::Regex::new(r"\{([^{}]*,[^{}]*)\}").unwrap();
-    re.replace_all(input, "<$1>").into_owned()
+    re.replace_all(input, |caps: &regex::Captures| {
+        let inner = &caps[1];
+        if inner.contains(':') || inner.contains('\n') || inner.contains('\r') {
+            caps[0].to_string()
+        } else {
+            format!("<{}>", inner)
+        }
+    })
+    .into_owned()
 }
