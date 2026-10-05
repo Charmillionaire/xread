@@ -14,7 +14,7 @@
           书架
           <span class="book-count">({{ shelfStore.filteredBooks.length }})</span>
         </h1>
-        <div class="shelf-actions">
+        <div v-if="isLoggedIn" class="shelf-actions">
           <template v-if="shelfStore.editMode">
             <button class="shelf-btn" type="button" title="全选" aria-label="全选" @click="shelfStore.selectAll()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -166,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBookshelfStore } from '../stores/bookshelf'
 import { useReaderStore } from '../stores/reader'
@@ -184,6 +184,7 @@ const router = useRouter()
 const shelfStore = useBookshelfStore()
 const readerStore = useReaderStore()
 const appStore = useAppStore()
+const isLoggedIn = computed(() => appStore.isLoggedIn)
 
 const showDetail = ref(false)
 const showGroupSelect = ref(false)
