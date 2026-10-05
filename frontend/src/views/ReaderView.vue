@@ -2285,6 +2285,12 @@ watch(
   margin: 24px 0 40px;
 }
 
+.chapter-media:has(.custom-audio-player) {
+  min-height: calc(65vh - 120px);
+  justify-content: flex-end;
+  margin: 40px 0 80px;
+}
+
 /* ── 自定义有声书播放器 ── */
 .custom-audio-player {
   width: 100%;
