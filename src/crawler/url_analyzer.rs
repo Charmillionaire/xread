@@ -89,7 +89,15 @@ pub fn analyze_url(
             }
             if let Some(script) = options.get("js").and_then(Value::as_str) {
                 if !script.trim().is_empty() {
-                    url = eval_js_url(script, &url, key, page, &source.book_source_url, &base_url)
+                    // 若 script 包含 URL 编码字符（如 %20、%22），先解码再交由 QuickJS 执行，避免语法错误
+                    let decoded_script = if script.contains('%') {
+                        urlencoding::decode(script)
+                            .map(|s| s.into_owned())
+                            .unwrap_or_else(|_| script.to_string())
+                    } else {
+                        script.to_string()
+                    };
+                    url = eval_js_url(&decoded_script, &url, key, page, &source.book_source_url, &base_url)
                         .map_err(AppError::Internal)?;
                 }
             }
@@ -125,8 +133,17 @@ pub fn analyze_url(
 
 fn parse_url_options(options: &str) -> Result<Value, AppError> {
     let trimmed = options.trim();
-    serde_json::from_str::<Value>(trimmed)
-        .or_else(|_| serde_json::from_str::<Value>(&escape_control_chars_in_json_strings(trimmed)))
+    if let Ok(val) = serde_json::from_str::<Value>(trimmed) {
+        return Ok(val);
+    }
+    // 兼容部分书源 URL options 尾部引号被编码为 %22 的情况（例如 %22}）
+    let repaired = if trimmed.contains("%22") {
+        trimmed.replace("%22", "\"")
+    } else {
+        trimmed.to_string()
+    };
+    serde_json::from_str::<Value>(&repaired)
+        .or_else(|_| serde_json::from_str::<Value>(&escape_control_chars_in_json_strings(&repaired)))
         .map_err(|e| AppError::BadRequest(format!("invalid url options: {}", e)))
 }
 
