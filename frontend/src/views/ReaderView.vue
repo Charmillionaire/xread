@@ -130,7 +130,7 @@
         class="chapter-content"
         :class="{ 'horizontal-page-article': isHorizontalPageMode }"
         :style="{
-          maxWidth: isHorizontalPageMode ? 'none' : (config.pageWidth + 'px'),
+          maxWidth: mediaContent ? 'none' : (isHorizontalPageMode ? 'none' : (config.pageWidth + 'px')),
           fontSize: config.fontSize + 'px',
           fontWeight: config.fontWeight,
           lineHeight: config.lineHeight,
@@ -166,23 +166,51 @@
           <div class="chapter-title">{{ store.currentChapter?.title || '加载中...' }}</div>
 
           <div v-if="mediaContent" class="chapter-media">
-            <audio
-              v-if="mediaContent.kind === 'audio'"
-              ref="mediaPlayerRef"
-              class="media-player"
-              :src="mediaPlaybackUrl"
-              controls
-              autoplay
-              preload="metadata"
-              @loadedmetadata="restoreMediaProgress"
-              @timeupdate="persistMediaProgress()"
-              @pause="persistMediaProgress(true)"
-              @ended="handleMediaEnded"
-            ></audio>
+            <!-- 自定义有声书播放器 -->
+            <div v-if="mediaContent.kind === 'audio'" class="custom-audio-player">
+              <audio
+                ref="mediaPlayerRef"
+                :src="mediaPlaybackUrl"
+                preload="metadata"
+                @loadedmetadata="onAudioMetadata"
+                @timeupdate="onAudioTick"
+                @play="audioPlaying = true"
+                @pause="audioPlaying = false; persistMediaProgress(true)"
+                @ended="handleMediaEnded"
+              ></audio>
+
+              <div class="audio-progress-row">
+                <span class="audio-time">{{ fmtTime(audioCurrent) }}</span>
+                <div class="audio-track" @mousedown="seekStart" @touchstart.prevent="seekStart">
+                  <div class="audio-track-bg">
+                    <div class="audio-fill" :style="{ width: audioPct + '%' }"></div>
+                    <div class="audio-thumb" :style="{ left: audioPct + '%' }"></div>
+                  </div>
+                </div>
+                <span class="audio-time">{{ fmtTime(audioDuration) }}</span>
+              </div>
+
+              <div class="audio-ctrl-row">
+                <button class="audio-btn" title="重新播放" @click="replayAudio">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+                <button class="audio-btn" :disabled="store.currentIndex <= 0" title="上一集" @click="prevChapter">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                </button>
+                <button class="audio-btn-play" @click="toggleAudio">
+                  <svg v-if="!audioPlaying" viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+                  <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                <button class="audio-btn" :disabled="!store.hasNext" title="下一集" @click="nextChapter">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                </button>
+                <button class="audio-btn audio-rate" @click="cycleRate">{{ audioRate }}x</button>
+              </div>
+            </div>
             <video
               v-else
               ref="mediaPlayerRef"
-              class="media-player media-video"
+              class="media-player media-video media-video-lg"
               :src="mediaPlaybackUrl"
               controls
               autoplay
@@ -629,10 +657,101 @@ const mediaPlaybackUrl = computed(() => {
   return buildMediaProxyUrl(media.url, store.book?.origin, token)
 })
 
-// ── 听书 / 短剧播放进度 ──
+// ── 听书 / 短剧播放进度与控制 ──
 const mediaPlayerRef = ref<HTMLMediaElement | null>(null)
 const shouldWriteMediaProgress = createMediaProgressThrottle(5000)
 let mediaRestoredKey = ''
+
+/* ---- custom audio player state ---- */
+const audioPlaying = ref(false)
+const audioCurrent = ref(0)
+const audioDuration = ref(0)
+const audioRate = ref(1.0)
+const RATES = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+
+const audioPct = computed(() => {
+  if (!audioDuration.value || audioDuration.value <= 0) return 0
+  return Math.min(100, Math.max(0, (audioCurrent.value / audioDuration.value) * 100))
+})
+
+function fmtTime(s: number): string {
+  if (!s || isNaN(s) || s < 0) return '00:00'
+  const m = Math.floor(s / 60)
+  const sec = Math.floor(s % 60)
+  return m + ':' + sec.toString().padStart(2, '0')
+}
+
+function onAudioMetadata() {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  if (!el) return
+  audioDuration.value = el.duration || 0
+  el.playbackRate = audioRate.value
+  restoreMediaProgress()
+  el.play().then(() => { audioPlaying.value = true }).catch(() => {})
+}
+
+function onAudioTick() {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  if (!el) return
+  audioCurrent.value = el.currentTime || 0
+  audioDuration.value = el.duration || audioDuration.value || 0
+  persistMediaProgress()
+}
+
+function toggleAudio() {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  if (!el) return
+  if (el.paused) {
+    el.play().then(() => { audioPlaying.value = true }).catch(() => { audioPlaying.value = false })
+  } else {
+    el.pause()
+    audioPlaying.value = false
+  }
+}
+
+function replayAudio() {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  if (!el) return
+  el.currentTime = 0
+  audioCurrent.value = 0
+  el.play().then(() => { audioPlaying.value = true }).catch(() => {})
+}
+
+function cycleRate() {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  const idx = RATES.indexOf(audioRate.value)
+  audioRate.value = RATES[(idx + 1) % RATES.length]
+  if (el) el.playbackRate = audioRate.value
+}
+
+function seekStart(e: MouseEvent | TouchEvent) {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  if (!el || !audioDuration.value) return
+  const track = e.currentTarget as HTMLElement
+  const rect = track.getBoundingClientRect()
+  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+  const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+  el.currentTime = pct * audioDuration.value
+  audioCurrent.value = el.currentTime
+
+  /* drag support */
+  const onMove = (ev: MouseEvent | TouchEvent) => {
+    const cx = 'touches' in ev ? ev.touches[0].clientX : ev.clientX
+    const p = Math.max(0, Math.min(1, (cx - rect.left) / rect.width))
+    el.currentTime = p * audioDuration.value
+    audioCurrent.value = el.currentTime
+  }
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('touchmove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.removeEventListener('touchend', onUp)
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('touchmove', onMove)
+  document.addEventListener('mouseup', onUp)
+  document.addEventListener('touchend', onUp)
+}
 
 function mediaProgressKey() {
   return `${store.book?.bookUrl || ''}::${store.currentChapter?.url || ''}`
@@ -2164,6 +2283,115 @@ watch(
   align-items: center;
   gap: 16px;
   margin: 24px 0 40px;
+}
+
+/* ── 自定义有声书播放器 ── */
+.custom-audio-player {
+  width: 100%;
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.audio-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.audio-time {
+  min-width: 44px;
+  font-size: 12px;
+  opacity: 0.6;
+  text-align: center;
+}
+
+.audio-track {
+  flex: 1;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.audio-track-bg {
+  width: 100%;
+  height: 4px;
+  background: rgba(128, 128, 128, 0.25);
+  border-radius: 2px;
+  position: relative;
+}
+
+.audio-fill {
+  height: 100%;
+  background: var(--color-primary, #f43f5e);
+  border-radius: 2px;
+}
+
+.audio-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-primary, #f43f5e);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.audio-track:hover .audio-thumb { opacity: 1; }
+
+.audio-ctrl-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.audio-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+}
+.audio-btn:hover { opacity: 1; }
+.audio-btn:disabled { opacity: 0.25; cursor: default; }
+
+.audio-btn-play {
+  background: var(--color-primary, #f43f5e);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+  transition: transform 0.12s;
+}
+.audio-btn-play:hover { transform: scale(1.07); }
+
+.audio-rate {
+  min-width: 40px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ── 短剧视频放大 ── */
+.media-video.media-video-lg {
+  max-width: 90vw;
+  max-height: 80vh;
 }
 
 .media-player {
