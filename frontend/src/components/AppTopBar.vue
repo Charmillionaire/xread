@@ -6,7 +6,9 @@
           <img class="logo-icon" src="/favicon-32x32.png" alt="Logo" />
           <span class="logo-text">Read</span>
         </div>
+      </div>
 
+      <div class="topbar-center">
         <form
           v-if="showGlobalSearch"
           class="search-box"
@@ -153,6 +155,14 @@ function openSettings() {
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.topbar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -187,12 +197,14 @@ function openSettings() {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  background: var(--color-bg-sunken);
-  border: 1.5px solid transparent;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
   border-radius: var(--radius-full);
   padding: var(--space-2) var(--space-4);
-  max-width: 460px;
-  flex: 1 1 420px;
+  max-width: 520px;
+  width: 100%;
+  flex: 1 1 auto;
   min-width: 220px;
   transition: all var(--duration-normal) var(--ease-out);
 }
@@ -200,7 +212,7 @@ function openSettings() {
 .search-box.focused {
   border-color: var(--color-primary);
   background: var(--color-bg-elevated);
-  box-shadow: 0 0 0 3px var(--color-primary-bg);
+  box-shadow: 0 0 0 3px var(--color-primary-bg), 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .search-icon {
