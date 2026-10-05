@@ -168,20 +168,30 @@
           <div v-if="mediaContent" class="chapter-media">
             <audio
               v-if="mediaContent.kind === 'audio'"
+              ref="mediaPlayerRef"
               class="media-player"
               :src="mediaPlaybackUrl"
               controls
               autoplay
               preload="metadata"
+              @loadedmetadata="restoreMediaProgress"
+              @timeupdate="persistMediaProgress()"
+              @pause="persistMediaProgress(true)"
+              @ended="handleMediaEnded"
             ></audio>
             <video
               v-else
+              ref="mediaPlayerRef"
               class="media-player media-video"
               :src="mediaPlaybackUrl"
               controls
               autoplay
               playsinline
               preload="metadata"
+              @loadedmetadata="restoreMediaProgress"
+              @timeupdate="persistMediaProgress()"
+              @pause="persistMediaProgress(true)"
+              @ended="handleMediaEnded"
             ></video>
             <div class="media-actions">
               <button class="next-btn" :disabled="!store.hasNext" @click="nextChapter">
@@ -315,6 +325,7 @@ import { countBrowserBookCache } from '../utils/browserCache'
 import { APP_VIEWPORT_CHANGE_EVENT, syncViewportSize } from '../utils/viewport'
 import { isReaderInteractiveClickTarget } from '../utils/readerClick'
 import { parseMediaContent, buildMediaProxyUrl } from '../utils/mediaContent'
+import { readMediaProgress, writeMediaProgress, createMediaProgressThrottle } from '../utils/mediaProgress'
 import { createReaderProgressAutoSaveScheduler, createReaderProgressExitSaver } from '../utils/readerProgressAutoSave'
 import type { Book } from '../types'
 
@@ -633,6 +644,56 @@ const mediaPlaybackUrl = computed(() => {
   if (!media) return ''
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('accessToken') : null
   return buildMediaProxyUrl(media.url, store.book?.origin, token)
+})
+
+// ── 听书 / 短剧播放进度 ──
+const mediaPlayerRef = ref<HTMLMediaElement | null>(null)
+const shouldWriteMediaProgress = createMediaProgressThrottle(5000)
+let mediaRestoredKey = ''
+
+function mediaProgressKey() {
+  return `${store.book?.bookUrl || ''}::${store.currentChapter?.url || ''}`
+}
+
+/** 加载完成后接着上次的位置继续播放（章节切换后只恢复一次）。 */
+function restoreMediaProgress() {
+  const el = mediaPlayerRef.value
+  if (!el) return
+  const key = mediaProgressKey()
+  if (!key || mediaRestoredKey === key) return
+  mediaRestoredKey = key
+  const saved = readMediaProgress(store.book?.bookUrl, store.currentChapter?.url)
+  if (saved && saved.position > 1 && saved.position < el.duration) {
+    try {
+      el.currentTime = saved.position
+    } catch {
+      /* 部分浏览器在元数据就绪前会拒绝赋值，忽略即可 */
+    }
+  }
+}
+
+function persistMediaProgress(force = false) {
+  const el = mediaPlayerRef.value
+  if (!el) return
+  if (!force && !shouldWriteMediaProgress()) return
+  writeMediaProgress(store.book?.bookUrl, store.currentChapter?.url, el.currentTime, el.duration)
+}
+
+/** 播完自动进入下一章；章节切换前先清掉已播完的进度，避免下次卡在结尾。 */
+function handleMediaEnded() {
+  const el = mediaPlayerRef.value
+  if (el) writeMediaProgress(store.book?.bookUrl, store.currentChapter?.url, 0, el.duration)
+  mediaRestoredKey = ''
+  if (store.hasNext) void nextChapter()
+}
+
+// 换章时保存上一章进度（自动连播时 pause 也已完成一次落盘）
+watch(() => store.currentIndex, () => {
+  const el = mediaPlayerRef.value
+  if (el && el.currentTime > 1 && el.duration - el.currentTime >= 5) {
+    writeMediaProgress(store.book?.bookUrl, store.currentChapter?.url, el.currentTime, el.duration)
+  }
+  mediaRestoredKey = ''
 })
 
 const {
