@@ -251,67 +251,67 @@ onBeforeUnmount(() => {
 .bottom-nav-shell {
   position: fixed;
   left: 50%;
-  bottom: calc(20px + var(--safe-area-bottom));
+  bottom: calc(16px + var(--safe-area-bottom));
   transform: translateX(-50%);
   z-index: calc(var(--z-sticky) + 2);
-  width: min(390px, calc(100vw - 36px));
+  width: fit-content;
+  max-width: calc(100vw - 32px);
 }
 
 .bottom-nav {
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 5px;
+  gap: 2px;
+  padding: 3px 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.75);
   box-shadow:
-    0 10px 32px rgba(0, 0, 0, 0.08),
-    0 2px 8px rgba(0, 0, 0, 0.04),
-    inset 0 1px 1px rgba(255, 255, 255, 0.95),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.03);
-  backdrop-filter: blur(28px) saturate(190%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
+    0 12px 30px rgba(0, 0, 0, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.03),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(32px) saturate(210%);
+  -webkit-backdrop-filter: blur(32px) saturate(210%);
 }
 
 .bottom-nav-shell.theme-dark .bottom-nav {
-  background: rgba(30, 31, 36, 0.68);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(28, 29, 34, 0.58);
+  border-color: rgba(255, 255, 255, 0.14);
   box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.38),
-    0 2px 10px rgba(0, 0, 0, 0.25),
-    inset 0 1px 0.5px rgba(255, 255, 255, 0.15),
-    inset 0 -1px 0.5px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(28px) saturate(190%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
+    0 14px 36px rgba(0, 0, 0, 0.42),
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.18),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
 }
 
 .nav-indicator {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
+  top: 3px;
+  bottom: 3px;
   left: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.88);
   border: 0.5px solid rgba(0, 0, 0, 0.04);
   box-shadow:
-    0 3px 12px rgba(0, 0, 0, 0.07),
-    0 1px 3px rgba(0, 0, 0, 0.04),
-    inset 0 1px 0.5px #ffffff;
-  transition: transform 320ms cubic-bezier(0.2, 0.9, 0.25, 1), width 320ms cubic-bezier(0.2, 0.9, 0.25, 1);
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    inset 0 1px 1px #ffffff;
+  transition: transform 300ms cubic-bezier(0.2, 0.9, 0.25, 1), width 300ms cubic-bezier(0.2, 0.9, 0.25, 1);
   will-change: transform;
 }
 
 .bottom-nav-shell.theme-dark .nav-indicator {
-  background: rgba(255, 255, 255, 0.14);
-  border: 0.5px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
+  border: 0.5px solid rgba(255, 255, 255, 0.22);
   box-shadow:
-    0 3px 14px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0.5px rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+    0 3px 12px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .nav-item {
@@ -320,14 +320,15 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  min-height: 38px;
-  padding: 0 8px;
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 12px;
   border-radius: 999px;
   color: #555862;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   transition: color 180ms ease, transform 160ms cubic-bezier(0.2, 0.9, 0.25, 1);
+  white-space: nowrap;
 }
 
 .bottom-nav-shell.theme-dark .nav-item {
@@ -335,8 +336,8 @@ onBeforeUnmount(() => {
 }
 
 .nav-item svg {
-  width: 17px;
-  height: 17px;
+  width: 15px;
+  height: 15px;
   flex-shrink: 0;
   transition: transform 180ms ease;
 }
@@ -362,24 +363,25 @@ onBeforeUnmount(() => {
 
 @media (max-width: 640px) {
   .bottom-nav-shell {
-    width: min(360px, calc(100vw - 28px));
-    bottom: calc(14px + var(--safe-area-bottom));
+    bottom: calc(12px + var(--safe-area-bottom));
+    max-width: calc(100vw - 24px);
   }
 
   .bottom-nav {
-    gap: 3px;
-    padding: 3.5px 4px;
+    gap: 2px;
+    padding: 2.5px 3px;
   }
 
   .nav-item {
-    min-height: 36px;
-    gap: 4px;
-    font-size: 12.5px;
+    min-height: 32px;
+    gap: 3.5px;
+    padding: 0 9px;
+    font-size: 12px;
   }
 
   .nav-item svg {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
   }
 }
 </style>
