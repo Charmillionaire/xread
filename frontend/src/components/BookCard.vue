@@ -60,7 +60,7 @@
           class="ai-entry-btn"
           @click.stop="$emit('ai', book)"
         >
-          AI资料
+          AI
         </button>
       </div>
 

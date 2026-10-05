@@ -120,7 +120,7 @@
                   <path d="m7 8 5-5 5 5" />
                   <path d="M5 21h14" />
                 </svg>
-                导入本地书
+                导入
               </button>
               <button class="action-btn" :disabled="shelfStore.refreshing" @click="triggerRefreshShelf">
                 <svg :class="{ spinning: shelfStore.refreshing }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -129,21 +129,21 @@
                   <path d="M3 12a9 9 0 0 0 15.55 6.2L21 16" />
                   <path d="M21 21v-5h-5" />
                 </svg>
-                {{ shelfStore.refreshing ? '刷新中...' : '刷新书架' }}
+                {{ shelfStore.refreshing ? '刷新中...' : '刷新' }}
               </button>
               <button class="action-btn" @click="triggerManageGroups">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                   <path d="M4 7h6l2 2h8v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
                   <path d="M8 13h8" />
                 </svg>
-                分组管理
+                分组
               </button>
               <button class="action-btn" @click="triggerEditShelf">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                   <path d="M12 20h9" />
                   <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                 </svg>
-                编辑书架
+                编辑
               </button>
             </div>
           </section>
@@ -610,8 +610,25 @@ async function handleCheckVersionUpdate() {
   align-items: flex-start;
   gap: var(--space-3);
   padding: var(--space-3);
-  background: var(--color-bg-sunken);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.04),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.02);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+}
+
+[data-theme='dark'] .user-info-card,
+.theme-dark .user-info-card {
+  background: rgba(28, 29, 34, 0.65);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.35),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.4);
 }
 
 .user-panel {
@@ -708,18 +725,43 @@ async function handleCheckVersionUpdate() {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: 999px;
   font-size: var(--text-sm);
   font-weight: 500;
-  background: var(--color-bg-sunken);
+  background: rgba(255, 255, 255, 0.72);
   color: var(--color-text);
-  border: 1px solid var(--color-border-light);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.03),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.02);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
   transition: all var(--duration-fast) var(--ease-out);
 }
 
+[data-theme='dark'] .action-btn,
+.theme-dark .action-btn {
+  background: rgba(28, 29, 34, 0.65);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.4);
+}
+
 .action-btn:hover {
-  background: var(--color-bg-hover);
-  border-color: var(--color-border);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-primary);
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme='dark'] .action-btn:hover,
+.theme-dark .action-btn:hover {
+  background: rgba(45, 47, 54, 0.85);
+  color: #fb7185;
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .action-btn:active {
@@ -730,6 +772,7 @@ async function handleCheckVersionUpdate() {
   background: var(--color-primary);
   color: white;
   border-color: var(--color-primary);
+  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
 }
 
 .action-btn.primary:hover {
@@ -776,10 +819,27 @@ async function handleCheckVersionUpdate() {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: var(--space-3);
-  background: var(--color-bg-sunken);
-  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.04),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.02);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border-radius: var(--radius-lg);
   margin-bottom: var(--space-3);
+}
+
+[data-theme='dark'] .status-card,
+.theme-dark .status-card {
+  background: rgba(28, 29, 34, 0.65);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.35),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.4);
 }
 
 .status-card span {
