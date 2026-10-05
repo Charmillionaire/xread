@@ -27,7 +27,7 @@
               <span class="shelf-btn-label">取消全选</span>
             </button>
           </template>
-          <button class="shelf-btn" type="button" title="导入本地书" aria-label="导入本地书" @click="triggerLocalBookUpload" :disabled="localBookUploading">
+          <button class="shelf-btn" type="button" title="导入" aria-label="导入" @click="triggerLocalBookUpload" :disabled="localBookUploading">
             <svg v-if="!localBookUploading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 3v12" />
               <path d="m7 8 5-5 5 5" />
@@ -37,31 +37,23 @@
               <path d="M21 12a9 9 0 0 0-15.55-6.2L3 8" />
               <path d="M3 3v5h5" />
             </svg>
-            <span class="shelf-btn-label">{{ localBookUploading ? '导入中' : '导入本地书' }}</span>
+            <span class="shelf-btn-label">{{ localBookUploading ? '导入中' : '导入' }}</span>
           </button>
-          <button class="shelf-btn" type="button" title="刷新书架" aria-label="刷新书架" @click="handleRefreshBooks" :disabled="shelfStore.refreshing">
+          <button class="shelf-btn" type="button" title="刷新" aria-label="刷新" @click="handleRefreshBooks" :disabled="shelfStore.refreshing">
             <svg :class="{ spinning: shelfStore.refreshing }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 12a9 9 0 0 0-15.55-6.2L3 8" />
               <path d="M3 3v5h5" />
               <path d="M3 12a9 9 0 0 0 15.55 6.2L21 16" />
               <path d="M21 21v-5h-5" />
             </svg>
-            <span class="shelf-btn-label">{{ shelfStore.refreshing ? '刷新中' : '刷新书架' }}</span>
+            <span class="shelf-btn-label">{{ shelfStore.refreshing ? '刷新中' : '刷新' }}</span>
           </button>
-          <button class="shelf-btn" type="button" title="分组管理" aria-label="分组管理" @click="showGroupManager = true">
+          <button class="shelf-btn" type="button" title="分组" aria-label="分组" @click="showGroupManager = true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M4 7h6l2 2h8v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
               <path d="M8 13h8" />
             </svg>
-            <span class="shelf-btn-label">分组管理</span>
-          </button>
-          <button class="shelf-btn" type="button" title="缓存管理" aria-label="缓存管理" @click="showCacheManager = true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <ellipse cx="12" cy="5" rx="8" ry="3" />
-              <path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
-              <path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" />
-            </svg>
-            <span class="shelf-btn-label">缓存管理</span>
+            <span class="shelf-btn-label">分组</span>
           </button>
           <button
             class="shelf-btn"
@@ -385,16 +377,35 @@ async function handleRefreshBooks() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  border: 1px solid var(--color-border);
-  transition: all var(--duration-fast);
+  gap: 6px;
+  width: 90px;
   min-height: 38px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #555862;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.04),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.03);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  transition: all var(--duration-fast);
   white-space: nowrap;
+}
+
+[data-theme='dark'] .shelf-btn,
+.theme-dark .shelf-btn {
+  color: rgba(235, 237, 242, 0.75);
+  background: rgba(28, 29, 34, 0.62);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.35),
+    inset 0 1px 1px rgba(255, 255, 255, 0.18),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.45);
 }
 
 .shelf-btn:disabled {
@@ -403,20 +414,34 @@ async function handleRefreshBooks() {
 }
 
 .shelf-btn svg {
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
 }
 
 .shelf-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--color-primary);
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.07);
+}
+
+[data-theme='dark'] .shelf-btn:hover,
+.theme-dark .shelf-btn:hover {
+  background: rgba(45, 47, 54, 0.85);
+  color: #fb7185;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .shelf-btn.active {
   background: var(--color-primary);
   color: white;
   border-color: var(--color-primary);
+  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+}
+
+.shelf-btn:active {
+  transform: scale(0.96);
 }
 
 .shelf-btn .spinning {
