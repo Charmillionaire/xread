@@ -251,10 +251,10 @@ onBeforeUnmount(() => {
 .bottom-nav-shell {
   position: fixed;
   left: 50%;
-  bottom: calc(18px + var(--safe-area-bottom));
+  bottom: calc(20px + var(--safe-area-bottom));
   transform: translateX(-50%);
   z-index: calc(var(--z-sticky) + 2);
-  width: min(720px, calc(100vw - 24px));
+  width: min(390px, calc(100vw - 36px));
 }
 
 .bottom-nav {
@@ -262,55 +262,56 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   align-items: center;
-  gap: 8px;
-  padding: 10px;
+  gap: 4px;
+  padding: 4px 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.82);
   box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.10),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(22px) saturate(165%);
-  -webkit-backdrop-filter: blur(22px) saturate(165%);
+    0 10px 32px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    inset 0 1px 1px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.03);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
 }
 
 .bottom-nav-shell.theme-dark .bottom-nav {
-  background: rgba(28, 29, 34, 0.82);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(30, 31, 36, 0.68);
+  border-color: rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.36),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 12px 36px rgba(0, 0, 0, 0.38),
+    0 2px 10px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0.5px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
 }
 
 .nav-indicator {
   position: absolute;
-  top: 8px;
-  bottom: 8px;
+  top: 4px;
+  bottom: 4px;
   left: 0;
   border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(244, 244, 246, 0.68)),
-    rgba(255, 255, 255, 0.36);
-  border: 1px solid rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.92);
+  border: 0.5px solid rgba(0, 0, 0, 0.04);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 10px 24px rgba(0, 0, 0, 0.08);
-  transition: transform 380ms cubic-bezier(0.2, 0.85, 0.22, 1), width 380ms cubic-bezier(0.2, 0.85, 0.22, 1);
+    0 3px 12px rgba(0, 0, 0, 0.07),
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0.5px #ffffff;
+  transition: transform 320ms cubic-bezier(0.2, 0.9, 0.25, 1), width 320ms cubic-bezier(0.2, 0.9, 0.25, 1);
   will-change: transform;
 }
 
 .bottom-nav-shell.theme-dark .nav-indicator {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(150, 190, 255, 0.015)),
-    rgba(255, 255, 255, 0.02);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.14);
+  border: 0.5px solid rgba(255, 255, 255, 0.2);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -14px 24px rgba(120, 170, 255, 0.02),
-    0 8px 18px rgba(0, 0, 0, 0.08),
-    0 0 0 1px rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(32px) saturate(200%) brightness(1.08);
-  -webkit-backdrop-filter: blur(32px) saturate(200%) brightness(1.08);
+    0 3px 14px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .nav-item {
@@ -319,32 +320,36 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 58px;
+  gap: 5px;
+  min-height: 38px;
+  padding: 0 8px;
   border-radius: 999px;
-  color: #22242a;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  transition: color 180ms ease, transform 180ms ease;
+  color: #555862;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 180ms ease, transform 160ms cubic-bezier(0.2, 0.9, 0.25, 1);
 }
 
 .bottom-nav-shell.theme-dark .nav-item {
-  color: rgba(245, 246, 248, 0.88);
+  color: rgba(235, 237, 242, 0.68);
 }
 
 .nav-item svg {
-  width: 22px;
-  height: 22px;
+  width: 17px;
+  height: 17px;
   flex-shrink: 0;
+  transition: transform 180ms ease;
 }
 
 .nav-item span {
   display: inline-flex;
   transform-origin: center center;
+  line-height: 1;
 }
 
 .nav-item.active {
-  color: #f43f5e;
+  color: #e11d48;
+  font-weight: 600;
 }
 
 .bottom-nav-shell.theme-dark .nav-item.active {
@@ -352,24 +357,29 @@ onBeforeUnmount(() => {
 }
 
 .nav-item:active {
-  transform: scale(0.98);
+  transform: scale(0.95);
 }
 
 @media (max-width: 640px) {
   .bottom-nav-shell {
-    width: calc(100vw - 18px);
-    bottom: calc(12px + var(--safe-area-bottom));
+    width: min(360px, calc(100vw - 28px));
+    bottom: calc(14px + var(--safe-area-bottom));
   }
 
   .bottom-nav {
-    gap: 4px;
-    padding: 8px;
+    gap: 3px;
+    padding: 3.5px 4px;
   }
 
   .nav-item {
-    min-height: 52px;
-    gap: 6px;
-    font-size: 13px;
+    min-height: 36px;
+    gap: 4px;
+    font-size: 12.5px;
+  }
+
+  .nav-item svg {
+    width: 16px;
+    height: 16px;
   }
 }
 </style>
