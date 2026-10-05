@@ -2390,8 +2390,16 @@ watch(
 
 /* ── 短剧视频放大 ── */
 .media-video.media-video-lg {
-  max-width: 90vw;
-  max-height: 80vh;
+  width: auto;
+  height: auto;
+  max-width: 92vw;
+  max-height: 82vh;
+  object-fit: contain;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
 }
 
 .media-player {
