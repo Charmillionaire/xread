@@ -26,6 +26,7 @@ export function getUserInfo() {
       secure: boolean
       secureKeyRequired: boolean
       adminAuthorized: boolean
+      publicRead: boolean
     }>('/getUserInfo')
     .then((r) => r.data)
 }

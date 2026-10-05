@@ -187,7 +187,7 @@ pub async fn ai_proxy_image(
 async fn require_proxy_user(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map(|_| ())
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))

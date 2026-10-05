@@ -101,8 +101,12 @@
               </svg>
               &#20070;&#28304;&#31649;&#29702;
             </h3>
+            <div v-if="!appStore.canManageBookSources" class="status-card">
+              <span>&#20844;&#24320;&#21482;&#35835;&#27169;&#24335;</span>
+              <small>&#20070;&#28304;&#30001;&#31649;&#29702;&#21592;&#32479;&#19968;&#37197;&#32622;&#65292;&#38656;&#30331;&#24405;&#31649;&#29702;&#21592;&#36134;&#21495;&#21518;&#20462;&#25913;&#12290;</small>
+            </div>
             <div class="btn-group">
-              <button class="action-btn" @click="openSourceManager">
+              <button class="action-btn" :disabled="!appStore.canManageBookSources" @click="openSourceManager">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                   <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                 </svg>

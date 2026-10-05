@@ -93,9 +93,17 @@ pub async fn save_book_source(
     auth: AuthContext,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 公开只读模式下只有管理员能改书源，避免访客改坏公共数据
+    if !state
+        .user_service
+        .can_manage_book_sources(auth.access_token(), auth.secure_key())
+        .await?
+    {
+        return Err(AppError::BadRequest("NEED_ADMIN".to_string()));
+    }
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let source =
@@ -109,9 +117,17 @@ pub async fn save_book_sources(
     auth: AuthContext,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 公开只读模式下只有管理员能改书源，避免访客改坏公共数据
+    if !state
+        .user_service
+        .can_manage_book_sources(auth.access_token(), auth.secure_key())
+        .await?
+    {
+        return Err(AppError::BadRequest("NEED_ADMIN".to_string()));
+    }
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let sources = extract_sources(payload)?;
@@ -136,7 +152,7 @@ pub async fn get_book_source(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let url = q
@@ -159,7 +175,7 @@ pub async fn get_book_sources(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let list = state.book_source_service.list(&user_ns).await?;
@@ -200,7 +216,7 @@ pub async fn login_book_source(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let url = param
@@ -227,7 +243,7 @@ pub async fn get_explore_kinds(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
 
@@ -257,7 +273,7 @@ pub async fn test_book_sources(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
 
@@ -399,9 +415,17 @@ pub async fn delete_invalid_book_sources(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 公开只读模式下只有管理员能改书源，避免访客改坏公共数据
+    if !state
+        .user_service
+        .can_manage_book_sources(auth.access_token(), auth.secure_key())
+        .await?
+    {
+        return Err(AppError::BadRequest("NEED_ADMIN".to_string()));
+    }
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let sources = state.book_source_service.list(&user_ns).await?;
@@ -435,7 +459,7 @@ pub async fn book_source_proxy(
 ) -> Result<Response, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
 
@@ -504,9 +528,17 @@ pub async fn delete_book_source(
     auth: AuthContext,
     Json(param): Json<BookSourceUrlParam>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 公开只读模式下只有管理员能改书源，避免访客改坏公共数据
+    if !state
+        .user_service
+        .can_manage_book_sources(auth.access_token(), auth.secure_key())
+        .await?
+    {
+        return Err(AppError::BadRequest("NEED_ADMIN".to_string()));
+    }
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let url = param
@@ -1031,9 +1063,17 @@ pub async fn delete_book_sources(
     auth: AuthContext,
     Json(list): Json<Vec<BookSourceUrlParam>>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 公开只读模式下只有管理员能改书源，避免访客改坏公共数据
+    if !state
+        .user_service
+        .can_manage_book_sources(auth.access_token(), auth.secure_key())
+        .await?
+    {
+        return Err(AppError::BadRequest("NEED_ADMIN".to_string()));
+    }
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     for item in list {
@@ -1048,9 +1088,17 @@ pub async fn delete_all_book_sources(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 公开只读模式下只有管理员能改书源，避免访客改坏公共数据
+    if !state
+        .user_service
+        .can_manage_book_sources(auth.access_token(), auth.secure_key())
+        .await?
+    {
+        return Err(AppError::BadRequest("NEED_ADMIN".to_string()));
+    }
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     state.book_source_service.delete_all(&user_ns).await?;

@@ -53,6 +53,7 @@ Key settings:
 - `DATABASE_URL` — SQLite path, default `sqlite:storage/reader.db?mode=rwc`
 - `WEB_ROOT` — static files path, default `frontend/dist`
 - `SECURE` / `SECURE_KEY` — security mode toggle
+- `PUBLIC_READ` — 公开只读模式：访客可读管理员的书源/书架，但不可写入、不可管理书源
 - `INVITE_CODE` — registration gate
 - `USER_LIMIT` / `USER_BOOK_LIMIT` — default 50 / 2000
 - `LOG_LEVEL` — default `info`

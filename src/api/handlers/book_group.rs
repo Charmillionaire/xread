@@ -18,7 +18,7 @@ pub async fn get_book_groups(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let groups = state.book_group_service.get_groups(&user_ns).await?;
@@ -34,7 +34,7 @@ pub async fn save_book_group(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     state.book_group_service.save_group(&user_ns, group).await?;
@@ -48,7 +48,7 @@ pub async fn delete_book_group(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let gid = param
@@ -65,7 +65,7 @@ pub async fn save_book_group_order(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     state
@@ -90,7 +90,7 @@ pub async fn save_book_group_id(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let url = param
@@ -122,7 +122,7 @@ pub async fn add_book_group_multi(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let urls = param.book_urls.unwrap_or_default();
@@ -147,7 +147,7 @@ pub async fn remove_book_group_multi(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let urls = param.book_urls.unwrap_or_default();

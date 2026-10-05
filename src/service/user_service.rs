@@ -443,6 +443,104 @@ impl UserService {
         Err(AppError::BadRequest("NEED_LOGIN".to_string()))
     }
 
+    /// 公开只读模式：游客读取管理员（首个管理员账号）的数据命名空间。
+    pub async fn admin_user_ns(&self) -> Result<Option<String>, AppError> {
+        let row = sqlx::query("SELECT username FROM users WHERE is_admin=1 LIMIT 1")
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row.map(|r| r.get("username")))
+    }
+
+    /// 公开只读模式下是否允许管理书源。
+    ///
+    /// - 未开启 `public_read`：沿用原行为（任何登录/游客命名空间都可管自己的书源）
+    /// - 开启 `public_read`：只有管理员可以增删改书源，避免访客改坏公开数据
+    pub async fn can_manage_book_sources(
+        &self,
+        access_token: Option<&str>,
+        secure_key: Option<&str>,
+    ) -> Result<bool, AppError> {
+        if !self.cfg.public_read {
+            return Ok(true);
+        }
+        self.is_admin(access_token, secure_key).await
+    }
+
+    /// 读路径命名空间。
+    ///
+    /// - `secure` 模式：行为与 `resolve_user_ns_with_override` 一致；
+    /// - 非 secure + `public_read`：游客回退到管理员命名空间，使未登录用户
+    ///   也能看到管理员配置的书源 / 书架；
+    /// - 其余情况沿用 `default`。
+    pub async fn resolve_read_user_ns(
+        &self,
+        access_token: Option<&str>,
+        secure_key: Option<&str>,
+        user_ns: Option<&str>,
+    ) -> Result<String, AppError> {
+        if self.cfg.secure {
+            if let Some(key) = secure_key {
+                if self.secure_key_matches(key) {
+                    if let Some(ns) = user_ns.map(str::trim).filter(|ns| !ns.is_empty()) {
+                        return Ok(ns.to_string());
+                    }
+                    return Ok("default".to_string());
+                }
+            }
+        }
+        if let Some(token) = access_token {
+            if let Ok(Some(user)) = self.check_auth(token).await {
+                return Ok(user.username);
+            }
+        }
+        if !self.cfg.secure {
+            if self.cfg.public_read {
+                if let Some(admin_ns) = self.admin_user_ns().await? {
+                    return Ok(admin_ns);
+                }
+            }
+            return Ok("default".to_string());
+        }
+        Err(AppError::BadRequest("NEED_LOGIN".to_string()))
+    }
+
+    /// 写路径命名空间。
+    ///
+    /// 公开只读模式下游客与管理员共用同一个库（字号、阅读进度、书架等写入
+    /// 功能保持可用），受限的是「书源管理」，由 `can_manage_book_sources` 控制。
+    /// 其他情况沿用原行为，保证既有部署不受影响。
+    pub async fn resolve_write_user_ns(
+        &self,
+        access_token: Option<&str>,
+        secure_key: Option<&str>,
+        user_ns: Option<&str>,
+    ) -> Result<String, AppError> {
+        if self.cfg.secure {
+            if let Some(key) = secure_key {
+                if self.secure_key_matches(key) {
+                    if let Some(ns) = user_ns.map(str::trim).filter(|ns| !ns.is_empty()) {
+                        return Ok(ns.to_string());
+                    }
+                    return Ok("default".to_string());
+                }
+            }
+        }
+        if let Some(token) = access_token {
+            if let Ok(Some(user)) = self.check_auth(token).await {
+                return Ok(user.username);
+            }
+        }
+        if !self.cfg.secure {
+            if self.cfg.public_read {
+                if let Some(admin_ns) = self.admin_user_ns().await? {
+                    return Ok(admin_ns);
+                }
+            }
+            return Ok("default".to_string());
+        }
+        Err(AppError::BadRequest("NEED_LOGIN".to_string()))
+    }
+
     pub async fn require_login_user_ns(
         &self,
         access_token: Option<&str>,
@@ -846,10 +944,18 @@ mod tests {
     }
 
     async fn create_user_service_with_secure(secure: bool) -> (UserService, PathBuf) {
+        create_user_service_with_options(secure, false).await
+    }
+
+    async fn create_user_service_with_options(
+        secure: bool,
+        public_read: bool,
+    ) -> (UserService, PathBuf) {
         let temp_dir =
             std::env::temp_dir().join(format!("reader-rust-user-service-{}", random_string(8)));
         let cfg = AppConfig {
             secure,
+            public_read,
             storage_dir: temp_dir.to_string_lossy().to_string(),
             ..AppConfig::default()
         };
@@ -1303,4 +1409,154 @@ mod tests {
 
         let _ = fs::remove_dir_all(temp_dir).await;
     }
+    // ── 公开只读模式（PUBLIC_READ）──
+
+    #[tokio::test]
+    async fn public_read_guest_reads_admin_namespace() {
+        let (service, temp_dir) = create_user_service_with_options(false, true).await;
+
+        // 第一个注册的账号自动成为管理员
+        service
+            .login("admin1", "password123", false, None)
+            .await
+            .unwrap();
+
+        let ns = service
+            .resolve_read_user_ns(None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(ns, "admin1");
+
+        std::fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn public_read_guest_writes_to_admin_namespace() {
+        let (service, temp_dir) = create_user_service_with_options(false, true).await;
+        service
+            .login("admin1", "password123", false, None)
+            .await
+            .unwrap();
+
+        // 共用同一个库，保证字号 / 阅读进度 / 书架等写入功能对游客仍然可用
+        assert_eq!(
+            service
+                .resolve_write_user_ns(None, None, None)
+                .await
+                .unwrap(),
+            "admin1"
+        );
+
+        std::fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn public_read_logged_in_user_keeps_own_namespace() {
+        let (service, temp_dir) = create_user_service_with_options(false, true).await;
+        service
+            .login("admin1", "password123", false, None)
+            .await
+            .unwrap();
+        let member = service
+            .login("member1", "password123", false, None)
+            .await
+            .unwrap();
+        let token = member
+            .get("accessToken")
+            .and_then(|v| v.as_str())
+            .unwrap()
+            .to_string();
+
+        let read_ns = service
+            .resolve_read_user_ns(Some(&token), None, None)
+            .await
+            .unwrap();
+        assert_eq!(read_ns, "member1");
+
+        let write_ns = service
+            .resolve_write_user_ns(Some(&token), None, None)
+            .await
+            .unwrap();
+        assert_eq!(write_ns, "member1");
+
+        std::fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn without_public_read_guest_still_uses_default_namespace() {
+        let (service, temp_dir) = create_user_service_with_options(false, false).await;
+        service
+            .login("admin1", "password123", false, None)
+            .await
+            .unwrap();
+
+        // 保持既有行为：未开启公开只读时游客仍是 default
+        assert_eq!(
+            service.resolve_read_user_ns(None, None, None).await.unwrap(),
+            "default"
+        );
+        assert_eq!(
+            service
+                .resolve_write_user_ns(None, None, None)
+                .await
+                .unwrap(),
+            "default"
+        );
+
+        std::fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn public_read_guest_cannot_manage_book_sources() {
+        let (service, temp_dir) = create_user_service_with_options(false, true).await;
+        service
+            .login("admin1", "password123", false, None)
+            .await
+            .unwrap();
+
+        // 游客无权管理书源
+        assert!(!service
+            .can_manage_book_sources(None, None)
+            .await
+            .unwrap());
+
+        // 管理员可以
+        let admin = service
+            .login("admin1", "password123", true, None)
+            .await
+            .unwrap();
+        let admin_token = admin
+            .get("accessToken")
+            .and_then(|v| v.as_str())
+            .unwrap()
+            .to_string();
+        assert!(service
+            .can_manage_book_sources(Some(&admin_token), None)
+            .await
+            .unwrap());
+
+        std::fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn without_public_read_book_source_management_stays_open() {
+        let (service, temp_dir) = create_user_service_with_options(false, false).await;
+        // 未开启公开只读时保持原行为，不限制书源管理
+        assert!(service
+            .can_manage_book_sources(None, None)
+            .await
+            .unwrap());
+        std::fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn public_read_falls_back_to_default_without_admin() {
+        let (service, temp_dir) = create_user_service_with_options(false, true).await;
+        assert_eq!(
+            service.resolve_read_user_ns(None, None, None).await.unwrap(),
+            "default"
+        );
+        std::fs::remove_dir_all(temp_dir).ok();
+    }
+
 }

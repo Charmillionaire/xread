@@ -75,7 +75,7 @@ pub async fn delete_ai_book_memory(
 async fn resolve_user_ns(state: &AppState, auth: &AuthContext) -> Result<String, AppError> {
     state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))
 }

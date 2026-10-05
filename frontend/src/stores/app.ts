@@ -36,6 +36,7 @@ export const useAppStore = defineStore('app', () => {
   const needSecureKey = ref(false)
   const secureKeyRequired = ref(false)
   const adminAuthorized = ref(false)
+  const publicRead = ref(false)
   const isLoggedIn = ref(false)
   const secureKey = ref(readStoredSecureKey())
   const versionUpdate = ref<VersionUpdateInfo | null>(null)
@@ -43,6 +44,10 @@ export const useAppStore = defineStore('app', () => {
   const versionUpdateChecked = ref(false)
   let versionUpdateToastVersion = ''
   const canCheckVersionUpdate = computed(() => !isSecureMode.value || adminAuthorized.value)
+  // 公开只读模式：只有管理员能增删改书源
+  const canManageBookSources = computed(
+    () => !publicRead.value || adminAuthorized.value || !!userInfo.value?.isAdmin,
+  )
   const hasVersionUpdateReminder = computed(() => !!versionUpdate.value?.shouldRemind)
 
   async function fetchUserInfo() {
@@ -52,6 +57,7 @@ export const useAppStore = defineStore('app', () => {
       isSecureMode.value = data.secure
       secureKeyRequired.value = data.secureKeyRequired
       adminAuthorized.value = data.adminAuthorized
+      publicRead.value = !!data.publicRead
       needSecureKey.value = computeNeedSecureKey({
         secure: data.secure,
         secureKeyRequired: data.secureKeyRequired,
@@ -267,7 +273,8 @@ export const useAppStore = defineStore('app', () => {
 
   return {
     theme, setTheme, toggleTheme,
-    userInfo, isSecureMode, needSecureKey, secureKeyRequired, adminAuthorized, secureKey, isLoggedIn,
+    userInfo, isSecureMode, needSecureKey, secureKeyRequired, adminAuthorized, publicRead,
+    canManageBookSources, secureKey, isLoggedIn,
     versionUpdate, versionUpdateLoading, versionUpdateChecked, canCheckVersionUpdate, hasVersionUpdateReminder,
     fetchUserInfo, setUser, clearUser, setSecureKey, updateUserInfo, checkVersionUpdate, dismissVersionUpdateReminder,
     showLoginModal, showSettingsDrawer, showSourceManager, showUserManager, showWebdavManager,

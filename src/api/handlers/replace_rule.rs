@@ -114,7 +114,7 @@ async fn resolve_user_ns(
 ) -> Result<String, AppError> {
     match state
         .user_service
-        .resolve_user_ns_with_override(access_token, secure_key, user_ns)
+        .resolve_write_user_ns(access_token, secure_key, user_ns)
         .await
     {
         Ok(ns) => Ok(ns),

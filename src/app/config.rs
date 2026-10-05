@@ -12,6 +12,8 @@ pub struct AppConfig {
     pub request_timeout_secs: u64,
     pub secure: bool,
     pub secure_key: String,
+    /// 游客可见管理员的书源/书架等数据（只读公开模式）
+    pub public_read: bool,
     pub invite_code: String,
     pub user_limit: u32,
     pub user_book_limit: u32,
@@ -31,6 +33,7 @@ impl Default for AppConfig {
             request_timeout_secs: 15,
             secure: false,
             secure_key: "".to_string(),
+            public_read: false,
             invite_code: "".to_string(),
             user_limit: 50,
             user_book_limit: 2000,
@@ -53,6 +56,7 @@ pub fn load() -> anyhow::Result<AppConfig> {
         .set_default("request_timeout_secs", defaults.request_timeout_secs as i64)?
         .set_default("secure", defaults.secure)?
         .set_default("secure_key", defaults.secure_key)?
+        .set_default("public_read", defaults.public_read)?
         .set_default("invite_code", defaults.invite_code)?
         .set_default("user_limit", defaults.user_limit as i64)?
         .set_default("user_book_limit", defaults.user_book_limit as i64)?

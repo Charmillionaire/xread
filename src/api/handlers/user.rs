@@ -113,6 +113,7 @@ pub async fn get_user_info(
         "secure": secure,
         "secureKeyRequired": secure_key_required,
         "adminAuthorized": admin_authorized,
+        "publicRead": state.config.public_read,
     });
     Ok(Json(ApiResponse::ok(data)))
 }
@@ -124,7 +125,7 @@ pub async fn save_user_config(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = match state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
     {
         Ok(ns) => ns,
@@ -145,7 +146,7 @@ pub async fn get_user_config(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = match state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
     {
         Ok(ns) => ns,
@@ -321,7 +322,7 @@ pub async fn upload_file(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = match state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
     {
         Ok(ns) => ns,
@@ -376,7 +377,7 @@ pub async fn delete_file(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = match state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
     {
         Ok(ns) => ns,

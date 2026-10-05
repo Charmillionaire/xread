@@ -229,7 +229,7 @@ pub async fn search_book(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
 
@@ -276,7 +276,7 @@ pub async fn search_book_multi(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let req = if let Some(b) = body { b.0 } else { q };
@@ -383,7 +383,7 @@ pub async fn explore_book(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let mut req = q;
@@ -438,7 +438,7 @@ pub async fn get_book_info(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
 
@@ -514,7 +514,7 @@ pub async fn get_chapter_list(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
 
@@ -692,7 +692,7 @@ pub async fn get_book_content(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
 
@@ -888,7 +888,7 @@ pub async fn delete_book_cache(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
 
@@ -973,7 +973,7 @@ pub async fn get_bookshelf(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let list = state.book_service.get_bookshelf(&user_ns).await?;
@@ -1136,7 +1136,7 @@ pub async fn save_book(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     if book.book_url.trim().is_empty() {
@@ -1181,7 +1181,7 @@ pub async fn save_books(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
 
@@ -1214,7 +1214,7 @@ pub async fn set_book_source(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
 
@@ -1323,7 +1323,7 @@ pub async fn delete_book(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let removed_books = find_matching_books(&state, &user_ns, std::slice::from_ref(&book)).await?;
@@ -1343,7 +1343,7 @@ pub async fn delete_books(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let removed_books = find_matching_books(&state, &user_ns, &books).await?;
@@ -1361,7 +1361,7 @@ pub async fn save_book_progress(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_write_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let req = if let Some(b) = body { b.0 } else { q };
@@ -1453,7 +1453,7 @@ pub async fn get_shelf_book(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let req = if let Some(b) = body { b.0 } else { q };
@@ -1476,7 +1476,7 @@ pub async fn get_shelf_book_with_cache_info(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let books = state.book_service.get_bookshelf(&user_ns).await?;
@@ -1605,7 +1605,7 @@ pub async fn get_local_epub_asset(
 ) -> Result<Response, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let asset = state
@@ -1630,7 +1630,7 @@ pub async fn get_invalid_book_sources(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let path = std::path::PathBuf::from(&state.config.storage_dir)
@@ -1660,7 +1660,7 @@ pub async fn cache_book_sse(
 ) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let req = if let Some(b) = body { b.0 } else { q };
@@ -1831,7 +1831,7 @@ pub async fn search_book_multi_sse(
 ) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let key = q.key.unwrap_or_default();
@@ -1986,7 +1986,7 @@ pub async fn search_book_source_sse(
 ) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let book_url = q.url.unwrap_or_default();
@@ -2138,7 +2138,7 @@ pub async fn get_available_book_source(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let req = if let Some(b) = body { b.0 } else { q };
@@ -2297,7 +2297,7 @@ pub async fn get_available_book_source_sse(
 ) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let refresh = req.refresh.unwrap_or(0) > 0;
@@ -2504,7 +2504,7 @@ pub async fn book_source_debug_sse(
 ) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, AppError> {
     let user_ns = state
         .user_service
-        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .resolve_read_user_ns(auth.access_token(), auth.secure_key(), auth.user_ns())
         .await
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let book_source_url = q.book_source_url.unwrap_or_default();
