@@ -21,7 +21,7 @@ static JS_KV: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(Has
 /// 书源首次无源变量时的默认值：预置含 hosts 的云端配置，
 /// 避免光遇等 jsLib 里 getVariable('云端配置').version / ['hosts'] 访问 null 崩溃。
 /// 与 jsLib 头部 let hosts = [...] 保持一致。
-static DEFAULT_VARIABLE_JSON: &str = r#"{"云端配置":{"version":"","hosts":["https://v1.gyks.cf","https://v2.gyks.cf","https://v3.gyks.cf","https://v4.gyks.cf","https://v5.gyks.cf","https://v6.gyks.cf","https://v7.gyks.cf","http://101.35.133.34:8888"]}}"#;
+static DEFAULT_VARIABLE_JSON: &str = r#"{"云端配置":{"version":"","hosts":["https://v1.qingtian618.com","https://v2.qingtian618.com","https://v3.qingtian618.com","https://v4.qingtian618.com","https://v5.qingtian618.com","https://v6.qingtian618.com","https://v7.qingtian618.com"]}}"#;
 static JS_LIB_CACHE: Lazy<Mutex<HashMap<String, String>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 static JS_HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
@@ -287,7 +287,21 @@ fn eval_js_inner_with_source(
             Func::new(move |url: String| -> Option<String> {
                 let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
                 let key = format!("__cookie_{}", url);
-                map.get(&key).cloned()
+                if let Some(c) = map.get(&key) {
+                    if !c.trim().is_empty() {
+                        return Some(c.clone());
+                    }
+                }
+                // 若按具体 host 未找到，回退读取 __cookie_all 或任意含 qttoken 的 cookie
+                if let Some(c) = map.get("__cookie_all") {
+                    if !c.trim().is_empty() {
+                        return Some(c.clone());
+                    }
+                }
+                map.iter()
+                    .filter(|(k, v)| k.starts_with("__cookie_") && !v.trim().is_empty())
+                    .map(|(_, v)| v.clone())
+                    .find(|v| v.contains("qttoken"))
             }),
         )?;
         cookie_obj.set(
@@ -458,7 +472,22 @@ fn eval_js_inner_with_source(
             "getCookie",
             Func::new(|url: String| -> String {
                 let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
-                map.get(&format!("__cookie_{}", url)).cloned().unwrap_or_default()
+                let key = format!("__cookie_{}", url);
+                if let Some(c) = map.get(&key) {
+                    if !c.trim().is_empty() {
+                        return c.clone();
+                    }
+                }
+                if let Some(c) = map.get("__cookie_all") {
+                    if !c.trim().is_empty() {
+                        return c.clone();
+                    }
+                }
+                map.iter()
+                    .filter(|(k, v)| k.starts_with("__cookie_") && !v.trim().is_empty())
+                    .map(|(_, v)| v.clone())
+                    .find(|v| v.contains("qttoken"))
+                    .unwrap_or_default()
             }),
         )?;
         java_obj.set(
@@ -585,6 +614,26 @@ fn eval_js_inner_with_source(
                 globals.set(key.as_str(), js_value)?;
             }
         }
+
+        // 注入全局兼容 Shim：
+        // 1. 让 java.hexDecodeToString 支持接收 Object（自动 JSON 序列化，避免 QuickJS 抛类型转换异常）
+        // 2. 确保 globalThis / this 访问一致性
+        let shim = r#"
+        (function() {
+            if (typeof java !== 'undefined' && java.hexDecodeToString) {
+                const _rawHex = java.hexDecodeToString;
+                java.hexDecodeToString = function(val) {
+                    if (val !== null && typeof val === 'object') {
+                        return JSON.stringify(val);
+                    }
+                    return _rawHex(val != null ? String(val) : "");
+                };
+            }
+        })();
+        "#;
+        let mut shim_opts = rquickjs::context::EvalOptions::default();
+        shim_opts.strict = false;
+        let _ = ctx.eval_with_options::<(), _>(shim, shim_opts);
 
         if !shared_js.trim().is_empty() {
             eval_script(ctx.clone(), &shared_js)?;
