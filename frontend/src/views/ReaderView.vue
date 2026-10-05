@@ -193,12 +193,7 @@
               @pause="persistMediaProgress(true)"
               @ended="handleMediaEnded"
             ></video>
-            <div class="media-actions">
-              <button class="next-btn" :disabled="!store.hasNext" @click="nextChapter">
-                {{ store.hasNext ? '下一集' : '没有更多了' }}
-              </button>
-            </div>
-            <p v-if="mediaFallbackText" class="media-raw">{{ mediaFallbackText }}</p>
+            <!-- 移除下一集按钮与直链文本显示，保留纯粹播放器 -->
           </div>
 
           <div
@@ -211,21 +206,11 @@
             v-html="formattedContent"
           ></div>
 
-          <div class="chapter-footer">
-            <button class="next-btn" :disabled="!store.hasNext" @click="nextChapter">
-              {{ store.hasNext ? '下一章' : '没有更多了' }}
-            </button>
-          </div>
+          <!-- 移除单章底部的下一章按钮，直接滚动翻页加载 -->
         </div>
       </article>
 
-      <Transition name="fade">
-        <div v-if="!store.loading && isHorizontalPageMode && isHorizontalAtEnd" class="horizontal-next-floating">
-          <button class="next-btn" :disabled="!store.hasNext" @click="nextChapter">
-            {{ store.hasNext ? '下一章' : '没有更多了' }}
-          </button>
-        </div>
-      </Transition>
+
 
       <div
         v-if="!store.loading && isContinuousMode"
@@ -257,11 +242,7 @@
             v-html="chapter.html"
           ></div>
 
-          <div v-if="chapter.index === continuousChapters[continuousChapters.length - 1]?.index" class="chapter-footer">
-            <button class="next-btn" :disabled="!store.hasNext" @click="nextChapter">
-              {{ store.hasNext ? '继续加载下一章' : '已经到底了' }}
-            </button>
-          </div>
+<!-- 连续滚动模式：滚动到底部自动加载，隐藏手动加载按钮 -->
         </section>
 
         <div v-if="continuousLoadingNext" class="continuous-loading-inline">正在加载下一章...</div>
@@ -635,10 +616,12 @@ const formattedContent = computed(() => formatChapterHtml(store.displayContent |
 
 // 听书 / 短剧章节返回的是媒体直链，识别后交给播放器渲染
 const mediaContent = computed(() => parseMediaContent(store.content || ''))
+/*
 const mediaFallbackText = computed(() => {
   if (!mediaContent.value) return ''
   return (store.content || '').trim()
 })
+*/
 const mediaPlaybackUrl = computed(() => {
   const media = mediaContent.value
   if (!media) return ''
@@ -701,7 +684,6 @@ const {
   horizontalPageStep,
   horizontalPageStepStyle,
   horizontalPages,
-  isHorizontalAtEnd,
   rebuildHorizontalPages,
   updateHorizontalMetrics,
   updateHorizontalEndState,
@@ -1434,8 +1416,14 @@ function handleScroll() {
       if (config.value.enablePreload && maxPage > 0 && horizontalPageIndex.value >= maxPage - 1) {
         store.preloadAroundChapter(store.currentIndex)
       }
-    } else if (config.value.enablePreload && container.scrollHeight - (container.scrollTop + container.clientHeight) < container.clientHeight * 1.5) {
-      store.preloadAroundChapter(store.currentIndex)
+    } else {
+      if (config.value.enablePreload && container.scrollHeight - (container.scrollTop + container.clientHeight) < container.clientHeight * 1.5) {
+        store.preloadAroundChapter(store.currentIndex)
+      }
+      // 单章滚动到底部时自动无感跳转下一章
+      if (store.hasNext && !store.loading && container.scrollHeight - (container.scrollTop + container.clientHeight) < 20) {
+        nextChapter()
+      }
     }
   }
   if (showControls.value && !store.activePanel) {
