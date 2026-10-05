@@ -1159,7 +1159,23 @@ impl BookService {
             req = req.header("Referer", referer);
         }
 
-        let res = req.send().await.map_err(|e| AppError::Internal(e.into()))?;
+        let mut res = req.send().await.map_err(|e| AppError::Internal(e.into()))?;
+        if !res.status().is_success() && (url.contains("fqnovelpic.com") || url.contains("byteimg.com")) {
+            // 番茄图床防盗链或临时签名过期，自动降级提取 pic_id 改用公共 CDN
+            if let Some(pos) = url.find("/novel-pic/") {
+                let rest = &url[pos + 11..];
+                let id_end = rest.find(|c: char| !c.is_ascii_hexdigit()).unwrap_or(rest.len());
+                let pic_id = &rest[..id_end];
+                if !pic_id.is_empty() {
+                    let fallback_url = format!("https://p3-novel.byteimg.com/novel-pic/{}~tplv-resize:600:0.image", pic_id);
+                    if let Ok(f_res) = self.http.client().get(&fallback_url).header("User-Agent", "Mozilla/5.0").send().await {
+                        if f_res.status().is_success() {
+                            res = f_res;
+                        }
+                    }
+                }
+            }
+        }
         if !res.status().is_success() {
             return Err(AppError::NotFound("cover not found".to_string()));
         }
