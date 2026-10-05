@@ -373,20 +373,24 @@ impl UserService {
         Ok(Some(user))
     }
 
-    /// Check if user is admin (either by is_admin flag or by secure key)
+    /// 检查用户是否具备管理员权限：
+    /// 1. 登录用户的 is_admin 字段为 true；
+    /// 2. 或者请求附带了正确的 secure_key。
     pub async fn is_admin(
         &self,
         access_token: Option<&str>,
         secure_key: Option<&str>,
     ) -> Result<bool, AppError> {
+        if let Some(token) = access_token {
+            if let Ok(Some(user)) = self.check_auth(token).await {
+                if user.is_admin {
+                    return Ok(true);
+                }
+            }
+        }
         if let Some(key) = secure_key {
             if self.secure_key_matches(key) {
                 return Ok(true);
-            }
-        }
-        if let Some(token) = access_token {
-            if let Ok(Some(user)) = self.check_auth(token).await {
-                return Ok(user.is_admin);
             }
         }
         Ok(false)
@@ -451,34 +455,32 @@ impl UserService {
         Ok(row.map(|r| r.get("username")))
     }
 
-    /// 公开只读模式下是否允许管理书源。
-    ///
-    /// - 未开启 `public_read`：沿用原行为（任何登录/游客命名空间都可管自己的书源）
-    /// - 开启 `public_read`：只有管理员可以增删改书源，避免访客改坏公开数据
+    /// 是否允许管理书源：
+    /// 1. 管理员（is_admin 或 secure_key 匹配）无论何时都可管理
+    /// 2. 已登录的注册用户可以管理自己的书源
+    /// 3. 未登录且开启了 public_read：只读，不允许修改
+    /// 4. 其他情况（单用户或默认模式）：允许
     pub async fn can_manage_book_sources(
         &self,
         access_token: Option<&str>,
         secure_key: Option<&str>,
     ) -> Result<bool, AppError> {
-        if !self.cfg.secure {
-            if !self.cfg.public_read {
-                return Ok(true);
-            }
-            return self.is_admin(access_token, secure_key).await;
+        // 如果是管理员，任何模式下均可管理
+        if self.is_admin(access_token, secure_key).await? {
+            return Ok(true);
         }
-        // 在 secure (多用户) 模式下：
-        // 任何登录用户或通过 secure_key 校验的管理端，都可以管理/导入自己的书源
-        if let Some(key) = secure_key {
-            if self.secure_key_matches(key) {
-                return Ok(true);
-            }
-        }
+        // 如果是已登录的普通用户，管理自己的书源空间
         if let Some(token) = access_token {
             if let Ok(Some(_)) = self.check_auth(token).await {
                 return Ok(true);
             }
         }
-        Ok(false)
+        // 如果未登录：公开只读模式下拒绝游客修改
+        if self.cfg.public_read {
+            return Ok(false);
+        }
+        // 其他情况（单用户模式游客）允许管理
+        Ok(!self.cfg.secure)
     }
 
     /// 读路径命名空间。
@@ -521,28 +523,25 @@ impl UserService {
 
     /// 写路径命名空间。
     ///
-    /// 公开只读模式下游客与管理员共用同一个库（字号、阅读进度、书架等写入
-    /// 功能保持可用），受限的是「书源管理」，由 `can_manage_book_sources` 控制。
-    /// 其他情况沿用原行为，保证既有部署不受影响。
+    /// - 登录用户：写入当前登录用户的命名空间（如 xiaoyao），各自独立
+    /// - 未登录游客：公开只读模式下回退到管理员空间共用配置与书架，其他沿用 default
     pub async fn resolve_write_user_ns(
         &self,
         access_token: Option<&str>,
         secure_key: Option<&str>,
         user_ns: Option<&str>,
     ) -> Result<String, AppError> {
-        if self.cfg.secure {
-            if let Some(key) = secure_key {
-                if self.secure_key_matches(key) {
-                    if let Some(ns) = user_ns.map(str::trim).filter(|ns| !ns.is_empty()) {
-                        return Ok(ns.to_string());
-                    }
-                    return Ok("default".to_string());
-                }
-            }
-        }
         if let Some(token) = access_token {
             if let Ok(Some(user)) = self.check_auth(token).await {
                 return Ok(user.username);
+            }
+        }
+        if let Some(key) = secure_key {
+            if self.secure_key_matches(key) {
+                if let Some(ns) = user_ns.map(str::trim).filter(|ns| !ns.is_empty()) {
+                    return Ok(ns.to_string());
+                }
+                return Ok("default".to_string());
             }
         }
         if !self.cfg.secure {

@@ -88,9 +88,6 @@ pub async fn logout(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() {
-        return Ok(Json(ApiResponse::err("不支持的操作")));
-    }
     if let Some(token) = auth.access_token() {
         let _ = state.user_service.logout(token).await;
     }
@@ -165,18 +162,15 @@ pub async fn get_user_list(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() {
-        return Ok(Json(ApiResponse::err("不支持的操作")));
-    }
-    // Check if admin (either by is_admin flag or secure key)
+    // 检查管理员权限（管理员账号或配置的 key）
     let is_admin = state
         .user_service
         .is_admin(auth.access_token(), auth.secure_key())
         .await?;
     if !is_admin {
         return Ok(Json(ApiResponse::err_with_data(
-            "请输入管理密码",
-            Value::String("NEED_SECURE_KEY".to_string()),
+            "需要管理员权限",
+            Value::String("NEED_ADMIN".to_string()),
         )));
     }
     let list = state.user_service.get_user_list().await?;
@@ -188,18 +182,14 @@ pub async fn add_user(
     auth: AuthContext,
     Json(req): Json<AddUserRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() {
-        return Ok(Json(ApiResponse::err("不支持的操作")));
-    }
-    // Check if admin (either by is_admin flag or secure key)
     let is_admin = state
         .user_service
         .is_admin(auth.access_token(), auth.secure_key())
         .await?;
     if !is_admin {
         return Ok(Json(ApiResponse::err_with_data(
-            "请输入管理密码",
-            Value::String("NEED_SECURE_KEY".to_string()),
+            "需要管理员权限",
+            Value::String("NEED_ADMIN".to_string()),
         )));
     }
     let username = req.username.unwrap_or_default();
@@ -213,18 +203,14 @@ pub async fn reset_password(
     auth: AuthContext,
     Json(req): Json<ResetPasswordRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() {
-        return Ok(Json(ApiResponse::err("不支持的操作")));
-    }
-    // Check if admin (either by is_admin flag or secure key)
     let is_admin = state
         .user_service
         .is_admin(auth.access_token(), auth.secure_key())
         .await?;
     if !is_admin {
         return Ok(Json(ApiResponse::err_with_data(
-            "请输入管理密码",
-            Value::String("NEED_SECURE_KEY".to_string()),
+            "需要管理员权限",
+            Value::String("NEED_ADMIN".to_string()),
         )));
     }
     let username = req.username.unwrap_or_default();
@@ -241,9 +227,6 @@ pub async fn change_password(
     auth: AuthContext,
     Json(req): Json<ChangePasswordRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() {
-        return Ok(Json(ApiResponse::err("不支持的操作")));
-    }
     let token = auth
         .access_token()
         .ok_or_else(|| AppError::BadRequest("NEED_LOGIN".to_string()))?;
@@ -264,18 +247,14 @@ pub async fn delete_users(
     auth: AuthContext,
     Json(list): Json<Vec<String>>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() {
-        return Ok(Json(ApiResponse::err("不支持的操作")));
-    }
-    // Check if admin (either by is_admin flag or secure key)
     let is_admin = state
         .user_service
         .is_admin(auth.access_token(), auth.secure_key())
         .await?;
     if !is_admin {
         return Ok(Json(ApiResponse::err_with_data(
-            "请输入管理密码",
-            Value::String("NEED_SECURE_KEY".to_string()),
+            "需要管理员权限",
+            Value::String("NEED_ADMIN".to_string()),
         )));
     }
     let users = state.user_service.delete_users(&list).await?;
@@ -287,18 +266,14 @@ pub async fn update_user(
     auth: AuthContext,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
-    if !state.user_service.secure_enabled() {
-        return Ok(Json(ApiResponse::err("不支持的操作")));
-    }
-    // Check if admin (either by is_admin flag or secure key)
     let is_admin = state
         .user_service
         .is_admin(auth.access_token(), auth.secure_key())
         .await?;
     if !is_admin {
         return Ok(Json(ApiResponse::err_with_data(
-            "请输入管理密码",
-            Value::String("NEED_SECURE_KEY".to_string()),
+            "需要管理员权限",
+            Value::String("NEED_ADMIN".to_string()),
         )));
     }
     let username = req.username.unwrap_or_default();
