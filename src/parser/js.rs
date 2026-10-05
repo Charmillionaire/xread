@@ -351,10 +351,13 @@ fn eval_js_inner_with_source(
             Func::new(|| -> String { JS_DEVICE_ID.clone() }),
         )?;
         java_obj.set("deviceID", Func::new(|| -> String { JS_DEVICE_ID.clone() }))?;
+        // Legado 语义：java.get(key) / java.put(key, value) 是读写源变量（KV），
+        // 不是 HTTP 请求。光遇书源的目录/正文规则依赖它传递 book_id。
         java_obj.set(
             "get",
-            Func::new(|url: String| -> String {
-                java_request_simple("GET", &url, None).unwrap_or_default()
+            Func::new(|key: String| -> Option<String> {
+                let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.get(&key).cloned()
             }),
         )?;
         java_obj.set(
@@ -365,8 +368,10 @@ fn eval_js_inner_with_source(
         )?;
         java_obj.set(
             "put",
-            Func::new(|url: String, body: String| -> String {
-                java_request_simple("PUT", &url, Some(body)).unwrap_or_default()
+            Func::new(|key: String, value: String| -> bool {
+                let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
+                map.insert(key, value);
+                true
             }),
         )?;
         java_obj.set(
@@ -621,6 +626,28 @@ fn eval_js_inner_with_source(
         // 3. 确保 globalThis / this 访问一致性
         let shim = r#"
         (function() {
+            // Legado 的 java.log / toast / longToast 接受任意类型（含 boolean）。
+            // QuickJS 绑定的 Rust 函数只收 String，这里先做类型转换再转发。
+            if (typeof java !== 'undefined') {
+                ['log', 'toast', 'longToast'].forEach(function(name) {
+                    var raw = java[name];
+                    if (typeof raw !== 'function') { return; }
+                    java[name] = function(val) {
+                        var s;
+                        if (val !== null && typeof val === 'object') {
+                            try { s = JSON.stringify(val); } catch (e) { s = String(val); }
+                        } else {
+                            s = String(val);
+                        }
+                        return raw(s);
+                    };
+                });
+                // 标记当前运行环境，让书源走「直接返回媒体直链」的分支，
+                // 而不是依赖原生 App 才有的 startBrowser 播放器。
+                if (typeof java.getAppVariant !== 'function') {
+                    java.getAppVariant = function() { return 'reader-rust'; };
+                }
+            }
             if (typeof java !== 'undefined' && java.hexDecodeToString) {
                 const _rawHex = java.hexDecodeToString;
                 java.hexDecodeToString = function(val) {

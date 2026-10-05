@@ -165,7 +165,34 @@
         <div v-else>
           <div class="chapter-title">{{ store.currentChapter?.title || '加载中...' }}</div>
 
+          <div v-if="mediaContent" class="chapter-media">
+            <audio
+              v-if="mediaContent.kind === 'audio'"
+              class="media-player"
+              :src="mediaPlaybackUrl"
+              controls
+              autoplay
+              preload="metadata"
+            ></audio>
+            <video
+              v-else
+              class="media-player media-video"
+              :src="mediaPlaybackUrl"
+              controls
+              autoplay
+              playsinline
+              preload="metadata"
+            ></video>
+            <div class="media-actions">
+              <button class="next-btn" :disabled="!store.hasNext" @click="nextChapter">
+                {{ store.hasNext ? '下一集' : '没有更多了' }}
+              </button>
+            </div>
+            <p v-if="mediaFallbackText" class="media-raw">{{ mediaFallbackText }}</p>
+          </div>
+
           <div
+            v-else
             ref="chapterTextRef"
             class="chapter-text"
             :style="{
@@ -287,6 +314,7 @@ import { applySystemTheme } from '../utils/systemUi'
 import { countBrowserBookCache } from '../utils/browserCache'
 import { APP_VIEWPORT_CHANGE_EVENT, syncViewportSize } from '../utils/viewport'
 import { isReaderInteractiveClickTarget } from '../utils/readerClick'
+import { parseMediaContent, buildMediaProxyUrl } from '../utils/mediaContent'
 import { createReaderProgressAutoSaveScheduler, createReaderProgressExitSaver } from '../utils/readerProgressAutoSave'
 import type { Book } from '../types'
 
@@ -593,6 +621,19 @@ function renderChapterHtml(rawText: string) {
 }
 
 const formattedContent = computed(() => formatChapterHtml(store.displayContent || ''))
+
+// 听书 / 短剧章节返回的是媒体直链，识别后交给播放器渲染
+const mediaContent = computed(() => parseMediaContent(store.content || ''))
+const mediaFallbackText = computed(() => {
+  if (!mediaContent.value) return ''
+  return (store.content || '').trim()
+})
+const mediaPlaybackUrl = computed(() => {
+  const media = mediaContent.value
+  if (!media) return ''
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('accessToken') : null
+  return buildMediaProxyUrl(media.url, store.book?.origin, token)
+})
 
 const {
   horizontalPageIndex,
@@ -2066,6 +2107,42 @@ watch(
   text-indent: 0;
   user-select: text;
   -webkit-user-select: text;
+}
+
+.chapter-media {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0 40px;
+}
+
+.media-player {
+  width: 100%;
+  max-width: 960px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.media-video {
+  max-height: 70vh;
+}
+
+.media-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.media-raw {
+  width: 100%;
+  max-width: 960px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-all;
+  opacity: 0.6;
+  text-align: left;
 }
 
 .chapter-footer {

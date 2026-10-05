@@ -7,7 +7,7 @@ use crate::service::book_source_service::{
 };
 use crate::util::text::{normalize_source_url, repair_encoded_url};
 use axum::{
-    body::Bytes,
+    body::{Body, Bytes},
     extract::{Query, State},
     http::{
         header::{self, HeaderMap, HeaderValue},
@@ -520,6 +520,12 @@ fn resolve_proxy_target_url(
     raw_target_url: &str,
     book_source_url: &str,
 ) -> Result<String, AppError> {
+    // 完整 URL 原样透传：repair_encoded_url 会解码 %3F/%26/%3D，
+    // 那会破坏媒体直链里嵌套的 url= 查询参数（如 CDN 地址）。
+    let raw = raw_target_url.trim();
+    if let Ok(url) = Url::parse(raw) {
+        return Ok(raw.to_string());
+    }
     let repaired = repair_encoded_url(raw_target_url);
     if let Ok(url) = Url::parse(&repaired) {
         return Ok(url.to_string());
@@ -630,6 +636,34 @@ async fn forward_book_source_request(
         .iter()
         .filter_map(|v| v.to_str().ok().map(|s| s.to_string()))
         .collect();
+    // 音视频流直接透传：保留 Range/206，边下边播，避免整段缓冲进内存。
+    if is_media_response(content_type.as_deref()) {
+        let mut media_headers = HeaderMap::new();
+        for name in [
+            header::CONTENT_TYPE,
+            header::CONTENT_LENGTH,
+            header::CONTENT_RANGE,
+            header::ACCEPT_RANGES,
+            header::CACHE_CONTROL,
+            header::LAST_MODIFIED,
+            header::ETAG,
+        ] {
+            if let Some(value) = upstream.headers().get(&name) {
+                media_headers.insert(name.clone(), value.clone());
+            }
+        }
+        tracing::info!(
+            "bookSourceProxy media passthrough: target={} status={} type={:?}",
+            target_url,
+            status,
+            content_type
+        );
+        let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
+        *response.status_mut() = status;
+        *response.headers_mut() = media_headers;
+        return Ok(response);
+    }
+
     let bytes = upstream.bytes().await.map_err(AppError::Http)?;
     tracing::info!(
         "bookSourceProxy upstream response: method={} target={} status={} final_url={}",
@@ -687,6 +721,18 @@ fn should_forward_request_header(name: &str) -> bool {
         name.to_ascii_lowercase().as_str(),
         "host" | "content-length" | "authorization" | "referer" | "origin" | "connection"
     )
+}
+
+/// 音视频/播放列表响应，需要流式透传而不是整段读取。
+fn is_media_response(content_type: Option<&str>) -> bool {
+    let Some(ct) = content_type else {
+        return false;
+    };
+    let ct = ct.to_ascii_lowercase();
+    ct.starts_with("video/")
+        || ct.starts_with("audio/")
+        || ct.contains("mpegurl")
+        || ct.contains("octet-stream")
 }
 
 fn is_ajax_api_target(target_url: &str) -> bool {
