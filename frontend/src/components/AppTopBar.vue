@@ -471,12 +471,12 @@ function openSettings() {
   }
 }
 
-/* 搜索分类下拉胶囊 */
+/* 搜索分类下拉 (无边框无背景胶囊，纯文字风格) */
 .category-dropdown {
   position: relative;
   display: flex;
   align-items: center;
-  margin-left: 2px;
+  margin: 0 4px;
   user-select: none;
 }
 
@@ -484,12 +484,12 @@ function openSettings() {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  background: var(--color-bg-subtle, rgba(0, 0, 0, 0.05));
-  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.08));
-  border-radius: var(--radius-full, 9999px);
+  padding: 4px 6px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
   color: var(--color-text, #333);
-  font-size: var(--text-xs, 12px);
+  font-size: var(--text-sm, 14px);
   font-weight: 500;
   cursor: pointer;
   transition: all var(--duration-fast, 0.15s) ease;
@@ -497,15 +497,15 @@ function openSettings() {
 }
 
 .category-trigger:hover {
-  background: var(--color-bg-hover, rgba(0, 0, 0, 0.08));
-  border-color: var(--color-border-hover, rgba(0, 0, 0, 0.15));
+  color: var(--color-primary, #1890ff);
+  background: var(--color-bg-hover, rgba(0, 0, 0, 0.04));
 }
 
 .category-arrow {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   transition: transform var(--duration-fast, 0.15s) ease;
-  color: var(--color-text-tertiary, #888);
+  color: var(--color-text-secondary, #666);
 }
 
 .category-arrow.open {
@@ -514,14 +514,14 @@ function openSettings() {
 
 .category-menu {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   right: 0;
   background: var(--color-bg-elevated, #fff);
   border: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   border-radius: var(--radius-md, 8px);
   padding: 4px;
-  min-width: 80px;
+  min-width: 90px;
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -531,11 +531,11 @@ function openSettings() {
 .category-item {
   width: 100%;
   text-align: center;
-  padding: 6px 12px;
+  padding: 8px 14px;
   border: none;
   background: none;
   border-radius: var(--radius-sm, 6px);
-  font-size: var(--text-xs, 12px);
+  font-size: var(--text-sm, 14px);
   color: var(--color-text, #333);
   cursor: pointer;
   transition: all var(--duration-fast, 0.15s) ease;
