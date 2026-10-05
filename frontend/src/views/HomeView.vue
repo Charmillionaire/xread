@@ -10,10 +10,6 @@
     <div v-else class="shelf-content">
       <!-- Shelf Header -->
       <div class="shelf-header">
-        <h1 class="shelf-title">
-          书架
-          <span class="book-count">({{ shelfStore.filteredBooks.length }})</span>
-        </h1>
         <div v-if="isLoggedIn" class="shelf-actions">
           <template v-if="shelfStore.editMode">
             <button class="shelf-btn" type="button" title="全选" aria-label="全选" @click="shelfStore.selectAll()">

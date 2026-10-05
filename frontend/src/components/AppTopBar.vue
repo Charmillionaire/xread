@@ -262,7 +262,7 @@ function openSettings() {
 }
 
 .logo-text {
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   font-weight: 700;
   letter-spacing: -0.02em;
   background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
