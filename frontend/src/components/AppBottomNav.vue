@@ -344,11 +344,11 @@ onBeforeUnmount(() => {
 }
 
 .nav-item.active {
-  color: #179a57;
+  color: #f43f5e;
 }
 
 .bottom-nav-shell.theme-dark .nav-item.active {
-  color: #59d38e;
+  color: #fb7185;
 }
 
 .nav-item:active {

@@ -267,7 +267,7 @@ const showAiEntry = computed(() => {
   justify-content: center;
   padding: var(--space-2);
   background:
-    linear-gradient(160deg, rgba(212, 129, 42, 0.12), rgba(70, 134, 121, 0.08)),
+    linear-gradient(160deg, rgba(244, 63, 94, 0.12), rgba(70, 134, 121, 0.08)),
     var(--color-bg-sunken);
   text-align: center;
   gap: var(--space-1);
@@ -559,9 +559,9 @@ const showAiEntry = computed(() => {
   min-height: 28px;
   padding: 0 10px;
   margin-left: auto;
-  background: rgba(212, 129, 42, 0.075);
+  background: rgba(244, 63, 94, 0.075);
   color: var(--color-primary);
-  border: 1px solid rgba(212, 129, 42, 0.24);
+  border: 1px solid rgba(244, 63, 94, 0.24);
   border-radius: 7px;
   font-size: 12px;
   font-weight: 800;

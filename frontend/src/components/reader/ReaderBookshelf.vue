@@ -170,6 +170,6 @@ async function openBook(book: Book) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--color-primary, #c97f3a);
+  color: var(--color-primary, #f43f5e);
 }
 </style>

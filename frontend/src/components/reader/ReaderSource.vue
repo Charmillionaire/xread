@@ -491,7 +491,7 @@ async function handleSwitch(res: SearchBook) {
 .source-item.current { background: rgba(201, 127, 58, 0.04); cursor: default; }
 .source-item.selected {
   background: rgba(201, 127, 58, 0.08);
-  box-shadow: inset 3px 0 0 var(--color-primary, #c97f3a);
+  box-shadow: inset 3px 0 0 var(--color-primary, #f43f5e);
 }
 
 .source-main { flex: 1; min-width: 0; }
@@ -519,7 +519,7 @@ async function handleSwitch(res: SearchBook) {
 }
 
 .source-author { font-size: 11px; opacity: 0.5; margin-bottom: 4px; }
-.source-chapter { font-size: 11px; opacity: 0.7; color: var(--color-primary, #c97f3a); }
+.source-chapter { font-size: 11px; opacity: 0.7; color: var(--color-primary, #f43f5e); }
 .source-update { font-size: 11px; opacity: 0.48; margin-top: 2px; }
 .source-compare-line {
   display: flex;
@@ -534,7 +534,7 @@ async function handleSwitch(res: SearchBook) {
 }
 
 .compare-text.strong {
-  color: var(--color-primary, #c97f3a);
+  color: var(--color-primary, #f43f5e);
   opacity: 0.92;
 }
 
@@ -563,9 +563,9 @@ async function handleSwitch(res: SearchBook) {
 }
 
 .source-item:hover .switch-btn {
-  background: var(--color-primary, #c97f3a);
+  background: var(--color-primary, #f43f5e);
   color: white;
-  border-color: var(--color-primary, #c97f3a);
+  border-color: var(--color-primary, #f43f5e);
   opacity: 1;
 }
 
@@ -592,8 +592,8 @@ async function handleSwitch(res: SearchBook) {
 }
 
 .switch-btn.primary {
-  background: var(--color-primary, #c97f3a);
-  border-color: var(--color-primary, #c97f3a);
+  background: var(--color-primary, #f43f5e);
+  border-color: var(--color-primary, #f43f5e);
   color: #fff;
   opacity: 1;
 }
@@ -692,8 +692,8 @@ async function handleSwitch(res: SearchBook) {
 
 .load-more-btn:hover:not(:disabled) {
   background: rgba(201, 127, 58, 0.08);
-  border-color: var(--color-primary, #c97f3a);
-  color: var(--color-primary, #c97f3a);
+  border-color: var(--color-primary, #f43f5e);
+  color: var(--color-primary, #f43f5e);
 }
 
 .load-more-btn:disabled {
@@ -705,7 +705,7 @@ async function handleSwitch(res: SearchBook) {
   width: 24px;
   height: 24px;
   border: 2px solid rgba(0,0,0,0.1);
-  border-top-color: var(--color-primary, #c97f3a);
+  border-top-color: var(--color-primary, #f43f5e);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 12px;

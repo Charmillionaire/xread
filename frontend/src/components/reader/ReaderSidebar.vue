@@ -124,7 +124,7 @@ defineEmits<{
 
 .sidebar-item.active {
   opacity: 1;
-  color: var(--color-primary, #c97f3a);
+  color: var(--color-primary, #f43f5e);
 }
 
 

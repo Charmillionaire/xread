@@ -489,7 +489,7 @@ onMounted(async () => {
 }
 
 .settings-sep:first-of-type {
-  background: var(--color-primary, #c97f3a);
+  background: var(--color-primary, #f43f5e);
   opacity: 1;
   height: 3px;
   border-radius: 2px;
@@ -498,8 +498,8 @@ onMounted(async () => {
 .reset-btn {
   padding: 6px 16px;
   border-radius: 20px;
-  border: 1px solid var(--color-primary, #c97f3a);
-  color: var(--color-primary, #c97f3a);
+  border: 1px solid var(--color-primary, #f43f5e);
+  color: var(--color-primary, #f43f5e);
   font-size: 13px;
   font-weight: 500;
   transition: all 0.2s;
@@ -507,7 +507,7 @@ onMounted(async () => {
 }
 
 .reset-btn:hover {
-  background: var(--color-primary, #c97f3a);
+  background: var(--color-primary, #f43f5e);
   color: white;
 }
 
@@ -589,13 +589,13 @@ onMounted(async () => {
 }
 
 .swatch.active {
-  border-color: var(--color-primary, #c97f3a);
+  border-color: var(--color-primary, #f43f5e);
 }
 
 .swatch svg {
   width: 16px;
   height: 16px;
-  color: var(--color-primary, #c97f3a);
+  color: var(--color-primary, #f43f5e);
 }
 
 /* Button groups */
@@ -619,7 +619,7 @@ onMounted(async () => {
 }
 
 .opt-btn:hover {
-  border-color: var(--color-primary, #c97f3a);
+  border-color: var(--color-primary, #f43f5e);
 }
 
 .opt-btn:disabled {
@@ -628,9 +628,9 @@ onMounted(async () => {
 }
 
 .opt-btn.active {
-  background: var(--color-primary, #c97f3a);
+  background: var(--color-primary, #f43f5e);
   color: white;
-  border-color: var(--color-primary, #c97f3a);
+  border-color: var(--color-primary, #f43f5e);
 }
 
 /* Steppers */

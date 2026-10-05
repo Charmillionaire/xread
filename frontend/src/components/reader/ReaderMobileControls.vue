@@ -198,7 +198,7 @@ defineEmits<{
 .m-top-item span {
   white-space: nowrap;
 }
-.m-top-item.active { opacity: 1; color: var(--color-primary, #c97f3a); }
+.m-top-item.active { opacity: 1; color: var(--color-primary, #f43f5e); }
 
 .m-bottom-bar {
   position: absolute;
@@ -236,7 +236,7 @@ defineEmits<{
   left: 0;
   top: 0;
   bottom: 0;
-  background: var(--color-primary, #c97f3a);
+  background: var(--color-primary, #f43f5e);
   border-radius: 2px;
 }
 
@@ -248,7 +248,7 @@ defineEmits<{
   height: 14px;
   border-radius: 50%;
   background: white;
-  border: 2px solid var(--color-primary, #c97f3a);
+  border: 2px solid var(--color-primary, #f43f5e);
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
@@ -314,7 +314,7 @@ defineEmits<{
 }
 
 .m-btn svg { width: 18px; height: 18px; }
-.m-btn.active { color: var(--color-primary, #c97f3a); opacity: 1; }
+.m-btn.active { color: var(--color-primary, #f43f5e); opacity: 1; }
 .m-btn.spinning svg { animation: spin 1s linear infinite; }
 
 .slide-down-enter-active, .slide-down-leave-active { transition: transform 0.3s ease; }

@@ -359,7 +359,7 @@ function stopWorking() {
 .link-btn {
   background: transparent;
   border: none;
-  color: var(--color-primary, #c97f3a);
+  color: var(--color-primary, #f43f5e);
   cursor: pointer;
 }
 
@@ -367,7 +367,7 @@ function stopWorking() {
   background: rgba(201, 127, 58, 0.08);
   padding: 16px;
   border-radius: 12px;
-  border-left: 4px solid var(--color-primary, #c97f3a);
+  border-left: 4px solid var(--color-primary, #f43f5e);
 }
 
 .info-card p { margin: 0; font-size: 13px; line-height: 1.6; opacity: 0.8; }
@@ -389,13 +389,13 @@ function stopWorking() {
 }
 
 .cache-opt:hover {
-  border-color: var(--color-primary, #c97f3a);
+  border-color: var(--color-primary, #f43f5e);
   background: rgba(201, 127, 58, 0.04);
 }
 
 .cache-opt.primary {
-  background: var(--color-primary, #c97f3a);
-  border-color: var(--color-primary, #c97f3a);
+  background: var(--color-primary, #f43f5e);
+  border-color: var(--color-primary, #f43f5e);
   color: white;
 }
 
@@ -425,7 +425,7 @@ function stopWorking() {
 
 .progress-circle svg { transform: rotate(-90deg); width: 100%; height: 100%; }
 .circle-bg { fill: none; stroke: rgba(0,0,0,0.05); stroke-width: 2.8; }
-.circle { fill: none; stroke: var(--color-primary, #c97f3a); stroke-width: 2.8; stroke-linecap: round; transition: stroke-dasharray 0.3s; }
+.circle { fill: none; stroke: var(--color-primary, #f43f5e); stroke-width: 2.8; stroke-linecap: round; transition: stroke-dasharray 0.3s; }
 
 .percentage {
   position: absolute;

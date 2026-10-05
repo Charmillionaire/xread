@@ -1,5 +1,5 @@
 <template>
-  <div class="explore-view" :style="{ '--color-primary': '#c97f3a' }">
+  <div class="explore-view" :style="{ '--color-primary': '#f43f5e' }">
     <div class="explore-header">
       <div class="header-left">
         <h2>发现书海</h2>

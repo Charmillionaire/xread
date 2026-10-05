@@ -14,11 +14,11 @@
   --safe-area-left: env(safe-area-inset-left, 0px);
 
   /* Brand */
-  --color-primary: #d4812a;
-  --color-primary-light: #e6a35c;
-  --color-primary-dark: #b96c1e;
-  --color-primary-bg: rgba(212, 129, 42, 0.08);
-  --color-primary-border: rgba(212, 129, 42, 0.25);
+  --color-primary: #f43f5e;
+  --color-primary-light: #fb7185;
+  --color-primary-dark: #e11d48;
+  --color-primary-bg: rgba(244, 63, 94, 0.08);
+  --color-primary-border: rgba(244, 63, 94, 0.25);
 
   /* Accent */
   --color-accent: #4a90d9;
@@ -109,11 +109,11 @@
 
 /* ─── Dark Theme ─── */
 [data-theme='dark'] {
-  --color-primary: #e6a35c;
-  --color-primary-light: #f0bc80;
-  --color-primary-dark: #d4812a;
-  --color-primary-bg: rgba(230, 163, 92, 0.1);
-  --color-primary-border: rgba(230, 163, 92, 0.3);
+  --color-primary: #fb7185;
+  --color-primary-light: #fda4af;
+  --color-primary-dark: #f43f5e;
+  --color-primary-bg: rgba(251, 113, 133, 0.1);
+  --color-primary-border: rgba(251, 113, 133, 0.3);
 
   --color-bg: #141414;
   --color-bg-elevated: #1e1e1e;

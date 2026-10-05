@@ -1579,7 +1579,7 @@ function cloneServerModelConfig(config: AiServerModelConfig): AiServerModelConfi
   background:
     linear-gradient(rgba(70, 134, 121, 0.045) 1px, transparent 1px),
     linear-gradient(90deg, rgba(70, 134, 121, 0.045) 1px, transparent 1px),
-    radial-gradient(circle at 50% 50%, rgba(212, 129, 42, 0.07), transparent 38%),
+    radial-gradient(circle at 50% 50%, rgba(244, 63, 94, 0.07), transparent 38%),
     var(--color-bg-elevated);
   background-size: 28px 28px, 28px 28px, 100% 100%, auto;
 }
@@ -1644,7 +1644,7 @@ function cloneServerModelConfig(config: AiServerModelConfig): AiServerModelConfi
 }
 
 .graph-link.highlighted path {
-  stroke: rgba(212, 129, 42, 0.72);
+  stroke: rgba(244, 63, 94, 0.72);
   stroke-width: 3;
 }
 
@@ -1685,7 +1685,7 @@ marker#graph-arrow path {
   align-items: center;
   gap: 8px;
   padding: 0 13px;
-  border: 2px solid rgba(212, 129, 42, 0.62);
+  border: 2px solid rgba(244, 63, 94, 0.62);
   border-radius: 999px;
   background: rgba(255, 247, 238, 0.94);
   color: var(--color-text);
@@ -1728,7 +1728,7 @@ marker#graph-arrow path {
 .graph-node.connected .graph-node-card {
   box-shadow:
     0 10px 24px rgba(140, 120, 90, 0.12),
-    0 0 0 4px rgba(212, 129, 42, 0.08);
+    0 0 0 4px rgba(244, 63, 94, 0.08);
 }
 
 .graph-node.active .graph-node-card {
@@ -1737,8 +1737,8 @@ marker#graph-arrow path {
   background: var(--color-primary);
   color: #fff;
   box-shadow:
-    0 14px 30px rgba(212, 129, 42, 0.24),
-    0 0 0 5px rgba(212, 129, 42, 0.14);
+    0 14px 30px rgba(244, 63, 94, 0.24),
+    0 0 0 5px rgba(244, 63, 94, 0.14);
 }
 
 .graph-node.active .node-dot {
@@ -1966,7 +1966,7 @@ marker#graph-arrow path {
 .settings-grid input:focus,
 .settings-grid select:focus {
   border-color: var(--color-primary-border);
-  box-shadow: 0 0 0 3px rgba(212, 129, 42, 0.1);
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.1);
 }
 
 .settings-footer {

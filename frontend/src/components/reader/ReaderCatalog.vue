@@ -333,8 +333,8 @@ function formatDate(ts?: number) {
 
 .tab.active {
   opacity: 1;
-  color: var(--color-primary, #c97f3a);
-  border-bottom-color: var(--color-primary, #c97f3a);
+  color: var(--color-primary, #f43f5e);
+  border-bottom-color: var(--color-primary, #f43f5e);
 }
 
 .icon-btn,
@@ -399,7 +399,7 @@ function formatDate(ts?: number) {
 }
 
 .search-input:focus {
-  border-color: var(--color-primary, #c97f3a);
+  border-color: var(--color-primary, #f43f5e);
   background: rgba(0,0,0,0.02);
 }
 
@@ -457,7 +457,7 @@ function formatDate(ts?: number) {
   opacity: 1;
   border-color: rgba(201, 127, 58, 0.35);
   background: rgba(201, 127, 58, 0.08);
-  color: var(--color-primary, #c97f3a);
+  color: var(--color-primary, #f43f5e);
 }
 
 .jump-btn:disabled {
@@ -488,8 +488,8 @@ function formatDate(ts?: number) {
 }
 
 .bookmark-action.primary {
-  border-color: var(--color-primary, #c97f3a);
-  color: var(--color-primary, #c97f3a);
+  border-color: var(--color-primary, #f43f5e);
+  color: var(--color-primary, #f43f5e);
 }
 
 .bookmark-action.danger {
@@ -519,7 +519,7 @@ function formatDate(ts?: number) {
 }
 
 .list-item.active {
-  color: var(--color-primary, #c97f3a);
+  color: var(--color-primary, #f43f5e);
   background: rgba(201, 127, 58, 0.05);
 }
 
@@ -565,7 +565,7 @@ function formatDate(ts?: number) {
 }
 
 .status-badge.current {
-  color: var(--color-primary, #c97f3a);
+  color: var(--color-primary, #f43f5e);
   background: rgba(201, 127, 58, 0.12);
   border-color: rgba(201, 127, 58, 0.2);
 }
@@ -607,8 +607,8 @@ function formatDate(ts?: number) {
 }
 
 .bookmark-check.checked {
-  background: var(--color-primary, #c97f3a);
-  border-color: var(--color-primary, #c97f3a);
+  background: var(--color-primary, #f43f5e);
+  border-color: var(--color-primary, #f43f5e);
   color: #fff;
 }
 
