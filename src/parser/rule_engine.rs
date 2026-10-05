@@ -284,8 +284,15 @@ impl RuleEngine {
                     self.detect_mode(&content_rule, &content_body),
                     ParseMode::Js
                 ) {
-                    let script = self.strip_mode_prefix(&content_rule);
+                    let (script, output_rule) = split_js_output_rule(&content_rule);
                     if let Ok(res) = eval_js(script, &content_body, base_url) {
+                        if let Some(rule) = output_rule {
+                            if let Ok(v) = serde_json::from_str::<Value>(res.trim()) {
+                                if let Some(extracted) = jsonpath::jsonpath_first_string(&v, rule) {
+                                    return extracted;
+                                }
+                            }
+                        }
                         return res;
                     }
                 }
@@ -560,12 +567,24 @@ impl RuleEngine {
         list_rule: &str,
         ctx: &mut HashMap<String, String>,
     ) -> (Vec<BookChapter>, Vec<String>) {
-        let output = match eval_js(self.strip_mode_prefix(list_rule), body, base_url) {
+        let (script, output_rule) = split_js_output_rule(list_rule);
+        let output = match eval_js(script, body, base_url) {
             Ok(result) => result,
             Err(_) => return (vec![], vec![]),
         };
 
-        if let Some(items) = parse_js_output_items(&output) {
+        let items = if let Some(rule) = output_rule {
+            let Ok(value) = serde_json::from_str::<Value>(output.trim()) else {
+                return (vec![], vec![]);
+            };
+            jsonpath::jsonpath_query(&value, rule)
+        } else if let Some(items) = parse_js_output_items(&output) {
+            items
+        } else {
+            Vec::new()
+        };
+
+        if !items.is_empty() {
             let mut out = Vec::with_capacity(items.len());
             let mut seen_urls = std::collections::HashSet::new();
             for item in items {
@@ -1396,6 +1415,24 @@ fn select_json_scope(
 
     let interpolated = interpolate_json_templates(init_rule, v, base_url, ctx);
     let (pure_rule, _) = split_legado_regex(&interpolated);
+    let (script, output_rule) = split_js_output_rule(&pure_rule);
+    if script != pure_rule {
+        // init 规则包含 JS 脚本（如 <js>fetchBookDetail(result)</js>$.data）
+        let v_str = v.to_string();
+        if let Ok(res) = eval_js(script, &v_str, base_url) {
+            if let Some(rule) = output_rule {
+                if let Ok(parsed) = serde_json::from_str::<Value>(res.trim()) {
+                    return jsonpath::jsonpath_query(&parsed, rule)
+                        .into_iter()
+                        .next()
+                        .unwrap_or(parsed);
+                }
+            } else if let Ok(parsed) = serde_json::from_str::<Value>(res.trim()) {
+                return parsed;
+            }
+        }
+    }
+
     let (pure, _) = extract_js(&pure_rule);
     if pure.is_empty() {
         return v.clone();
