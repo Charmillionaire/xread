@@ -151,6 +151,7 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
   const isSearching = ref(false)
   const searchKey = ref('')
   const searchScope = ref<'all' | 'group' | 'source'>('source')
+  const searchCategory = ref<'novel' | 'manga' | 'audio' | 'skit'>('novel')
   const searchGroup = ref('')
   const searchSourceUrl = ref('')
 
@@ -278,7 +279,7 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
     groups, activeGroupId, displayGroups, filteredBooks,
     fetchGroups, saveGroup, removeGroup,
     searchResults, isSearching, searchKey,
-    searchScope, searchGroup, searchSourceUrl, startSearch, clearSearch, isSearchMode,
+    searchScope, searchCategory, searchGroup, searchSourceUrl, startSearch, clearSearch, isSearchMode,
     editMode,
     selectedBookUrls, toggleSelection, selectAll, clearSelection,
     bulkDelete, bulkSetGroup, reorderBooks, moveBookToFront,

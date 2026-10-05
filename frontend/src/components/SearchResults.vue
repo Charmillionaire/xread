@@ -105,6 +105,7 @@ const {
   searchResults: results,
   isSearching,
   searchScope,
+  searchCategory,
   searchGroup: selectedGroup,
   searchSourceUrl: selectedSourceUrl,
 } = storeToRefs(shelfStore)
@@ -174,7 +175,7 @@ function ensureSearchSelection() {
   }
 }
 
-function doSearch(key: string) {
+function doSearch(rawKey: string) {
   closeEventSource()
 
   if (searchScope.value === 'group' && !selectedGroup.value) {
@@ -189,11 +190,21 @@ function doSearch(key: string) {
     return
   }
 
+  let finalKey = rawKey.trim()
+  const cat = searchCategory.value
+  const hasPrefix = /^[xmtdXMTD][:：]/.test(finalKey)
+  if (!hasPrefix) {
+    if (cat === 'manga') finalKey = 'm:' + finalKey
+    else if (cat === 'audio') finalKey = 't:' + finalKey
+    else if (cat === 'skit') finalKey = 'd:' + finalKey
+    else if (cat === 'novel') finalKey = 'x:' + finalKey
+  }
+
   shelfStore.searchResults = []
   shelfStore.isSearching = true
 
   eventSource = searchBookMultiSSE({
-    key,
+    key: finalKey,
     concurrentCount: 24,
     bookSourceGroup: searchScope.value === 'group' ? selectedGroup.value : undefined,
     bookSourceUrl: searchScope.value === 'source' ? selectedSourceUrl.value : undefined,
@@ -227,7 +238,7 @@ function doSearch(key: string) {
 }
 
 watch(
-  [() => shelfStore.searchKey, searchScope, selectedGroup, selectedSourceUrl],
+  [() => shelfStore.searchKey, searchScope, searchCategory, selectedGroup, selectedSourceUrl],
   ([key]) => {
     ensureSearchSelection()
     if (key) {

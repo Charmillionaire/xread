@@ -19,7 +19,7 @@
           <input
             v-model="searchValue"
             type="text"
-            placeholder="搜索书籍..."
+            :placeholder="inputPlaceholder"
             @focus="searchFocused = true"
             @blur="searchFocused = false"
           />
@@ -28,6 +28,34 @@
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
+
+          <!-- 模式切换下拉胶囊 (纯文字，无图标) -->
+          <div class="category-dropdown" ref="dropdownRef">
+            <button
+              class="category-trigger"
+              type="button"
+              @click.stop="toggleDropdown"
+              :aria-expanded="showDropdown"
+            >
+              <span class="category-label">{{ currentCategoryLabel }}</span>
+              <svg class="category-arrow" :class="{ open: showDropdown }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div v-if="showDropdown" class="category-menu">
+              <button
+                v-for="item in categories"
+                :key="item.value"
+                type="button"
+                class="category-item"
+                :class="{ active: currentCategory === item.value }"
+                @click.stop="selectCategory(item.value)"
+              >
+                {{ item.label }}
+              </button>
+            </div>
+          </div>
+
           <button
             class="search-submit"
             type="submit"
@@ -78,6 +106,8 @@ import { useAppStore } from '../stores/app'
 import { useBookshelfStore } from '../stores/bookshelf'
 import { useExploreStore } from '../stores/explore'
 
+import { onMounted, onUnmounted } from 'vue'
+
 const router = useRouter()
 const route = useRoute()
 const appStore = useAppStore()
@@ -86,6 +116,54 @@ const exploreStore = useExploreStore()
 
 const searchFocused = ref(false)
 const searchValue = ref('')
+const showDropdown = ref(false)
+const dropdownRef = ref<HTMLElement | null>(null)
+
+type CategoryType = 'novel' | 'skit' | 'manga' | 'audio'
+
+const categories: { label: string; value: CategoryType }[] = [
+  { label: '小说', value: 'novel' },
+  { label: '短剧', value: 'skit' },
+  { label: '漫画', value: 'manga' },
+  { label: '有声', value: 'audio' },
+]
+
+const currentCategory = computed(() => shelfStore.searchCategory)
+const currentCategoryLabel = computed(() => {
+  const match = categories.find((c) => c.value === currentCategory.value)
+  return match ? match.label : '小说'
+})
+
+const inputPlaceholder = computed(() => {
+  return '搜索' + currentCategoryLabel.value + '...'
+})
+
+function toggleDropdown() {
+  showDropdown.value = !showDropdown.value
+}
+
+function selectCategory(cat: CategoryType) {
+  shelfStore.searchCategory = cat
+  showDropdown.value = false
+  // 如果当前已经有搜索词且在搜索结果中，直接触发重新搜索
+  if (searchValue.value.trim() && shelfStore.isSearchMode) {
+    handleSearch()
+  }
+}
+
+function handleClickOutside(e: MouseEvent) {
+  if (dropdownRef.value && !dropdownRef.value.contains(e.target as Node)) {
+    showDropdown.value = false
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('click', handleClickOutside)
+})
 
 const theme = computed(() => appStore.theme)
 const isLoggedIn = computed(() => appStore.isLoggedIn)
@@ -391,5 +469,86 @@ function openSettings() {
     height: 28px;
     font-size: 12px;
   }
+}
+
+/* 搜索分类下拉胶囊 */
+.category-dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 2px;
+  user-select: none;
+}
+
+.category-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--color-bg-subtle, rgba(0, 0, 0, 0.05));
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius-full, 9999px);
+  color: var(--color-text, #333);
+  font-size: var(--text-xs, 12px);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-fast, 0.15s) ease;
+  white-space: nowrap;
+}
+
+.category-trigger:hover {
+  background: var(--color-bg-hover, rgba(0, 0, 0, 0.08));
+  border-color: var(--color-border-hover, rgba(0, 0, 0, 0.15));
+}
+
+.category-arrow {
+  width: 12px;
+  height: 12px;
+  transition: transform var(--duration-fast, 0.15s) ease;
+  color: var(--color-text-tertiary, #888);
+}
+
+.category-arrow.open {
+  transform: rotate(180deg);
+}
+
+.category-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--color-bg-elevated, #fff);
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border-radius: var(--radius-md, 8px);
+  padding: 4px;
+  min-width: 80px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.category-item {
+  width: 100%;
+  text-align: center;
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm, 6px);
+  font-size: var(--text-xs, 12px);
+  color: var(--color-text, #333);
+  cursor: pointer;
+  transition: all var(--duration-fast, 0.15s) ease;
+}
+
+.category-item:hover {
+  background: var(--color-bg-hover, rgba(0, 0, 0, 0.05));
+  color: var(--color-primary, #1890ff);
+}
+
+.category-item.active {
+  background: var(--color-primary-bg, rgba(24, 144, 255, 0.1));
+  color: var(--color-primary, #1890ff);
+  font-weight: 600;
 }
 </style>
