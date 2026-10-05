@@ -1,6 +1,6 @@
 {
-  "name": "阅读",
-  "short_name": "阅读",
+  "name": "Read",
+  "short_name": "Read",
   "description": "阅读 Web 客户端",
   "start_url": "/",
   "scope": "/",

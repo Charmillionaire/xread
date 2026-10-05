@@ -3,11 +3,8 @@
     <div class="topbar-inner">
       <div class="topbar-left">
         <div class="logo" @click="goHome">
-          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-          </svg>
-          <span class="logo-text">阅读</span>
+          <img class="logo-icon" src="/favicon-32x32.png" alt="Logo" />
+          <span class="logo-text">Read</span>
         </div>
 
         <form
@@ -169,6 +166,8 @@ function openSettings() {
 }
 
 .logo-icon {
+  object-fit: contain;
+  border-radius: 6px;
   width: 28px;
   height: 28px;
   color: var(--color-primary);

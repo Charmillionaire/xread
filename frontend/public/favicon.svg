@@ -1,20 +1,3 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
-  <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4776E6" />
-      <stop offset="100%" stop-color="#8E54E9" />
-    </linearGradient>
-  </defs>
-  <rect x="0" y="0" width="100" height="100" rx="24" fill="url(#bgGrad)" />
-  <circle cx="50" cy="20" r="3" fill="#FFFFFF" opacity="0.9" />
-  <circle cx="31" cy="27" r="1.5" fill="#FFFFFF" opacity="0.6" />
-  <circle cx="69" cy="24" r="2" fill="#FFFFFF" opacity="0.8" />
-  <circle cx="23" cy="40" r="1" fill="#FFFFFF" opacity="0.4" />
-  <circle cx="77" cy="38" r="1" fill="#FFFFFF" opacity="0.4" />
-  <path d="M 46 38 L 54 38 L 54 60 L 50 56 L 46 60 Z" fill="#FFC371" />
-  <path d="M 50 62 Q 35 67 20 52 L 20 35 Q 35 50 50 45 Z" fill="#FFFFFF" opacity="0.4" />
-  <path d="M 50 62 Q 65 67 80 52 L 80 35 Q 65 50 50 45 Z" fill="#FFFFFF" opacity="0.4" />
-  <path d="M 50 69 Q 35 74 20 59 L 20 34 Q 35 49 50 44 Z" fill="#FFFFFF" opacity="0.95" />
-  <path d="M 50 69 Q 65 74 80 59 L 80 34 Q 65 49 50 44 Z" fill="#FFFFFF" opacity="0.95" />
-  <line x1="50" y1="44" x2="50" y2="69" stroke="#E0E5EC" stroke-width="1.5" stroke-linecap="round" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+  <image href="data:image/png;base64,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" width="128" height="128" />
 </svg>
