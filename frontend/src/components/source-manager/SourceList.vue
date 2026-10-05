@@ -99,11 +99,11 @@ defineEmits<{
 }
 
 .source-item.active {
-  background: rgba(201, 127, 58, 0.06);
+  background: rgba(244, 63, 94, 0.06);
 }
 
 .source-item.selected {
-  background: rgba(201, 127, 58, 0.1);
+  background: rgba(244, 63, 94, 0.1);
   box-shadow: inset 3px 0 0 var(--color-primary);
 }
 

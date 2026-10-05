@@ -305,7 +305,7 @@ function openSettings() {
   border-radius: var(--radius-full);
   background: var(--color-warning);
   border: 2px solid var(--color-bg-elevated);
-  box-shadow: 0 0 0 2px rgba(201, 127, 58, 0.14);
+  box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.14);
 }
 
 .topbar-btn:hover {

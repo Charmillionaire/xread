@@ -2024,9 +2024,9 @@ watch(
   margin: 0 auto;
   width: min(100%, 880px);
   padding: 10px 16px;
-  background: rgba(201, 127, 58, 0.12);
+  background: rgba(244, 63, 94, 0.12);
   color: var(--color-primary);
-  border-bottom: 1px solid rgba(201, 127, 58, 0.18);
+  border-bottom: 1px solid rgba(244, 63, 94, 0.18);
   font-size: 13px;
   line-height: 1.5;
   text-align: center;
@@ -2155,9 +2155,9 @@ watch(
 }
 
 :deep(.chapter-text p.reading) {
-  background: rgba(201, 127, 58, 0.12);
+  background: rgba(244, 63, 94, 0.12);
   border-radius: 10px;
-  box-shadow: inset 0 0 0 1px rgba(201, 127, 58, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.18);
 }
 
 :deep(.chapter-text p.reader-indent) {

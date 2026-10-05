@@ -127,9 +127,9 @@ defineEmits<{
   gap: 8px;
   min-height: 40px;
   padding: 4px 6px 4px 10px;
-  border: 1px solid rgba(201, 127, 58, 0.22);
+  border: 1px solid rgba(244, 63, 94, 0.22);
   border-radius: var(--radius-md);
-  background: rgba(201, 127, 58, 0.08);
+  background: rgba(244, 63, 94, 0.08);
   color: var(--color-text-secondary);
   font-size: 12px;
   white-space: nowrap;

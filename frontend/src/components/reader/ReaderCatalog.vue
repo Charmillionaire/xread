@@ -455,8 +455,8 @@ function formatDate(ts?: number) {
 
 .jump-btn:hover:not(:disabled) {
   opacity: 1;
-  border-color: rgba(201, 127, 58, 0.35);
-  background: rgba(201, 127, 58, 0.08);
+  border-color: rgba(244, 63, 94, 0.35);
+  background: rgba(244, 63, 94, 0.08);
   color: var(--color-primary, #f43f5e);
 }
 
@@ -520,7 +520,7 @@ function formatDate(ts?: number) {
 
 .list-item.active {
   color: var(--color-primary, #f43f5e);
-  background: rgba(201, 127, 58, 0.05);
+  background: rgba(244, 63, 94, 0.05);
 }
 
 .list-item.read:not(.active) .item-title {
@@ -566,8 +566,8 @@ function formatDate(ts?: number) {
 
 .status-badge.current {
   color: var(--color-primary, #f43f5e);
-  background: rgba(201, 127, 58, 0.12);
-  border-color: rgba(201, 127, 58, 0.2);
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.2);
 }
 
 .status-badge.read {
@@ -590,7 +590,7 @@ function formatDate(ts?: number) {
 }
 
 .bookmark-item.selected {
-  background: rgba(201, 127, 58, 0.08);
+  background: rgba(244, 63, 94, 0.08);
 }
 
 .bookmark-check {

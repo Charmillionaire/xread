@@ -248,8 +248,8 @@ async function handleClearRecent() {
 }
 
 .filter-chip.active {
-  border-color: rgba(201, 127, 58, 0.26);
-  background: rgba(201, 127, 58, 0.1);
+  border-color: rgba(244, 63, 94, 0.26);
+  background: rgba(244, 63, 94, 0.1);
   color: var(--color-primary);
 }
 

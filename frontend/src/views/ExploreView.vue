@@ -229,7 +229,7 @@ async function handleAddToShelf(book: Book | SearchBook) {
 }
 
 .category-tag.active {
-  background: rgba(201, 127, 58, 0.1);
+  background: rgba(244, 63, 94, 0.1);
   color: var(--color-primary);
   font-weight: 600;
 }

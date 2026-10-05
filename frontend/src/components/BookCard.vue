@@ -207,8 +207,8 @@ const showAiEntry = computed(() => {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 0 0, rgba(201, 127, 58, 0.08), transparent 34%),
-    linear-gradient(90deg, rgba(201, 127, 58, 0.035), transparent 42%);
+    radial-gradient(circle at 0 0, rgba(244, 63, 94, 0.08), transparent 34%),
+    linear-gradient(90deg, rgba(244, 63, 94, 0.035), transparent 42%);
   opacity: 0;
   transition: opacity var(--duration-normal) var(--ease-out);
   pointer-events: none;
@@ -302,7 +302,7 @@ const showAiEntry = computed(() => {
   min-width: 18px;
   text-align: center;
   line-height: 15px;
-  box-shadow: 0 6px 14px rgba(201, 127, 58, 0.28);
+  box-shadow: 0 6px 14px rgba(244, 63, 94, 0.28);
   z-index: 1;
 }
 
@@ -516,7 +516,7 @@ const showAiEntry = computed(() => {
 }
 
 .source-name {
-  background: rgba(201, 127, 58, 0.12);
+  background: rgba(244, 63, 94, 0.12);
   color: var(--color-primary);
 }
 
@@ -547,7 +547,7 @@ const showAiEntry = computed(() => {
 }
 
 .cache-chip.primary {
-  background: rgba(201, 127, 58, 0.13);
+  background: rgba(244, 63, 94, 0.13);
   color: var(--color-primary);
 }
 
@@ -570,8 +570,8 @@ const showAiEntry = computed(() => {
 }
 
 .ai-entry-btn:hover {
-  background: rgba(201, 127, 58, 0.16);
-  border-color: rgba(201, 127, 58, 0.42);
+  background: rgba(244, 63, 94, 0.16);
+  border-color: rgba(244, 63, 94, 0.42);
   transform: translateY(-1px);
 }
 

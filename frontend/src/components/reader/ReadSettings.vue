@@ -557,8 +557,8 @@ onMounted(async () => {
   margin-left: 90px;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid rgba(201, 127, 58, 0.18);
-  background: rgba(201, 127, 58, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.18);
+  background: rgba(244, 63, 94, 0.08);
   font-size: 12px;
   line-height: 1.6;
   color: inherit;

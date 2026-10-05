@@ -1169,7 +1169,7 @@ function cloneServerModelConfig(config: AiServerModelConfig): AiServerModelConfi
   margin-top: 14px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(201, 127, 58, 0.12);
+  background: rgba(244, 63, 94, 0.12);
   color: var(--color-text-secondary);
   font-size: 13px;
   flex: 0 0 auto;

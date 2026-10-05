@@ -313,7 +313,7 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 .meta-chip {
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(201, 127, 58, 0.12);
+  background: rgba(244, 63, 94, 0.12);
   color: var(--color-primary);
   font-size: 10px;
 }
@@ -345,8 +345,8 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 }
 
 .scope-chip.active {
-  border-color: rgba(201, 127, 58, 0.26);
-  background: rgba(201, 127, 58, 0.1);
+  border-color: rgba(244, 63, 94, 0.26);
+  background: rgba(244, 63, 94, 0.1);
   color: var(--color-primary);
 }
 
@@ -483,8 +483,8 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 }
 
 .article-item.active {
-  border-color: rgba(201, 127, 58, 0.26);
-  background: rgba(201, 127, 58, 0.08);
+  border-color: rgba(244, 63, 94, 0.26);
+  background: rgba(244, 63, 94, 0.08);
 }
 
 .article-title {

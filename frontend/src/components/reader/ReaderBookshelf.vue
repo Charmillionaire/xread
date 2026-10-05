@@ -121,7 +121,7 @@ async function openBook(book: Book) {
 }
 
 .shelf-item.current {
-  background: rgba(201, 127, 58, 0.08); /* primary slight tint */
+  background: rgba(244, 63, 94, 0.08); /* primary slight tint */
 }
 
 .book-cover {

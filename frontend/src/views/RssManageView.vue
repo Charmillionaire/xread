@@ -690,8 +690,8 @@ watch(() => store.sources, pruneSelection)
 }
 
 .group-chip-btn.active {
-  border-color: rgba(201, 127, 58, 0.26);
-  background: rgba(201, 127, 58, 0.1);
+  border-color: rgba(244, 63, 94, 0.26);
+  background: rgba(244, 63, 94, 0.1);
   color: var(--color-primary);
 }
 
@@ -765,9 +765,9 @@ watch(() => store.sources, pruneSelection)
 .group-chip-btn.active,
 .tool-btn.primary,
 .ghost-btn.primary {
-  background: rgba(201, 127, 58, 0.12);
+  background: rgba(244, 63, 94, 0.12);
   color: var(--color-primary);
-  border-color: rgba(201, 127, 58, 0.2);
+  border-color: rgba(244, 63, 94, 0.2);
 }
 
 .tool-btn.danger {
@@ -798,8 +798,8 @@ watch(() => store.sources, pruneSelection)
 }
 
 .source-item.active {
-  border-color: rgba(201, 127, 58, 0.26);
-  background: rgba(201, 127, 58, 0.08);
+  border-color: rgba(244, 63, 94, 0.26);
+  background: rgba(244, 63, 94, 0.08);
 }
 
 .source-item:focus-visible {
@@ -808,8 +808,8 @@ watch(() => store.sources, pruneSelection)
 }
 
 .source-item.selected {
-  border-color: rgba(201, 127, 58, 0.3);
-  background: rgba(201, 127, 58, 0.12);
+  border-color: rgba(244, 63, 94, 0.3);
+  background: rgba(244, 63, 94, 0.12);
   box-shadow: inset 3px 0 0 var(--color-primary);
 }
 
@@ -835,7 +835,7 @@ watch(() => store.sources, pruneSelection)
 .source-group {
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(201, 127, 58, 0.12);
+  background: rgba(244, 63, 94, 0.12);
   color: var(--color-primary);
   font-size: 12px;
 }
@@ -868,7 +868,7 @@ watch(() => store.sources, pruneSelection)
   gap: 8px;
   margin-top: 10px;
   padding: 10px 12px;
-  border: 1px solid rgba(201, 127, 58, 0.22);
+  border: 1px solid rgba(244, 63, 94, 0.22);
   border-radius: 16px;
   background: color-mix(in srgb, var(--color-bg-elevated) 90%, var(--color-primary) 10%);
   box-shadow: var(--shadow-sm);
@@ -944,7 +944,7 @@ watch(() => store.sources, pruneSelection)
 }
 
 .toggle input:checked + .toggle-slider {
-  background: rgba(201, 127, 58, 0.38);
+  background: rgba(244, 63, 94, 0.38);
 }
 
 .toggle input:checked + .toggle-slider::after {

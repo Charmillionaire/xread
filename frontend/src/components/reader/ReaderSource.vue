@@ -409,8 +409,8 @@ async function handleSwitch(res: SearchBook) {
   margin: 8px 16px 14px;
   padding: 12px;
   border-radius: 14px;
-  background: rgba(201, 127, 58, 0.08);
-  border: 1px solid rgba(201, 127, 58, 0.14);
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.14);
 }
 
 .book-brief-cover {
@@ -488,9 +488,9 @@ async function handleSwitch(res: SearchBook) {
 }
 
 .source-item:hover { background: rgba(0,0,0,0.03); }
-.source-item.current { background: rgba(201, 127, 58, 0.04); cursor: default; }
+.source-item.current { background: rgba(244, 63, 94, 0.04); cursor: default; }
 .source-item.selected {
-  background: rgba(201, 127, 58, 0.08);
+  background: rgba(244, 63, 94, 0.08);
   box-shadow: inset 3px 0 0 var(--color-primary, #f43f5e);
 }
 
@@ -573,8 +573,8 @@ async function handleSwitch(res: SearchBook) {
   margin: 8px 16px 18px;
   padding: 14px;
   border-radius: 16px;
-  background: rgba(201, 127, 58, 0.08);
-  border: 1px solid rgba(201, 127, 58, 0.14);
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.14);
 }
 
 .compare-header {
@@ -617,8 +617,8 @@ async function handleSwitch(res: SearchBook) {
 }
 
 .compare-card.highlight {
-  border-color: rgba(201, 127, 58, 0.28);
-  background: rgba(201, 127, 58, 0.12);
+  border-color: rgba(244, 63, 94, 0.28);
+  background: rgba(244, 63, 94, 0.12);
 }
 
 .compare-title {
@@ -691,7 +691,7 @@ async function handleSwitch(res: SearchBook) {
 }
 
 .load-more-btn:hover:not(:disabled) {
-  background: rgba(201, 127, 58, 0.08);
+  background: rgba(244, 63, 94, 0.08);
   border-color: var(--color-primary, #f43f5e);
   color: var(--color-primary, #f43f5e);
 }
