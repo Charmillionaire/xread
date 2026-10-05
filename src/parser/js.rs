@@ -617,7 +617,8 @@ fn eval_js_inner_with_source(
 
         // 注入全局兼容 Shim：
         // 1. 让 java.hexDecodeToString 支持接收 Object（自动 JSON 序列化，避免 QuickJS 抛类型转换异常）
-        // 2. 确保 globalThis / this 访问一致性
+        // 2. 补齐 Legado 书源环境中的 book / chapter 对象内置方法（如 book.getVariable / book.readConfig 等）
+        // 3. 确保 globalThis / this 访问一致性
         let shim = r#"
         (function() {
             if (typeof java !== 'undefined' && java.hexDecodeToString) {
@@ -628,6 +629,37 @@ fn eval_js_inner_with_source(
                     }
                     return _rawHex(val != null ? String(val) : "");
                 };
+            }
+            if (typeof book !== 'undefined') {
+                if (typeof book.getVariable !== 'function') {
+                    book.getVariable = function(key) { return ""; };
+                }
+                if (typeof book.setVariable !== 'function') {
+                    book.setVariable = function(key, val) { return true; };
+                }
+                if (typeof book.setUseReplaceRule !== 'function') {
+                    book.setUseReplaceRule = function(val) {};
+                }
+                if (!book.readConfig) {
+                    book.readConfig = { useReplaceRule: false };
+                }
+                if (typeof book.durChapterIndex === 'undefined') {
+                    book.durChapterIndex = 0;
+                }
+                if (typeof book.durChapterTitle === 'undefined') {
+                    book.durChapterTitle = "";
+                }
+                if (typeof book.order === 'undefined') {
+                    book.order = 0;
+                }
+            }
+            if (typeof chapter !== 'undefined') {
+                if (typeof chapter.index === 'undefined') {
+                    chapter.index = 0;
+                }
+                if (typeof chapter.title === 'undefined') {
+                    chapter.title = "";
+                }
             }
         })();
         "#;
