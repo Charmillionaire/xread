@@ -460,10 +460,25 @@ impl UserService {
         access_token: Option<&str>,
         secure_key: Option<&str>,
     ) -> Result<bool, AppError> {
-        if !self.cfg.public_read {
-            return Ok(true);
+        if !self.cfg.secure {
+            if !self.cfg.public_read {
+                return Ok(true);
+            }
+            return self.is_admin(access_token, secure_key).await;
         }
-        self.is_admin(access_token, secure_key).await
+        // 在 secure (多用户) 模式下：
+        // 任何登录用户或通过 secure_key 校验的管理端，都可以管理/导入自己的书源
+        if let Some(key) = secure_key {
+            if self.secure_key_matches(key) {
+                return Ok(true);
+            }
+        }
+        if let Some(token) = access_token {
+            if let Ok(Some(_)) = self.check_auth(token).await {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// 读路径命名空间。

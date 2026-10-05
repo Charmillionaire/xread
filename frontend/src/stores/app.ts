@@ -44,10 +44,16 @@ export const useAppStore = defineStore('app', () => {
   const versionUpdateChecked = ref(false)
   let versionUpdateToastVersion = ''
   const canCheckVersionUpdate = computed(() => !isSecureMode.value || adminAuthorized.value)
-  // 公开只读模式：只有管理员能增删改书源
-  const canManageBookSources = computed(
-    () => !publicRead.value || adminAuthorized.value || !!userInfo.value?.isAdmin,
-  )
+  // 书源管理权限：
+  // 1. 如果处于多用户(secure)模式：只要已登录即可管理自己的书源
+  // 2. 如果是非多用户模式且开启了 publicRead：需要管理员权限
+  // 3. 其他情况允许管理
+  const canManageBookSources = computed(() => {
+    if (isSecureMode.value) {
+      return isLoggedIn.value || adminAuthorized.value
+    }
+    return !publicRead.value || adminAuthorized.value || !!userInfo.value?.isAdmin
+  })
   const hasVersionUpdateReminder = computed(() => !!versionUpdate.value?.shouldRemind)
 
   async function fetchUserInfo() {

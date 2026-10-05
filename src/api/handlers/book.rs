@@ -294,7 +294,11 @@ pub async fn search_book_multi(
         }
         out
     } else {
-        let mut list = state.book_source_service.list(&user_ns).await?;
+        let admin_ns = state.user_service.admin_user_ns().await?;
+        let mut list = state
+            .book_source_service
+            .list_merged(&user_ns, admin_ns.as_deref())
+            .await?;
         if let Some(ref group) = req.book_source_group {
             list.retain(|s| s.book_source_group.as_deref().unwrap_or("").contains(group));
         }
@@ -1879,25 +1883,17 @@ pub async fn search_book_multi_sse(
                 }
             }
         } else {
-            match state_clone.book_source_service.list(&user_ns).await {
+            let admin_ns = state_clone.user_service.admin_user_ns().await.unwrap_or(None);
+            match state_clone
+                .book_source_service
+                .list_merged(&user_ns, admin_ns.as_deref())
+                .await
+            {
                 Ok(mut list) => {
                     if let Some(ref group) = book_source_group {
                         list.retain(|s| {
                             s.book_source_group.as_deref().unwrap_or("").contains(group)
                         });
-                    }
-                    if list.is_empty() {
-                        let _ = tx
-                            .send(
-                                Event::default()
-                                    .event("error")
-                                    .data(json_err("未配置书源或分组为空")),
-                            )
-                            .await;
-                        let _ = tx
-                            .send(Event::default().event("end").data(json_end(last_index)))
-                            .await;
-                        return;
                     }
                     list
                 }
@@ -2038,23 +2034,15 @@ pub async fn search_book_source_sse(
             }
         };
 
-        let sources = match state_clone.book_source_service.list(&user_ns).await {
+        let admin_ns = state_clone.user_service.admin_user_ns().await.unwrap_or(None);
+        let sources = match state_clone
+            .book_source_service
+            .list_merged(&user_ns, admin_ns.as_deref())
+            .await
+        {
             Ok(mut list) => {
                 if let Some(ref group) = book_source_group {
                     list.retain(|s| s.book_source_group.as_deref().unwrap_or("").contains(group));
-                }
-                if list.is_empty() {
-                    let _ = tx
-                        .send(
-                            Event::default()
-                                .event("error")
-                                .data(json_err("未配置书源或分组为空")),
-                        )
-                        .await;
-                    let _ = tx
-                        .send(Event::default().event("end").data(json_end(last_index)))
-                        .await;
-                    return;
                 }
                 list
             }
@@ -2193,7 +2181,11 @@ pub async fn get_available_book_source(
     let book = book.or_else(|| fallback_available_book(&req));
 
     let book = book.ok_or_else(|| AppError::BadRequest("书籍信息错误".to_string()))?;
-    let sources = state.book_source_service.list(&user_ns).await?;
+    let admin_ns = state.user_service.admin_user_ns().await?;
+    let sources = state
+        .book_source_service
+        .list_merged(&user_ns, admin_ns.as_deref())
+        .await?;
     if sources.is_empty() {
         if paged_request {
             return Ok(Json(ApiResponse::ok(
@@ -2374,7 +2366,11 @@ pub async fn get_available_book_source_sse(
         }
     }
 
-    let sources = state.book_source_service.list(&user_ns).await?;
+    let admin_ns = state.user_service.admin_user_ns().await?;
+    let sources = state
+        .book_source_service
+        .list_merged(&user_ns, admin_ns.as_deref())
+        .await?;
     let state_clone = state.clone();
     tokio::spawn(async move {
         if sources.is_empty() {
@@ -2636,10 +2632,18 @@ async fn resolve_book_source(
     if let Some(url) = &book_source_url {
         let normalized = normalize_source_url(url);
         if !normalized.is_empty() {
-            if let Some(src) = state.book_source_service.get(&user_ns, &normalized).await? {
+            let admin_ns = state.user_service.admin_user_ns().await?;
+            if let Some(src) = state
+                .book_source_service
+                .get_merged(user_ns, admin_ns.as_deref(), &normalized)
+                .await?
+            {
                 return Ok(src);
             }
-            let sources = state.book_source_service.list(&user_ns).await?;
+            let sources = state
+                .book_source_service
+                .list_merged(user_ns, admin_ns.as_deref())
+                .await?;
             if let Some(src) = sources
                 .into_iter()
                 .find(|s| normalize_source_url(&s.book_source_url) == normalized)
@@ -2662,7 +2666,11 @@ async fn resolve_book_source(
                 {
                     return Ok(src);
                 }
-                let sources = state.book_source_service.list(&user_ns).await?;
+                let admin_ns = state.user_service.admin_user_ns().await?;
+                let sources = state
+                    .book_source_service
+                    .list_merged(&user_ns, admin_ns.as_deref())
+                    .await?;
                 if let Some(src) = sources
                     .into_iter()
                     .find(|s| normalize_source_url(&s.book_source_url) == shelf_origin)
@@ -2682,7 +2690,11 @@ async fn resolve_book_source(
         if !b_host.is_empty() {
             // Extract root domain for comparison (e.g., "22biqu" from "m.22biqu.com")
             let b_root = extract_root_domain(&b_host);
-            let sources = state.book_source_service.list(&user_ns).await?;
+            let admin_ns = state.user_service.admin_user_ns().await?;
+            let sources = state
+                .book_source_service
+                .list_merged(&user_ns, admin_ns.as_deref())
+                .await?;
             for s in sources {
                 let normalized_source_url = normalize_source_url(&s.book_source_url);
                 if let Ok(s_url) = url::Url::parse(&normalized_source_url) {

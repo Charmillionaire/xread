@@ -69,6 +69,48 @@ impl BookSourceService {
         Ok(out)
     }
 
+    /// 查询当前用户可用于搜索/阅读的书源（用户私有书源 + 管理员默认书源合并，私有优先）
+    pub async fn list_merged(
+        &self,
+        user_ns: &str,
+        admin_ns: Option<&str>,
+    ) -> Result<Vec<BookSource>, AppError> {
+        let mut user_sources = self.list(user_ns).await?;
+        if let Some(admin) = admin_ns {
+            if admin != user_ns {
+                let admin_sources = self.list(admin).await?;
+                let mut existing_urls: std::collections::HashSet<String> = user_sources
+                    .iter()
+                    .map(|s| s.book_source_url.clone())
+                    .collect();
+                for s in admin_sources {
+                    if existing_urls.insert(s.book_source_url.clone()) {
+                        user_sources.push(s);
+                    }
+                }
+            }
+        }
+        Ok(user_sources)
+    }
+
+    /// 获取单个书源（先查用户私有，没有则回退查管理员默认书源）
+    pub async fn get_merged(
+        &self,
+        user_ns: &str,
+        admin_ns: Option<&str>,
+        book_source_url: &str,
+    ) -> Result<Option<BookSource>, AppError> {
+        if let Some(s) = self.get(user_ns, book_source_url).await? {
+            return Ok(Some(s));
+        }
+        if let Some(admin) = admin_ns {
+            if admin != user_ns {
+                return self.get(admin, book_source_url).await;
+            }
+        }
+        Ok(None)
+    }
+
     pub async fn delete(&self, user_ns: &str, book_source_url: &str) -> Result<(), AppError> {
         self.repo.delete(user_ns, book_source_url).await
     }
