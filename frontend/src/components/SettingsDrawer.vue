@@ -106,6 +106,48 @@
             </div>
           </section>
 
+          <section v-if="appStore.isLoggedIn" class="drawer-section">
+            <h3 class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+              </svg>
+              书架管理
+            </h3>
+            <div class="btn-group vertical-grid">
+              <button class="action-btn" :disabled="localBookUploading" @click="triggerImportBook">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M12 3v12" />
+                  <path d="m7 8 5-5 5 5" />
+                  <path d="M5 21h14" />
+                </svg>
+                导入本地书
+              </button>
+              <button class="action-btn" :disabled="shelfStore.refreshing" @click="triggerRefreshShelf">
+                <svg :class="{ spinning: shelfStore.refreshing }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M21 12a9 9 0 0 0-15.55-6.2L3 8" />
+                  <path d="M3 3v5h5" />
+                  <path d="M3 12a9 9 0 0 0 15.55 6.2L21 16" />
+                  <path d="M21 21v-5h-5" />
+                </svg>
+                {{ shelfStore.refreshing ? '刷新中...' : '刷新书架' }}
+              </button>
+              <button class="action-btn" @click="triggerManageGroups">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M4 7h6l2 2h8v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
+                  <path d="M8 13h8" />
+                </svg>
+                分组管理
+              </button>
+              <button class="action-btn" @click="triggerEditShelf">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+                编辑书架
+              </button>
+            </div>
+          </section>
+
           <section class="drawer-section">
             <h3 class="section-title">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
@@ -272,6 +314,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/app'
 import { useBookshelfStore } from '../stores/bookshelf'
 import { changePassword, logout as apiLogout } from '../api/user'
@@ -284,11 +327,13 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
 }>()
 
+const router = useRouter()
 const appStore = useAppStore()
 const shelfStore = useBookshelfStore()
 const appVersion = __APP_VERSION__
 const showPasswordPanel = ref(false)
 const changingPassword = ref(false)
+const localBookUploading = ref(false)
 const passwordForm = reactive({
   oldPassword: '',
   newPassword: '',
@@ -430,6 +475,36 @@ function handleOpenRelease() {
 
 async function handleDismissVersionUpdate() {
   await appStore.dismissVersionUpdateReminder()
+}
+
+async function triggerImportBook() {
+  close()
+  if (router.currentRoute.value.path !== '/') {
+    await router.push('/')
+  }
+  window.dispatchEvent(new CustomEvent('trigger-local-book-upload'))
+}
+
+async function triggerRefreshShelf() {
+  try {
+    await shelfStore.refreshBooks()
+    appStore.showToast('书架已刷新', 'success')
+  } catch (e: any) {
+    appStore.showToast(e.message || '刷新书架失败', 'error')
+  }
+}
+
+function triggerManageGroups() {
+  close()
+  appStore.showGroupManager = true
+}
+
+async function triggerEditShelf() {
+  close()
+  if (router.currentRoute.value.path !== '/') {
+    await router.push('/')
+  }
+  shelfStore.editMode = true
 }
 
 async function handleCheckVersionUpdate() {

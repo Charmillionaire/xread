@@ -8,69 +8,34 @@
 
     <!-- Normal Bookshelf View -->
     <div v-else class="shelf-content">
-      <!-- Shelf Header -->
-      <div class="shelf-header">
-        <div v-if="isLoggedIn" class="shelf-actions">
-          <template v-if="shelfStore.editMode">
-            <button class="shelf-btn" type="button" title="全选" aria-label="全选" @click="shelfStore.selectAll()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 11l3 3L22 4" />
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-              </svg>
-              <span class="shelf-btn-label">全选</span>
-            </button>
-            <button class="shelf-btn" type="button" title="取消全选" aria-label="取消全选" @click="shelfStore.clearSelection()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <path d="M8 12h8" />
-              </svg>
-              <span class="shelf-btn-label">取消全选</span>
-            </button>
-          </template>
-          <button class="shelf-btn" type="button" title="导入" aria-label="导入" @click="triggerLocalBookUpload" :disabled="localBookUploading">
-            <svg v-if="!localBookUploading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 3v12" />
-              <path d="m7 8 5-5 5 5" />
-              <path d="M5 21h14" />
-            </svg>
-            <svg v-else class="spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12a9 9 0 0 0-15.55-6.2L3 8" />
-              <path d="M3 3v5h5" />
-            </svg>
-            <span class="shelf-btn-label">{{ localBookUploading ? '导入中' : '导入' }}</span>
-          </button>
-          <button class="shelf-btn" type="button" title="刷新" aria-label="刷新" @click="handleRefreshBooks" :disabled="shelfStore.refreshing">
-            <svg :class="{ spinning: shelfStore.refreshing }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12a9 9 0 0 0-15.55-6.2L3 8" />
-              <path d="M3 3v5h5" />
-              <path d="M3 12a9 9 0 0 0 15.55 6.2L21 16" />
-              <path d="M21 21v-5h-5" />
-            </svg>
-            <span class="shelf-btn-label">{{ shelfStore.refreshing ? '刷新中' : '刷新' }}</span>
-          </button>
-          <button class="shelf-btn" type="button" title="分组" aria-label="分组" @click="showGroupManager = true">
+      <!-- Shelf Header (Edit mode selection actions) -->
+      <div v-if="isLoggedIn && shelfStore.editMode" class="shelf-header">
+        <div class="shelf-actions">
+          <button class="shelf-btn" type="button" title="全选" aria-label="全选" @click="shelfStore.selectAll()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 7h6l2 2h8v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
-              <path d="M8 13h8" />
+              <path d="M9 11l3 3L22 4" />
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
             </svg>
-            <span class="shelf-btn-label">分组</span>
+            <span class="shelf-btn-label">全选</span>
+          </button>
+          <button class="shelf-btn" type="button" title="取消全选" aria-label="取消全选" @click="shelfStore.clearSelection()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M8 12h8" />
+            </svg>
+            <span class="shelf-btn-label">取消全选</span>
           </button>
           <button
-            class="shelf-btn"
+            class="shelf-btn active"
             type="button"
-            :class="{ active: shelfStore.editMode }"
-            :title="shelfStore.editMode ? '完成' : '编辑'"
-            :aria-label="shelfStore.editMode ? '完成' : '编辑'"
+            title="完成"
+            aria-label="完成"
             @click="toggleEditMode"
           >
-            <svg v-if="shelfStore.editMode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 6 9 17l-5-5" />
             </svg>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-            </svg>
-            <span class="shelf-btn-label">{{ shelfStore.editMode ? '完成' : '编辑' }}</span>
+            <span class="shelf-btn-label">完成</span>
           </button>
         </div>
       </div>
@@ -184,6 +149,7 @@ const localBookFileInputRef = ref<HTMLInputElement | null>(null)
 const localBookUploading = ref(false)
 
 onMounted(async () => {
+  window.addEventListener('trigger-local-book-upload', triggerLocalBookUpload)
   await appStore.fetchUserInfo()
   await Promise.all([
     shelfStore.fetchBooks().catch(() => undefined),
@@ -308,14 +274,6 @@ async function handleReorderBooks(payload: { draggedUrl: string; targetUrl: stri
     await shelfStore.reorderBooks(payload.draggedUrl, payload.targetUrl)
   } catch (e: any) {
     appStore.showToast(e.message || '排序失败', 'error')
-  }
-}
-
-async function handleRefreshBooks() {
-  try {
-    await shelfStore.refreshBooks()
-  } catch (e: any) {
-    appStore.showToast(e.message || '刷新书架失败', 'error')
   }
 }
 </script>
@@ -472,7 +430,7 @@ async function handleRefreshBooks() {
 
 .tab-item {
   padding: var(--space-3) var(--space-5);
-  font-size: var(--text-sm);
+  font-size: 16px;
   font-weight: 500;
   color: var(--color-text-tertiary);
   white-space: nowrap;

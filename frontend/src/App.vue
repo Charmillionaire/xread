@@ -10,6 +10,7 @@
     <SourceManager v-model="appStore.showSourceManager" />
     <UserManager v-model="appStore.showUserManager" />
     <WebdavManager v-model="appStore.showWebdavManager" />
+    <GroupManagerModal v-model="appStore.showGroupManager" />
 
     <!-- Toast notifications -->
     <div class="toast-container">
@@ -38,6 +39,7 @@ import LoginModal from './components/LoginModal.vue'
 import SourceManager from './components/SourceManager.vue'
 import UserManager from './components/UserManager.vue'
 import WebdavManager from './components/WebdavManager.vue'
+import GroupManagerModal from './components/bookshelf/GroupManagerModal.vue'
 
 const route = useRoute()
 const appStore = useAppStore()

@@ -166,6 +166,7 @@ export const useAppStore = defineStore('app', () => {
   const showSourceManager = ref(false)
   const showUserManager = ref(false)
   const showWebdavManager = ref(false)
+  const showGroupManager = ref(false)
   const isOnline = ref(typeof navigator !== 'undefined' ? navigator.onLine : true)
   const pwaReady = ref(false)
   const pwaUpdateAvailable = ref(false)
@@ -287,7 +288,7 @@ export const useAppStore = defineStore('app', () => {
     canManageBookSources, secureKey, isLoggedIn,
     versionUpdate, versionUpdateLoading, versionUpdateChecked, canCheckVersionUpdate, hasVersionUpdateReminder,
     fetchUserInfo, setUser, clearUser, setSecureKey, updateUserInfo, checkVersionUpdate, dismissVersionUpdateReminder,
-    showLoginModal, showSettingsDrawer, showSourceManager, showUserManager, showWebdavManager,
+    showLoginModal, showSettingsDrawer, showSourceManager, showUserManager, showWebdavManager, showGroupManager,
     isOnline, pwaReady, pwaUpdateAvailable, deferredInstallPrompt, waitingServiceWorker,
     setOnlineStatus, setPwaReady, setPwaUpdateAvailable, setDeferredInstallPrompt, setWaitingServiceWorker, installPwa, applyPwaUpdate,
     readingStats, readingStatsSummary, startReadingSession, stopReadingSession, markBookOpened, markChapterRead,
