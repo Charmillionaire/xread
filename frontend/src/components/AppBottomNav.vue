@@ -251,7 +251,7 @@ onBeforeUnmount(() => {
 .bottom-nav-shell {
   position: fixed;
   left: 50%;
-  bottom: calc(16px + var(--safe-area-bottom));
+  bottom: calc(18px + var(--safe-area-bottom));
   transform: translateX(-50%);
   z-index: calc(var(--z-sticky) + 2);
   width: fit-content;
@@ -262,54 +262,54 @@ onBeforeUnmount(() => {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px 4px;
+  gap: 5px;
+  padding: 5px 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow:
-    0 12px 30px rgba(0, 0, 0, 0.08),
-    0 2px 6px rgba(0, 0, 0, 0.03),
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.95),
+    0 16px 36px rgba(0, 0, 0, 0.10),
+    0 4px 10px rgba(0, 0, 0, 0.04),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
     inset 0 -1px 1px rgba(0, 0, 0, 0.04);
   backdrop-filter: blur(32px) saturate(210%);
   -webkit-backdrop-filter: blur(32px) saturate(210%);
 }
 
 .bottom-nav-shell.theme-dark .bottom-nav {
-  background: rgba(28, 29, 34, 0.58);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(28, 29, 34, 0.62);
+  border-color: rgba(255, 255, 255, 0.15);
   box-shadow:
-    0 14px 36px rgba(0, 0, 0, 0.42),
-    0 2px 8px rgba(0, 0, 0, 0.3),
-    inset 0 1px 1px rgba(255, 255, 255, 0.18),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.45);
+    0 18px 44px rgba(0, 0, 0, 0.45),
+    0 4px 12px rgba(0, 0, 0, 0.32),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.2),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(32px) saturate(200%);
   -webkit-backdrop-filter: blur(32px) saturate(200%);
 }
 
 .nav-indicator {
   position: absolute;
-  top: 3px;
-  bottom: 3px;
+  top: 5px;
+  bottom: 5px;
   left: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.90);
   border: 0.5px solid rgba(0, 0, 0, 0.04);
   box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 3px 12px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.04),
     inset 0 1px 1px #ffffff;
   transition: transform 300ms cubic-bezier(0.2, 0.9, 0.25, 1), width 300ms cubic-bezier(0.2, 0.9, 0.25, 1);
   will-change: transform;
 }
 
 .bottom-nav-shell.theme-dark .nav-indicator {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.16);
   border: 0.5px solid rgba(255, 255, 255, 0.22);
   box-shadow:
-    0 3px 12px rgba(0, 0, 0, 0.32),
-    inset 0 1px 0.5px rgba(255, 255, 255, 0.28);
+    0 4px 16px rgba(0, 0, 0, 0.35),
+    inset 0 1px 1px rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
@@ -320,12 +320,12 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-height: 34px;
-  padding: 0 12px;
+  gap: 6px;
+  min-height: 50px;
+  padding: 0 18px;
   border-radius: 999px;
   color: #555862;
-  font-size: 12.5px;
+  font-size: 16px;
   font-weight: 500;
   transition: color 180ms ease, transform 160ms cubic-bezier(0.2, 0.9, 0.25, 1);
   white-space: nowrap;
@@ -336,8 +336,8 @@ onBeforeUnmount(() => {
 }
 
 .nav-item svg {
-  width: 15px;
-  height: 15px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
   transition: transform 180ms ease;
 }
@@ -363,25 +363,25 @@ onBeforeUnmount(() => {
 
 @media (max-width: 640px) {
   .bottom-nav-shell {
-    bottom: calc(12px + var(--safe-area-bottom));
-    max-width: calc(100vw - 24px);
+    bottom: calc(14px + var(--safe-area-bottom));
+    max-width: calc(100vw - 20px);
   }
 
   .bottom-nav {
-    gap: 2px;
-    padding: 2.5px 3px;
+    gap: 4px;
+    padding: 4px 5px;
   }
 
   .nav-item {
-    min-height: 32px;
-    gap: 3.5px;
-    padding: 0 9px;
-    font-size: 12px;
+    min-height: 46px;
+    gap: 5px;
+    padding: 0 14px;
+    font-size: 15px;
   }
 
   .nav-item svg {
-    width: 14px;
-    height: 14px;
+    width: 20px;
+    height: 20px;
   }
 }
 </style>
