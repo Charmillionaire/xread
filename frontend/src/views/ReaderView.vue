@@ -32,26 +32,30 @@
       </Transition>
     </Teleport>
 
-    <!-- PC Desktop Toolbars (Always shown) -->
-    <ReaderSidebar
-      v-if="!isMobile"
-      @goHome="goHome"
-      @scrollTop="scrollToTop"
-      @scrollBottom="scrollToBottom"
-    />
-    <ReaderToolbar
-      v-if="!isMobile"
-      :is-speaking="store.isSpeaking"
-      :is-paused="store.isPaused"
-      @bookmark="toggleBookmark"
-      @search="toggleSearch"
-      @info="openInfo"
-      @ai="openAiBook"
-      @tts="handleTTS"
-      @prev="prevChapter"
-      @next="nextChapter"
-      @progress="openCachePanel"
-    />
+    <!-- PC Desktop Toolbars (Toggle on middle click) -->
+    <Transition name="fade-slide-left">
+      <ReaderSidebar
+        v-if="!isMobile && (showPcSidebars || !!store.activePanel)"
+        @goHome="goHome"
+        @scrollTop="scrollToTop"
+        @scrollBottom="scrollToBottom"
+      />
+    </Transition>
+    <Transition name="fade-slide-right">
+      <ReaderToolbar
+        v-if="!isMobile && (showPcSidebars || !!store.activePanel)"
+        :is-speaking="store.isSpeaking"
+        :is-paused="store.isPaused"
+        @bookmark="toggleBookmark"
+        @search="toggleSearch"
+        @info="openInfo"
+        @ai="openAiBook"
+        @tts="handleTTS"
+        @prev="prevChapter"
+        @next="nextChapter"
+        @progress="openCachePanel"
+      />
+    </Transition>
 
     <!-- Mobile Controls (Click to toggle) -->
     <ReaderMobileControls
@@ -342,6 +346,7 @@ const chromeTheme = computed(() => {
 const scrollContainerRef = ref<HTMLElement>()
 const chapterTextRef = ref<HTMLElement>()
 const showControls = ref(false)
+const showPcSidebars = ref(true)
 const isMobile = ref(false)
 let speechTimerTicker: number | null = null
 let suppressNextTapUntil = 0
@@ -1227,6 +1232,8 @@ function clickZoneAction(zone: 'prev' | 'menu' | 'next') {
   if (zone === 'menu') {
     if (isMobile.value) {
       showControls.value = !showControls.value
+    } else {
+      showPcSidebars.value = !showPcSidebars.value
     }
     return
   }
