@@ -69,12 +69,18 @@ pub struct BookSourceAvailability {
 impl BookService {
     pub fn new(http: HttpClient, parser: RuleEngine, cache: FileCache, storage_dir: &str) -> Self {
         let storage_dir = PathBuf::from(storage_dir);
+        let cookies_path = storage_dir.join("source_cookies.json");
+        let initial_cookies: HashMap<String, String> = std::fs::read_to_string(&cookies_path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+
         Self {
             http,
             parser,
             cache,
             storage_dir,
-            source_cookies: Arc::new(RwLock::new(HashMap::new())),
+            source_cookies: Arc::new(RwLock::new(initial_cookies)),
             rate_states: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -104,6 +110,21 @@ impl BookService {
         }
     }
 
+    fn cookies_file_path(&self) -> PathBuf {
+        self.storage_dir.join("source_cookies.json")
+    }
+
+    async fn persist_source_cookies(&self) {
+        let path = self.cookies_file_path();
+        if let Some(parent) = path.parent() {
+            let _ = tokio::fs::create_dir_all(parent).await;
+        }
+        let map = self.source_cookies.read().await.clone();
+        if let Ok(json_str) = serde_json::to_string_pretty(&map) {
+            let _ = tokio::fs::write(&path, json_str).await;
+        }
+    }
+
     pub async fn set_source_cookie(&self, user_ns: &str, source_url: &str, cookie: &str) {
         let cookie = cookie.trim();
         if cookie.is_empty() {
@@ -114,11 +135,13 @@ impl BookService {
             .write()
             .await
             .insert(key, cookie.to_string());
+        self.persist_source_cookies().await;
     }
 
     pub async fn clear_source_cookie(&self, user_ns: &str, source_url: &str) {
         let key = self.source_cookie_key(user_ns, source_url);
         self.source_cookies.write().await.remove(&key);
+        self.persist_source_cookies().await;
     }
 
     async fn fetch_source_url(
@@ -791,10 +814,13 @@ impl BookService {
             chapter_url,
             book_key
         );
+        // 彻底关闭服务端文件缓存：不读取本地缓存，直接向源站请求最新内容
+        /*
         if let Ok(Some(cached)) = self.cache.get(user_ns, &book_key, chapter_url).await {
             tracing::debug!("get_content returning cached content, len={}", cached.len());
             return Ok(cached);
         }
+        */
         tracing::debug!("get_content cache miss, fetching from network");
 
         let mut all_content = String::new();

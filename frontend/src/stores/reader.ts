@@ -17,7 +17,6 @@ import {
 } from '../api/bookmark'
 import { getReplaceRules } from '../api/replaceRule'
 import type { Book, BookChapter, Bookmark, ReplaceRule } from '../types'
-import { getBrowserCachedChapter, setBrowserCachedChapter } from '../utils/browserCache'
 import { isLocalBook } from '../utils/localBook'
 import { saveRecentReadBook } from '../utils/recentBooks'
 import {
@@ -1278,20 +1277,9 @@ export const useReaderStore = defineStore('reader', () => {
     const chapter = chapters.value[index]
 
     const isLocal = isLocalBook(book.value)
-    const useBrowserCache = !isLocal
-    const browserCached = useBrowserCache
-      ? await getBrowserCachedChapter(book.value.bookUrl, chapter.url).catch(() => null)
-      : null
-
-    if (!forceRefresh && browserCached) {
-      return browserCached
-    }
 
     if (!appStore.isOnline && !isLocal) {
-      if (browserCached) {
-        return browserCached
-      }
-      throw new Error('当前处于离线状态，且该章节未缓存到浏览器')
+      throw new Error('当前处于离线状态')
     }
 
     let chapterContent = ''
@@ -1299,23 +1287,10 @@ export const useReaderStore = defineStore('reader', () => {
       chapterContent = await getBookContent({
         chapterUrl: chapter.url,
         bookSourceUrl: book.value.origin,
-        refresh: forceRefresh ? 1 : 0,
+        refresh: 1, // 强制刷新，不使用任何缓存
       })
     } catch (error) {
-      if (browserCached) {
-        appStore.showToast('网络请求失败，已切换到本地缓存章节', 'warning')
-        return browserCached
-      }
       throw error
-    }
-
-    if (useBrowserCache) {
-      await setBrowserCachedChapter({
-        bookUrl: book.value.bookUrl,
-        chapterUrl: chapter.url,
-        chapterTitle: chapter.title,
-        content: chapterContent,
-      }).catch(() => undefined)
     }
 
     return chapterContent
