@@ -2,7 +2,7 @@
 
 # XRead
 
-**高性能书源阅读服务端 · Rust + Vue 3**
+**自托管高性能现代UI风格阅读服务端 · Rust + Vue 3**
 
 支持自定义书源、多格式解析、短剧/听书流式播放、多用户权限、RSS 与 AI 阅读助手
 
@@ -15,7 +15,7 @@
 
 ## 简介
 
-XRead 是一个基于 Rust 构建的高性能书源阅读服务端，配套 Vue 3 现代 Web 客户端。
+XRead 是一个基于 Rust 构建的自托管高性能现代UI风格阅读服务端，配套 Vue 3 现代 Web 客户端。
 
 沿用 Legado / reader 的书源生态，通过内置 QuickJS 引擎完整兼容各类书源规则，同时提供流式媒体播放、多用户权限体系与苹果风格的液态玻璃界面。
 
@@ -223,8 +223,6 @@ xread/
 | 作者 / 维护者 | **逍遥游** ([@Charmillionaire](https://github.com/Charmillionaire)) |
 | AI 协作开发 | **Gemini** · **Claude** |
 | 上游项目 | [reader-rust](https://github.com/givenge/reader-rust) · [reader](https://github.com/hectorqin/reader) |
-
-感谢 **Gemini** 与 **Claude** 在架构设计、功能开发与代码审查中的协作贡献。
 
 欢迎提交 Issue 与 Pull Request，一起把它做得更好。
 
