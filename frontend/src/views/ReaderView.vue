@@ -2503,6 +2503,15 @@ watch(
   -webkit-user-select: text;
 }
 
+:deep(.chapter-text img),
+:deep(.horizontal-page-content img) {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
+  margin: 12px auto;
+  object-fit: contain;
+}
+
 .chapter-media {
   display: flex;
   flex-direction: column;
