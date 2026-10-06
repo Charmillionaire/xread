@@ -79,7 +79,8 @@
       </div>
 
       <div class="card-footer">
-        <div v-if="!isSearch && (browserCachedCount > 0 || serverCachedCount > 0)" class="book-cache-row">
+        <div v-if="!isSearch && (browserCachedCount > 0 || serverCachedCount > 0 || groupName)" class="book-cache-row">
+          <span v-if="groupName" class="cache-chip group-chip">#{{ groupName }}</span>
           <span v-if="browserCachedCount > 0" class="cache-chip primary">离线 {{ browserCachedCount }} 章</span>
           <span v-if="serverCachedCount > 0" class="cache-chip">服务端 {{ serverCachedCount }} 章</span>
         </div>
@@ -103,6 +104,7 @@
 import { computed, ref } from 'vue'
 import { getCoverUrl } from '../api/bookshelf'
 import { isLocalBook } from '../utils/localBook'
+import { useBookshelfStore } from '../stores/bookshelf'
 import type { Book, SearchBook } from '../types'
 
 const props = defineProps<{
@@ -122,6 +124,15 @@ const emit = defineEmits<{
   addToShelf: [book: Book | SearchBook]
   select: [book: Book | SearchBook]
 }>()
+
+const shelfStore = useBookshelfStore()
+
+const groupName = computed(() => {
+  if (props.isSearch) return ''
+  const gId = (props.book as Book).group
+  if (!gId) return ''
+  return shelfStore.groups.find((g) => g.groupId === gId)?.groupName || ''
+})
 
 function handleCardClick() {
   if (props.editMode) {

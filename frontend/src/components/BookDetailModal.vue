@@ -164,21 +164,24 @@ function close() {
 async function startReading() {
   if (!props.book) return
   const b = props.book as Book
-  await shelfStore.moveBookToFront(b.bookUrl).catch(() => undefined)
-  await readerStore.loadBook(b)
-  await readerStore.loadChapter(b.durChapterIndex || 0)
+  const targetIndex = b.durChapterIndex || 0
   close()
-  router.push('/reader')
+  void shelfStore.moveBookToFront(b.bookUrl).catch(() => undefined)
+  const loadBookTask = readerStore.loadBook(b)
+  await router.push('/reader')
+  await loadBookTask
+  await readerStore.loadChapter(targetIndex)
 }
 
 async function readChapter(index: number) {
   if (!props.book) return
   const b = props.book as Book
-  await shelfStore.moveBookToFront(b.bookUrl).catch(() => undefined)
-  await readerStore.loadBook(b)
-  await readerStore.loadChapter(index)
   close()
-  router.push('/reader')
+  void shelfStore.moveBookToFront(b.bookUrl).catch(() => undefined)
+  const loadBookTask = readerStore.loadBook(b)
+  await router.push('/reader')
+  await loadBookTask
+  await readerStore.loadChapter(index)
 }
 
 function openAiBook() {
