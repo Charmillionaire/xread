@@ -23,29 +23,9 @@ XRead 是一个基于 Rust 构建的高性能书源阅读服务端，配套 Vue 
 
 ## 界面预览
 
-**书架**（桌面端 / 移动端）
-
 | 桌面端 | 移动端 |
 |:---:|:---:|
 | ![书架](docs/images/index/bookshelf/shelf.png) | ![书架移动端](docs/images/index/bookshelf/shelf-mobile.png) |
-
-**书海 · 搜索 · 最近阅读**
-
-| 书海 | 搜索 | 最近阅读 |
-|:---:|:---:|:---:|
-| ![书海](docs/images/index/booksea/booksea.png) | ![搜索](docs/images/index/search/search-results.png) | ![最近阅读](docs/images/index/recent/recent.png) |
-
-**书源管理 · 设置**
-
-| 书源管理 | 设置 |
-|:---:|:---:|
-| ![书源管理](docs/images/index/booksource/booksource.png) | ![设置](docs/images/index/settings.png) |
-
-**RSS 订阅 · AI 阅读助手**
-
-| RSS | AI 阅读助手 |
-|:---:|:---:|
-| ![RSS](docs/images/index/rss/rss.png) | ![AI 阅读助手](docs/images/index/ai-book/overview.png) |
 
 ## 功能特性
 
@@ -241,7 +221,10 @@ xread/
 | 角色 | 贡献者 |
 |---|---|
 | 作者 / 维护者 | **逍遥游** ([@Charmillionaire](https://github.com/Charmillionaire)) |
+| AI 协作开发 | **Gemini** · **Claude** |
 | 上游项目 | [reader-rust](https://github.com/givenge/reader-rust) · [reader](https://github.com/hectorqin/reader) |
+
+感谢 **Gemini** 与 **Claude** 在架构设计、功能开发与代码审查中的协作贡献。
 
 欢迎提交 Issue 与 Pull Request，一起把它做得更好。
 

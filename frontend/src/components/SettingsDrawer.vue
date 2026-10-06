@@ -226,29 +226,6 @@
           <section class="drawer-section">
             <h3 class="section-title">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                <rect width="7" height="7" x="3" y="3" rx="1" />
-                <rect width="7" height="7" x="14" y="3" rx="1" />
-                <rect width="7" height="7" x="3" y="14" rx="1" />
-                <rect width="7" height="7" x="14" y="14" rx="1" />
-              </svg>
-              &#20070;&#26550;&#35774;&#32622;
-            </h3>
-            <div class="btn-group">
-              <button class="action-btn" @click="refreshCache">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                  <path d="M3 3v5h5" />
-                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-                  <path d="M16 16h5v5" />
-                </svg>
-                &#21047;&#26032;&#32531;&#23384;
-              </button>
-            </div>
-          </section>
-
-          <section class="drawer-section">
-            <h3 class="section-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                 <path d="M12 8v4l3 3" />
                 <circle cx="12" cy="12" r="9" />
               </svg>
@@ -439,12 +416,6 @@ function openUserManager() {
 function openWebdavManager() {
   close()
   appStore.showWebdavManager = true
-}
-
-function refreshCache() {
-  shelfStore.fetchBooks()
-  appStore.showToast('\u4e66\u67b6\u5df2\u5237\u65b0', 'success')
-  close()
 }
 
 function setTheme(t: 'light' | 'dark') {
