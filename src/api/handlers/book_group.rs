@@ -127,13 +127,10 @@ pub async fn add_book_group_multi(
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let urls = param.book_urls.unwrap_or_default();
     let gid = param.group_id.unwrap_or(0);
-    // Here we should bitwise OR the group_id if it's bitfield, but reader original uses it as bitfield!
-    // Wait! Original `legado` Reader uses bitwise grouping: book.group is a bitfield!
-    // "addBookGroupMulti": books.forEach { it.group = it.group | groupId }
+    // 纯单一分组模式：直接将书籍 group 设置为指定 groupId，不进行按位或
     for url in urls {
         if let Some(mut book) = state.book_service.get_shelf_book(&user_ns, &url).await? {
-            let cur = book.group.unwrap_or(0);
-            book.group = Some(cur | gid);
+            book.group = Some(gid);
             let _ = state.book_service.save_book(&user_ns, book).await;
         }
     }
@@ -152,12 +149,13 @@ pub async fn remove_book_group_multi(
         .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
     let urls = param.book_urls.unwrap_or_default();
     let gid = param.group_id.unwrap_or(0);
-    // remove: book.group = book.group & ~groupId
+    // 纯单一分组模式：如果书籍正好属于该组，移出即重置为 0 (未分组)
     for url in urls {
         if let Some(mut book) = state.book_service.get_shelf_book(&user_ns, &url).await? {
-            let cur = book.group.unwrap_or(0);
-            book.group = Some(cur & !gid);
-            let _ = state.book_service.save_book(&user_ns, book).await;
+            if book.group == Some(gid) {
+                book.group = Some(0);
+                let _ = state.book_service.save_book(&user_ns, book).await;
+            }
         }
     }
     Ok(Json(ApiResponse::ok(serde_json::json!("success"))))
