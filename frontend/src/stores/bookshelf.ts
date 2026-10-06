@@ -111,9 +111,15 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
     if (activeGroupId.value === 0) {
       return books.value.filter((b) => !b.group || b.group === 0)
     }
-    return books.value.filter(
-      (b) => b.group && (b.group & activeGroupId.value) !== 0
-    )
+    return books.value.filter((b) => {
+      if (!b.group) return false
+      // 完全匹配：单个分组 ID
+      if (b.group === activeGroupId.value) return true
+      // 位掩码匹配：如果 groupId 是 2 的幂次 (1, 2, 4, 8...)，按位运算判定多选分组
+      const isPowerOfTwo = (activeGroupId.value & (activeGroupId.value - 1)) === 0 && activeGroupId.value > 0
+      if (isPowerOfTwo && (b.group & activeGroupId.value) !== 0) return true
+      return false
+    })
   })
 
   async function fetchGroups() {
