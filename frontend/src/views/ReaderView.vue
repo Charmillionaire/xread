@@ -163,66 +163,79 @@
         </div>
 
         <div v-else>
-          <div class="chapter-title">{{ store.currentChapter?.title || '加载中...' }}</div>
+          <!-- 媒体播放页：播放器停靠在底部 Dock 位置，不再占据页面上方 -->
+          <template v-if="mediaContent">
+            <div
+              v-if="mediaContent.kind === 'audio'"
+              class="media-dock"
+              :class="{ 'media-dock-dark': store.isNight || appStore.theme === 'dark' }"
+            >
+              <div class="media-dock-title">{{ store.currentChapter?.title || '加载中...' }}</div>
+              <div class="custom-audio-player">
+                <audio
+                  ref="mediaPlayerRef"
+                  :src="mediaPlaybackUrl"
+                  preload="metadata"
+                  @loadedmetadata="onAudioMetadata"
+                  @timeupdate="onAudioTick"
+                  @play="audioPlaying = true"
+                  @pause="audioPlaying = false; persistMediaProgress(true)"
+                  @ended="handleMediaEnded"
+                ></audio>
 
-          <div v-if="mediaContent" class="chapter-media">
-            <!-- 自定义有声书播放器 -->
-            <div v-if="mediaContent.kind === 'audio'" class="custom-audio-player">
-              <audio
-                ref="mediaPlayerRef"
-                :src="mediaPlaybackUrl"
-                preload="metadata"
-                @loadedmetadata="onAudioMetadata"
-                @timeupdate="onAudioTick"
-                @play="audioPlaying = true"
-                @pause="audioPlaying = false; persistMediaProgress(true)"
-                @ended="handleMediaEnded"
-              ></audio>
-
-              <div class="audio-progress-row">
-                <span class="audio-time">{{ fmtTime(audioCurrent) }}</span>
-                <div class="audio-track" @mousedown="seekStart" @touchstart.prevent="seekStart">
-                  <div class="audio-track-bg">
-                    <div class="audio-fill" :style="{ width: audioPct + '%' }"></div>
-                    <div class="audio-thumb" :style="{ left: audioPct + '%' }"></div>
+                <div class="audio-progress-row">
+                  <span class="audio-time">{{ fmtTime(audioCurrent) }}</span>
+                  <div class="audio-track" @mousedown="seekStart" @touchstart.prevent="seekStart">
+                    <div class="audio-track-bg">
+                      <div class="audio-fill" :style="{ width: audioPct + '%' }"></div>
+                      <div class="audio-thumb" :style="{ left: audioPct + '%' }"></div>
+                    </div>
                   </div>
+                  <span class="audio-time">{{ fmtTime(audioDuration) }}</span>
                 </div>
-                <span class="audio-time">{{ fmtTime(audioDuration) }}</span>
-              </div>
 
-              <div class="audio-ctrl-row">
-                <button class="audio-btn" title="重新播放" @click="replayAudio">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                </button>
-                <button class="audio-btn" :disabled="store.currentIndex <= 0" title="上一集" @click="prevChapter">
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-                </button>
-                <button class="audio-btn-play" @click="toggleAudio">
-                  <svg v-if="!audioPlaying" viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
-                  <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                </button>
-                <button class="audio-btn" :disabled="!store.hasNext" title="下一集" @click="nextChapter">
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-                </button>
-                <button class="audio-btn audio-rate" @click="cycleRate">{{ audioRate }}x</button>
+                <div class="audio-ctrl-row">
+                  <button class="audio-btn" title="重新播放" @click="replayAudio">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                  </button>
+                  <button class="audio-btn" :disabled="store.currentIndex <= 0" title="上一集" @click="prevChapter">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                  </button>
+                  <button class="audio-btn-play" @click="toggleAudio">
+                    <svg v-if="!audioPlaying" viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+                    <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                  </button>
+                  <button class="audio-btn" :disabled="!store.hasNext" title="下一集" @click="nextChapter">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                  </button>
+                  <button class="audio-btn audio-rate" @click="cycleRate">{{ audioRate }}x</button>
+                  <button class="audio-btn" title="下载本集" @click="downloadMedia">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                  </button>
+                </div>
               </div>
             </div>
-            <video
-              v-else
-              ref="mediaPlayerRef"
-              class="media-player media-video media-video-lg"
-              :src="mediaPlaybackUrl"
-              controls
-              autoplay
-              playsinline
-              preload="metadata"
-              @loadedmetadata="restoreMediaProgress"
-              @timeupdate="persistMediaProgress()"
-              @pause="persistMediaProgress(true)"
-              @ended="handleMediaEnded"
-            ></video>
-            <!-- 移除下一集按钮与直链文本显示，保留纯粹播放器 -->
-          </div>
+            <div v-else class="chapter-media media-video-stage">
+              <div class="media-dock-title">{{ store.currentChapter?.title || '' }}</div>
+              <video
+                ref="mediaPlayerRef"
+                class="media-player media-video media-video-lg"
+                :src="mediaPlaybackUrl"
+                controls
+                autoplay
+                playsinline
+                preload="metadata"
+                @loadedmetadata="restoreMediaProgress"
+                @timeupdate="persistMediaProgress()"
+                @pause="persistMediaProgress(true)"
+                @ended="handleMediaEnded"
+              ></video>
+              <button class="media-download-btn" type="button" @click="downloadMedia">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                下载本集
+              </button>
+            </div>
+          </template>
 
           <div
             v-else
@@ -798,6 +811,26 @@ watch(() => store.currentIndex, () => {
   mediaRestoredKey = ''
 })
 
+/** 下载当前章节的音频 / 视频直链。 */
+function downloadMedia() {
+  const media = mediaContent.value
+  if (!media) return
+  const title = (store.currentChapter?.title || store.book?.name || 'media').trim()
+  const safeTitle = title.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)
+  const guessedExt = media.kind === 'video' ? 'mp4' : 'mp3'
+  const match = media.url.match(/\.([a-z0-9]{2,4})(?:\?|#|$)/i)
+  const ext = match ? match[1].toLowerCase() : guessedExt
+  const a = document.createElement('a')
+  a.href = mediaPlaybackUrl.value
+  a.download = `${safeTitle}.${ext}`
+  a.target = '_blank'
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  appStore.showToast('已开始下载本集', 'success')
+}
+
 const {
   horizontalPageIndex,
   horizontalPageStep,
@@ -868,6 +901,8 @@ function syncHorizontalPageState() {
 function pageForward() {
   const container = scrollContainerRef.value
   if (!container) return
+  // 媒体播放页不允许翻页切集（避免误触）
+  if (mediaContent.value) return
   if (isHorizontalPageMode.value) {
     const maxPage = Math.max(0, horizontalPages.value.length - 1)
     if (horizontalPageIndex.value >= maxPage) {
@@ -890,6 +925,8 @@ function pageForward() {
 function pageBackward() {
   const container = scrollContainerRef.value
   if (!container) return
+  // 媒体播放页不允许翻页切集（避免误触）
+  if (mediaContent.value) return
   if (isHorizontalPageMode.value) {
     if (horizontalPageIndex.value <= 0) {
       prevChapter()
@@ -1407,6 +1444,12 @@ function handleGlobalClick(e: MouseEvent) {
     return
   }
   if (store.isAutoScrolling) return
+
+  // 媒体播放页（听书 / 短剧）：点击空白区域不再上下切集，只保留菜单开关
+  if (mediaContent.value && !store.activePanel) {
+    clickZoneAction('menu')
+    return
+  }
   
   if (isHorizontalPageMode.value && isMobile.value) {
     const x = e.clientX / window.innerWidth
@@ -2285,10 +2328,84 @@ watch(
   margin: 24px 0 40px;
 }
 
-.chapter-media:has(.custom-audio-player) {
-  min-height: calc(65vh - 120px);
-  justify-content: flex-end;
-  margin: 40px 0 80px;
+/* 视频页：播放器居中，标题在上方小幅展示 */
+.media-video-stage {
+  min-height: calc(70vh - 120px);
+  justify-content: center;
+  margin: 8px 0 0;
+}
+
+/* ── 有声书播放器：停靠在底部 Dock 位置（悬浮液态玻璃条） ── */
+.media-dock {
+  position: fixed;
+  left: 50%;
+  bottom: calc(22px + var(--safe-area-bottom));
+  transform: translateX(-50%);
+  z-index: calc(var(--z-sticky) + 2);
+  width: min(720px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px 12px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.10),
+    0 4px 10px rgba(0, 0, 0, 0.04),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+}
+
+.media-dock-dark {
+  background: rgba(28, 29, 34, 0.66);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.45),
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.18),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.45);
+}
+
+.media-dock-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  opacity: 0.62;
+  margin-bottom: 2px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.media-dock .custom-audio-player {
+  gap: 6px;
+}
+
+/* 视频页下载按钮 */
+.media-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: inherit;
+  background: rgba(128, 128, 128, 0.12);
+  border: 1px solid rgba(128, 128, 128, 0.18);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.media-download-btn:hover {
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.28);
 }
 
 /* ── 自定义有声书播放器 ── */
