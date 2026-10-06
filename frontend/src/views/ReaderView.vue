@@ -1738,7 +1738,15 @@ function handleScroll() {
     if (Date.now() >= suppressContinuousAutoLoadUntil && container.scrollHeight - (container.scrollTop + container.clientHeight) < 480) {
       loadContinuousNext()
     }
-    if (Date.now() >= suppressContinuousAutoLoadUntil && container.scrollTop < 300) {
+    // 只有当存在上一章可供加载、且页面确实发生了滚动（scrollTop <= 5 触顶）、且当前未在加载上一章时才触发，避免刚进章节 scrollTop 为 0 时死循环连续往上跳
+    if (
+      Date.now() >= suppressContinuousAutoLoadUntil &&
+      !continuousLoadingPrev.value &&
+      container.scrollTop <= 5 &&
+      continuousChapters.value.length > 0 &&
+      continuousChapters.value[0].index > 0
+    ) {
+      suppressContinuousAutoLoadUntil = Date.now() + 800
       loadContinuousPrev()
     }
   } else if (container) {
