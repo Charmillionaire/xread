@@ -165,6 +165,38 @@
         <div v-else>
           <!-- 媒体播放页：播放器停靠在底部 Dock 位置，不再占据页面上方 -->
           <template v-if="mediaContent">
+            <!-- 有声书舞台区域：书籍封面、标题及实时歌词/字幕 -->
+            <div v-if="mediaContent.kind === 'audio'" class="chapter-media media-audio-stage">
+              <div class="audio-stage-card">
+                <img
+                  v-if="store.book?.coverUrl"
+                  :src="store.book.coverUrl"
+                  alt="cover"
+                  class="audio-stage-cover"
+                />
+                <div v-else class="audio-stage-cover-placeholder">
+                  <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                </div>
+                <div class="audio-stage-info">
+                  <div class="audio-stage-book-name">{{ store.book?.name || '有声书' }}</div>
+                  <div class="audio-stage-author" v-if="store.book?.author">{{ store.book.author }}</div>
+                  <div class="audio-stage-chapter-title">{{ store.currentChapter?.title || '' }}</div>
+                </div>
+              </div>
+
+              <!-- LRC 实时字幕展示 -->
+              <div v-if="audioLrcLines.length > 0" class="audio-lrc-container">
+                <div
+                  v-for="(line, idx) in audioLrcLines"
+                  :key="idx"
+                  class="audio-lrc-line"
+                  :class="{ active: idx === currentLrcIndex }"
+                >
+                  {{ line.text }}
+                </div>
+              </div>
+            </div>
+
             <div
               v-if="mediaContent.kind === 'audio'"
               class="media-dock"
@@ -384,6 +416,7 @@ import { countBrowserBookCache } from '../utils/browserCache'
 import { APP_VIEWPORT_CHANGE_EVENT, syncViewportSize } from '../utils/viewport'
 import { isReaderInteractiveClickTarget } from '../utils/readerClick'
 import { parseMediaContent, buildMediaProxyUrl } from '../utils/mediaContent'
+import { parseLrc, type LrcLine } from '../utils/lrcParser'
 import { readMediaProgress, writeMediaProgress, createMediaProgressThrottle } from '../utils/mediaProgress'
 import { createReaderProgressAutoSaveScheduler, createReaderProgressExitSaver } from '../utils/readerProgressAutoSave'
 import type { Book } from '../types'
@@ -694,6 +727,22 @@ const formattedContent = computed(() => formatChapterHtml(store.displayContent |
 
 // 听书 / 短剧章节返回的是媒体直链，识别后交给播放器渲染
 const mediaContent = computed(() => parseMediaContent(store.content || ''))
+
+// 有声书字幕/歌词解析
+const audioLrcLines = computed<LrcLine[]>(() => {
+  if (mediaContent.value?.kind !== 'audio') return []
+  return parseLrc(store.content)
+})
+
+const currentLrcIndex = computed(() => {
+  const lines = audioLrcLines.value
+  if (!lines.length) return -1
+  const t = audioCurrent.value
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (t >= lines[i].time) return i
+  }
+  return 0
+})
 /*
 const mediaFallbackText = computed(() => {
   if (!mediaContent.value) return ''
@@ -2454,6 +2503,94 @@ watch(
   justify-content: center;
   margin: 8px 0 0;
   padding-bottom: 120px;
+}
+
+/* 有声书舞台与字幕卡片 */
+.media-audio-stage {
+  min-height: calc(60vh - 120px);
+  justify-content: center;
+  margin: 20px 0 0;
+  padding-bottom: 120px;
+  gap: 24px;
+}
+
+.audio-stage-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.audio-stage-cover {
+  width: 130px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+}
+
+.audio-stage-cover-placeholder {
+  width: 130px;
+  height: 180px;
+  border-radius: 12px;
+  background: rgba(128, 128, 128, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary, #888);
+}
+
+.audio-stage-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.audio-stage-book-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text, #111);
+}
+
+.audio-stage-author {
+  font-size: 13px;
+  color: var(--color-text-secondary, #777);
+}
+
+.audio-stage-chapter-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-primary, #f43f5e);
+  margin-top: 2px;
+}
+
+.audio-lrc-container {
+  max-width: 500px;
+  width: 90%;
+  max-height: 140px;
+  overflow-y: auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(128, 128, 128, 0.05);
+}
+
+.audio-lrc-line {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-secondary, #888);
+  transition: all 0.25s ease;
+}
+
+.audio-lrc-line.active {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-primary, #f43f5e);
+  transform: scale(1.04);
 }
 
 /* ── 有声书播放器：停靠在底部 Dock 位置（悬浮液态玻璃条） ── */
