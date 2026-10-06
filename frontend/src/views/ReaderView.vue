@@ -215,72 +215,60 @@
                 </div>
               </div>
             </div>
-            <!-- 短剧：播放器与控制条一体化卡片，随视频一起缩放 -->
             <div v-else class="chapter-media media-video-stage">
-              <div
-                ref="videoWrapperRef"
-                class="video-player-card"
-                :class="{ 'video-player-card-dark': store.isNight || appStore.theme === 'dark' }"
-              >
-                <video
-                  ref="mediaPlayerRef"
-                  class="media-player media-video media-video-lg"
-                  :src="mediaPlaybackUrl"
-                  :controls="false"
-                  :style="{ '--video-rotation': videoRotation + 'deg' }"
-                  autoplay
-                  playsinline
-                  preload="metadata"
-                  @loadedmetadata="onVideoMetadata"
-                  @timeupdate="onVideoTick"
-                  @play="videoPlaying = true; scheduleVideoControlsHide()"
-                  @pause="videoPlaying = false; persistMediaProgress(true); showVideoControls = true"
-                  @ended="handleMediaEnded"
-                  @click="toggleVideoControls"
-                ></video>
+              <video
+                ref="mediaPlayerRef"
+                class="media-player media-video media-video-lg"
+                :src="mediaPlaybackUrl"
+                :controls="false"
+                autoplay
+                playsinline
+                preload="metadata"
+                @loadedmetadata="onVideoMetadata"
+                @timeupdate="onVideoTick"
+                @play="videoPlaying = true"
+                @pause="videoPlaying = false; persistMediaProgress(true)"
+                @ended="handleMediaEnded"
+              ></video>
+            </div>
 
-                <div class="video-controls">
-                  <div class="media-dock-title">{{ store.currentChapter?.title || '加载中...' }}</div>
-                  <div class="audio-progress-row">
-                    <span class="audio-time">{{ fmtTime(videoCurrent) }}</span>
-                    <div class="audio-track" @mousedown="seekVideoStart" @touchstart.prevent="seekVideoStart">
-                      <div class="audio-track-bg">
-                        <div class="audio-fill" :style="{ width: videoPct + '%' }"></div>
-                        <div class="audio-thumb" :style="{ left: videoPct + '%' }"></div>
-                      </div>
+            <!-- 短剧播放器：与有声书统一的底部 Dock 液态玻璃风格 -->
+            <div
+              v-if="mediaContent.kind === 'video'"
+              class="media-dock"
+              :class="{ 'media-dock-dark': store.isNight || appStore.theme === 'dark' }"
+            >
+              <div class="media-dock-title">{{ store.currentChapter?.title || '加载中...' }}</div>
+              <div class="custom-audio-player">
+                <div class="audio-progress-row">
+                  <span class="audio-time">{{ fmtTime(videoCurrent) }}</span>
+                  <div class="audio-track" @mousedown="seekVideoStart" @touchstart.prevent="seekVideoStart">
+                    <div class="audio-track-bg">
+                      <div class="audio-fill" :style="{ width: videoPct + '%' }"></div>
+                      <div class="audio-thumb" :style="{ left: videoPct + '%' }"></div>
                     </div>
-                    <span class="audio-time">{{ fmtTime(videoDuration) }}</span>
                   </div>
+                  <span class="audio-time">{{ fmtTime(videoDuration) }}</span>
+                </div>
 
-                  <div class="audio-ctrl-row">
-                    <button class="audio-btn" title="重新播放" @click="replayVideo">
-                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                    </button>
-                    <button class="audio-btn" :disabled="store.currentIndex <= 0" title="上一集" @click="prevChapter">
-                      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-                    </button>
-                    <button class="audio-btn-play" @click="toggleVideo">
-                      <svg v-if="!videoPlaying" viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
-                      <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                    </button>
-                    <button class="audio-btn" :disabled="!store.hasNext" title="下一集" @click="nextChapter">
-                      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-                    </button>
-                    <button class="audio-btn audio-rate" @click="cycleVideoRate">{{ videoRate }}x</button>
-                    <button class="audio-btn" title="旋转画面" @click="rotateVideo">
-                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 3v5h5"/><path d="M17 7v6"/><path d="M14 10h6"/></svg>
-                    </button>
-                    <button class="audio-btn" title="画中画" @click="togglePictureInPicture">
-                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="11" width="8" height="6" rx="1"/></svg>
-                    </button>
-                    <button class="audio-btn" :title="isFullscreen ? '退出全屏' : '全屏'" @click="toggleFullscreen">
-                      <svg v-if="!isFullscreen" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/></svg>
-                      <svg v-else viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V5a2 2 0 0 1 2-2h4"/><path d="M20 9V5a2 2 0 0 0-2-2h-4"/><path d="M20 15v4a2 2 0 0 1-2 2h-4"/><path d="M4 15v4a2 2 0 0 0 2 2h4"/></svg>
-                    </button>
-                    <button class="audio-btn" title="下载本集" @click="downloadMedia">
-                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-                    </button>
-                  </div>
+                <div class="audio-ctrl-row">
+                  <button class="audio-btn" title="重新播放" @click="replayVideo">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                  </button>
+                  <button class="audio-btn" :disabled="store.currentIndex <= 0" title="上一集" @click="prevChapter">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                  </button>
+                  <button class="audio-btn-play" @click="toggleVideo">
+                    <svg v-if="!videoPlaying" viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+                    <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                  </button>
+                  <button class="audio-btn" :disabled="!store.hasNext" title="下一集" @click="nextChapter">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                  </button>
+                  <button class="audio-btn audio-rate" @click="cycleVideoRate">{{ videoRate }}x</button>
+                  <button class="audio-btn" title="下载本集" @click="downloadMedia">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -736,12 +724,6 @@ const videoPlaying = ref(false)
 const videoCurrent = ref(0)
 const videoDuration = ref(0)
 const videoRate = ref(1.0)
-const videoWrapperRef = ref<HTMLElement | null>(null)
-const videoRotation = ref(0)
-const isFullscreen = ref(false)
-const showVideoControls = ref(true)
-let videoControlsTimer: number | null = null
-const isPiPActive = ref(false)
 
 const audioPct = computed(() => {
   if (!audioDuration.value || audioDuration.value <= 0) return 0
@@ -819,90 +801,6 @@ function cycleVideoRate() {
   const idx = RATES.indexOf(videoRate.value)
   videoRate.value = RATES[(idx + 1) % RATES.length]
   if (el) el.playbackRate = videoRate.value
-}
-
-/* ---- 全屏 / 旋转 / 画中画 ---- */
-function toggleFullscreen() {
-  const wrapper = videoWrapperRef.value
-  const el = mediaPlayerRef.value as HTMLVideoElement | null
-  if (!wrapper || !el) return
-  const doc = document as Document & {
-    webkitFullscreenElement?: Element | null
-    webkitExitFullscreen?: () => Promise<void>
-  }
-  const target = wrapper as HTMLElement & {
-    webkitRequestFullscreen?: () => Promise<void>
-  }
-  if (isFullscreen.value) {
-    if (document.fullscreenElement) void document.exitFullscreen()
-    else if (doc.webkitFullscreenElement) void doc.webkitExitFullscreen?.()
-    else if (typeof (el as any).webkitExitFullscreen === 'function') void (el as any).webkitExitFullscreen()
-    return
-  }
-  if (typeof target.requestFullscreen === 'function') {
-    void target.requestFullscreen()
-  } else if (typeof target.webkitRequestFullscreen === 'function') {
-    void target.webkitRequestFullscreen()
-  } else if (typeof (el as any).webkitEnterFullscreen === 'function') {
-    ;(el as any).webkitEnterFullscreen()
-  }
-}
-
-function syncFullscreenState() {
-  const doc = document as Document & { webkitFullscreenElement?: Element | null }
-  isFullscreen.value = Boolean(document.fullscreenElement || doc.webkitFullscreenElement)
-}
-
-function rotateVideo() {
-  videoRotation.value = (videoRotation.value + 90) % 360
-}
-
-async function togglePictureInPicture() {
-  const el = mediaPlayerRef.value as (HTMLVideoElement & {
-    requestPictureInPicture?: () => Promise<PictureInPictureWindow>
-    webkitSetPresentationMode?: (mode: string) => void
-    webkitPresentationMode?: string
-  }) | null
-  if (!el) return
-  try {
-    if (typeof document !== 'undefined' && document.pictureInPictureElement) {
-      await document.exitPictureInPicture()
-      isPiPActive.value = false
-      return
-    }
-    if (typeof el.requestPictureInPicture === 'function') {
-      await el.requestPictureInPicture()
-      isPiPActive.value = true
-      return
-    }
-    // Safari 兼容
-    if (typeof el.webkitSetPresentationMode === 'function') {
-      const next = el.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture'
-      el.webkitSetPresentationMode(next)
-      isPiPActive.value = next === 'picture-in-picture'
-      return
-    }
-    appStore.showToast('当前环境不支持画中画', 'warning')
-  } catch {
-    appStore.showToast('画中画启动失败', 'warning')
-  }
-}
-
-function toggleVideoControls() {
-  if (isFullscreen.value) return
-  showVideoControls.value = !showVideoControls.value
-  scheduleVideoControlsHide()
-}
-
-function scheduleVideoControlsHide() {
-  if (videoControlsTimer !== null) {
-    window.clearTimeout(videoControlsTimer)
-    videoControlsTimer = null
-  }
-  if (!showVideoControls.value || isFullscreen.value) return
-  videoControlsTimer = window.setTimeout(() => {
-    if (videoPlaying.value) showVideoControls.value = false
-  }, 4000)
 }
 
 function seekVideoStart(e: MouseEvent | TouchEvent) {
@@ -2149,8 +2047,6 @@ onMounted(async () => {
     window.addEventListener('pagehide', handlePageHide)
     window.addEventListener('beforeunload', handleBeforeUnload)
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    document.addEventListener('fullscreenchange', syncFullscreenState)
-    document.addEventListener('webkitfullscreenchange', syncFullscreenState)
     store.fetchVoices()
   applySystemTheme(store.isNight ? 'dark' : appStore.theme, store.currentTheme.body)
   if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -2184,9 +2080,6 @@ onUnmounted(() => {
     window.removeEventListener('pagehide', handlePageHide)
     window.removeEventListener('beforeunload', handleBeforeUnload)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
-    document.removeEventListener('fullscreenchange', syncFullscreenState)
-    document.removeEventListener('webkitfullscreenchange', syncFullscreenState)
-  if (videoControlsTimer !== null) window.clearTimeout(videoControlsTimer)
   if (speechTimerTicker) clearInterval(speechTimerTicker)
   if (restorePositionTimer) clearTimeout(restorePositionTimer)
   if (persistPositionTimer) clearTimeout(persistPositionTimer)
@@ -2555,91 +2448,12 @@ watch(
   margin: 24px 0 40px;
 }
 
-/* 视频页：播放器与控制条一体化卡片，随视频一起缩放 */
+/* 视频页：播放器居中展示，控制条 Dock 在下方 */
 .media-video-stage {
-  min-height: 0;
+  min-height: calc(62vh - 120px);
   justify-content: center;
   margin: 8px 0 0;
-  padding-bottom: 24px;
-}
-
-.video-player-card {
-  display: flex;
-  flex-direction: column;
-  width: fit-content;
-  max-width: 100%;
-  border-radius: 16px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow:
-    0 16px 36px rgba(0, 0, 0, 0.10),
-    0 4px 10px rgba(0, 0, 0, 0.04),
-    inset 0 1.5px 2px rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(28px) saturate(200%);
-  -webkit-backdrop-filter: blur(28px) saturate(200%);
-}
-
-.video-player-card-dark {
-  background: rgba(28, 29, 34, 0.66);
-  border-color: rgba(255, 255, 255, 0.14);
-  box-shadow:
-    0 18px 44px rgba(0, 0, 0, 0.45),
-    0 4px 12px rgba(0, 0, 0, 0.3),
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.18);
-}
-
-.video-player-card .media-video.media-video-lg {
-  display: block;
-  width: auto;
-  height: auto;
-  max-width: min(92vw, 560px);
-  max-height: 68vh;
-  margin: 0 auto;
-  object-fit: contain;
-  border: none !important;
-  outline: none !important;
-  background: #000;
-  border-radius: 0;
-  box-shadow: none;
-  transform: rotate(var(--video-rotation, 0deg));
-  transition: transform 0.25s ease;
-}
-
-.video-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 14px 12px;
-  border-top: 1px solid rgba(128, 128, 128, 0.12);
-}
-
-/* 全屏时卡片铺满屏幕 */
-.video-player-card:fullscreen,
-.video-player-card:-webkit-full-screen {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  border-radius: 0;
-  border: none;
-  background: #000;
-}
-
-.video-player-card:fullscreen .media-video.media-video-lg,
-.video-player-card:-webkit-full-screen .media-video.media-video-lg {
-  max-width: 100vw;
-  max-height: 82vh;
-  background: #000;
-}
-
-.video-player-card:fullscreen .video-controls,
-.video-player-card:-webkit-full-screen .video-controls {
-  background: rgba(0, 0, 0, 0.55);
-  border-top-color: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  padding-bottom: 120px;
 }
 
 /* ── 有声书播放器：停靠在底部 Dock 位置（悬浮液态玻璃条） ── */
