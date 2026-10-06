@@ -2,7 +2,7 @@
 
 > 技术栈：Vue 3 + TypeScript + Vite + Pinia + Vue Router  
 > 设计风格：纯 CSS 设计系统，暖色调（琥珀/橙色），支持亮色/暗色主题  
-> 后端 API：`http://127.0.0.1:8080/reader3/...`
+> 后端 API：`http://127.0.0.1:7777/reader3/...`
 
 ---
 

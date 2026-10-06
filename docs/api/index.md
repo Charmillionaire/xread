@@ -5,7 +5,7 @@ Reader-Rust 提供 RESTful API，所有接口都以 `/reader3` 为前缀。
 ## 基础 URL
 
 ```
-http://localhost:8080/reader3
+http://localhost:7777/reader3
 ```
 
 ## 响应格式

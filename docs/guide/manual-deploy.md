@@ -53,7 +53,7 @@ cp -r /path/to/web/dist /opt/reader/web/
 
 ```bash
 SERVER_HOST=0.0.0.0
-SERVER_PORT=8080
+SERVER_PORT=7777
 DATABASE_URL=sqlite:storage/reader.db?mode=rwc
 WEB_ROOT=./web/dist
 STORAGE_DIR=./storage
@@ -98,7 +98,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:7777;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

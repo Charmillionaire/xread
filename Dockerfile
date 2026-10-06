@@ -19,14 +19,14 @@ RUN mkdir -p /app/storage/assets
 
 # Environment defaults
 ENV SERVER_HOST=0.0.0.0
-ENV SERVER_PORT=8080
+ENV SERVER_PORT=7777
 ENV DATABASE_URL=sqlite:/app/storage/reader.db?mode=rwc
 ENV STORAGE_DIR=/app/storage
 ENV ASSETS_DIR=/app/storage/assets
 ENV WEB_ROOT=/app/web/dist
 ENV LOG_LEVEL=info
 
-EXPOSE 8080
+EXPOSE 7777
 
 VOLUME ["/app/storage"]
 

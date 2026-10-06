@@ -9,8 +9,6 @@
 [![Build Docker Image](https://github.com/Charmillionaire/xread/actions/workflows/build.yml/badge.svg)](https://github.com/Charmillionaire/xread/actions/workflows/build.yml)
 [![Image](https://img.shields.io/badge/ghcr.io-charmillionaire%2Fxread-2496ED?logo=docker&logoColor=white)](https://github.com/Charmillionaire/xread/pkgs/container/xread)
 
-**在线体验：** <https://read.xiaoyaoyou.xyz>
-
 </div>
 
 ---
@@ -105,7 +103,7 @@ docker pull ghcr.io/charmillionaire/xread:latest
 
 docker run -d \
   --name xread \
-  -p 8080:8080 \
+  -p 7777:7777 \
   -v $(pwd)/storage:/app/storage \
   -e SECURE=true \
   -e PUBLIC_READ=true \
@@ -120,11 +118,11 @@ services:
     image: ghcr.io/charmillionaire/xread:latest
     container_name: xread
     ports:
-      - "8080:8080"
+      - "7777:7777"
     volumes:
       - ./storage:/app/storage
     environment:
-      SERVER_PORT: "8080"
+      SERVER_PORT: "7777"
       LOG_LEVEL: "info"
       SECURE: "true"
       PUBLIC_READ: "true"
@@ -135,7 +133,7 @@ services:
 docker compose up -d
 ```
 
-启动后访问 `http://<你的地址>:8080`。
+启动后访问 `http://<你的地址>:7777`。
 
 ### 从源码构建
 
@@ -168,7 +166,7 @@ npm run dev
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `SERVER_HOST` | `0.0.0.0` | 监听地址 |
-| `SERVER_PORT` | `8080` | 监听端口 |
+| `SERVER_PORT` | `7777` | 监听端口 |
 | `DATABASE_URL` | `sqlite:storage/reader.db?mode=rwc` | SQLite 数据库连接 |
 | `STORAGE_DIR` | `storage` | 数据存储目录 |
 | `ASSETS_DIR` | `storage/assets` | 静态资源目录 |

@@ -13,7 +13,7 @@ docker build -t reader-rust .
 ```bash
 docker run -d \
   --name reader \
-  -p 8080:8080 \
+  -p 7777:7777 \
   -v $(pwd)/storage:/app/storage \
   reader-rust
 ```
@@ -30,12 +30,12 @@ services:
     image: reader-rust
     container_name: reader
     ports:
-      - "8080:8080"
+      - "7777:7777"
     volumes:
       - ./storage:/app/storage
       - ./assets:/app/assets
     environment:
-      - SERVER_PORT=8080
+      - SERVER_PORT=7777
       - LOG_LEVEL=info
     restart: unless-stopped
 ```
@@ -51,7 +51,7 @@ docker-compose up -d
 ```yaml
 environment:
   - SERVER_HOST=0.0.0.0
-  - SERVER_PORT=8080
+  - SERVER_PORT=7777
   - DATABASE_URL=sqlite:storage/reader.db?mode=rwc
   - LOG_LEVEL=info
   - REQUEST_TIMEOUT_SECS=15

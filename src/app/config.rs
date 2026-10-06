@@ -24,7 +24,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             server_host: "0.0.0.0".to_string(),
-            server_port: 8080,
+            server_port: 7777,
             database_url: "sqlite:storage/reader.db?mode=rwc".to_string(),
             storage_dir: "storage".to_string(),
             web_root: "frontend/dist".to_string(),

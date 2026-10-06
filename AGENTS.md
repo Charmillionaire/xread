@@ -49,7 +49,7 @@ Dockerfiles do NOT compile Rust in-container. Build the binary on the host first
 Loaded from `.env` file (via `dotenvy`) or environment variables. Separator is `__` for nested keys. See `.env.example` for all options.
 
 Key settings:
-- `SERVER_HOST` / `SERVER_PORT` — default `0.0.0.0:8080`
+- `SERVER_HOST` / `SERVER_PORT` — default `0.0.0.0:7777`
 - `DATABASE_URL` — SQLite path, default `sqlite:storage/reader.db?mode=rwc`
 - `WEB_ROOT` — static files path, default `frontend/dist`
 - `SECURE` / `SECURE_KEY` — security mode toggle

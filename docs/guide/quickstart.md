@@ -22,7 +22,7 @@ cargo run
 cargo build --release
 ```
 
-服务器默认运行在 `0.0.0.0:8080`。
+服务器默认运行在 `0.0.0.0:7777`。
 
 ## 运行前端
 
@@ -43,7 +43,7 @@ npm run serve
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | SERVER_HOST | 0.0.0.0 | 服务器绑定地址 |
-| SERVER_PORT | 8080 | 服务器端口 |
+| SERVER_PORT | 7777 | 服务器端口 |
 | DATABASE_URL | sqlite:storage/reader.db?mode=rwc | SQLite 数据库路径 |
 | LOG_LEVEL | info | 日志级别 |
 

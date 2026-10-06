@@ -25,7 +25,7 @@ npm run lint                 # Lint code
 
 Configuration is loaded from environment variables. Default values are defined in `src/app/config.rs`. Key settings:
 
-- `SERVER_HOST` / `SERVER_PORT` - Server binding (default: `0.0.0.0:8080`)
+- `SERVER_HOST` / `SERVER_PORT` - Server binding (default: `0.0.0.0:7777`)
 - `DATABASE_URL` - SQLite path (default: `sqlite:storage/reader.db?mode=rwc`)
 - `WEB_ROOT` - Static web files directory (default: `../reader/web`)
 - `STORAGE_DIR` / `ASSETS_DIR` - Storage paths
