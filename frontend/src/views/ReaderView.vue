@@ -499,9 +499,11 @@ const readerProgressExitSaver = createReaderProgressExitSaver({
   flushToServer: () => store.flushProgressToServer(true),
   flushToServerKeepalive: () => store.flushProgressToServerKeepalive(true),
 })
-const isContinuousMode = computed(() =>
-  config.value.readMethod === '上下滚动' || config.value.readMethod === '上下滚动2',
-)
+const isContinuousMode = computed(() => {
+  // 媒体章节（有声书 / 短剧）强制使用单章视图，不启用上下连续滚动瀑布流
+  if (mediaContent.value) return false
+  return config.value.readMethod === '上下滚动' || config.value.readMethod === '上下滚动2'
+})
 const hideReadChaptersMode = computed(() => config.value.readMethod === '上下滚动2')
 const isHorizontalPageMode = computed(() => config.value.readMethod === '左右翻页')
 const isIosWebkit = computed(() => {
