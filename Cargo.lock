@@ -2192,52 +2192,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reader-rust"
-version = "1.0.8"
-dependencies = [
- "aes",
- "anyhow",
- "axum",
- "base64 0.22.1",
- "bytes",
- "cbc",
- "chrono",
- "config",
- "dotenvy",
- "encoding_rs",
- "feed-rs",
- "futures",
- "hex",
- "http",
- "http-body-util",
- "jsonpath_lib",
- "md-5",
- "once_cell",
- "quick-xml",
- "rand 0.8.5",
- "regex",
- "reqwest",
- "rquickjs",
- "scraper",
- "serde",
- "serde_json",
- "serde_with",
- "sqlx",
- "sxd-document",
- "sxd-xpath",
- "thiserror 1.0.69",
- "tokio",
- "tokio-stream",
- "tower-http 0.5.2",
- "tracing",
- "tracing-subscriber",
- "url",
- "urlencoding",
- "uuid",
- "zip",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4276,6 +4230,52 @@ name = "writeable"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
+
+[[package]]
+name = "xread"
+version = "1.0.0"
+dependencies = [
+ "aes",
+ "anyhow",
+ "axum",
+ "base64 0.22.1",
+ "bytes",
+ "cbc",
+ "chrono",
+ "config",
+ "dotenvy",
+ "encoding_rs",
+ "feed-rs",
+ "futures",
+ "hex",
+ "http",
+ "http-body-util",
+ "jsonpath_lib",
+ "md-5",
+ "once_cell",
+ "quick-xml",
+ "rand 0.8.5",
+ "regex",
+ "reqwest",
+ "rquickjs",
+ "scraper",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "sqlx",
+ "sxd-document",
+ "sxd-xpath",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-stream",
+ "tower-http 0.5.2",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "urlencoding",
+ "uuid",
+ "zip",
+]
 
 [[package]]
 name = "yaml-rust2"
