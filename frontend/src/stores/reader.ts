@@ -69,7 +69,7 @@ const defaultConfig: ReadConfig = {
   fontColor: '',
   pageWidth: 800,
   pageMode: 'auto',
-  readMethod: '上下滑动',
+  readMethod: '上下滚动',
   animateDuration: 300,
   autoPageMode: 'pixel',
   scrollPixel: 1,

@@ -1043,6 +1043,7 @@ const {
   initializeContinuousChapters,
   syncContinuousToStoreState,
   loadContinuousNext,
+  loadContinuousPrev,
   getContinuousSections,
   pruneReadChapters,
   clearContinuousChapters,
@@ -1107,6 +1108,14 @@ function pageBackward() {
     return
   }
   const step = container.clientHeight * 0.88
+  if (isContinuousMode.value) {
+    if (container.scrollTop <= 10) {
+      void loadContinuousPrev()
+      return
+    }
+    container.scrollBy({ top: -step, behavior: 'smooth' })
+    return
+  }
   if (container.scrollTop <= 10) {
     prevChapter()
     return
@@ -1726,6 +1735,9 @@ function handleScroll() {
 
     if (Date.now() >= suppressContinuousAutoLoadUntil && container.scrollHeight - (container.scrollTop + container.clientHeight) < 480) {
       loadContinuousNext()
+    }
+    if (Date.now() >= suppressContinuousAutoLoadUntil && container.scrollTop < 300) {
+      loadContinuousPrev()
     }
   } else if (container) {
     const maxScroll = Math.max(1, container.scrollHeight - container.clientHeight)
