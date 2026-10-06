@@ -9,7 +9,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 
 # Copy pre-built binary
-COPY target/x86_64-unknown-linux-musl/release/reader-rust /app/reader-rust
+COPY target/x86_64-unknown-linux-musl/release/xread /app/reader-rust
 
 # Copy frontend dist
 COPY frontend/dist /app/web/dist
