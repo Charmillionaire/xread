@@ -216,42 +216,61 @@
               </div>
             </div>
             <div v-else class="chapter-media media-video-stage">
-              <div class="media-dock-title">{{ store.currentChapter?.title || '' }}</div>
-              <div class="media-nav-row">
-                <button
-                  class="media-nav-btn"
-                  type="button"
-                  :disabled="store.currentIndex <= 0"
-                  title="上一集"
-                  @click="prevChapter"
-                >
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-                  上一集
-                </button>
-                <button
-                  class="media-nav-btn"
-                  type="button"
-                  :disabled="!store.hasNext"
-                  title="下一集"
-                  @click="nextChapter"
-                >
-                  下一集
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-                </button>
-              </div>
               <video
                 ref="mediaPlayerRef"
                 class="media-player media-video media-video-lg"
                 :src="mediaPlaybackUrl"
-                controls
+                :controls="false"
                 autoplay
                 playsinline
                 preload="metadata"
-                @loadedmetadata="restoreMediaProgress"
-                @timeupdate="persistMediaProgress()"
-                @pause="persistMediaProgress(true)"
+                @loadedmetadata="onVideoMetadata"
+                @timeupdate="onVideoTick"
+                @play="videoPlaying = true"
+                @pause="videoPlaying = false; persistMediaProgress(true)"
                 @ended="handleMediaEnded"
               ></video>
+            </div>
+
+            <!-- 短剧播放器：与有声书统一的底部 Dock 液态玻璃风格 -->
+            <div
+              v-if="mediaContent.kind === 'video'"
+              class="media-dock"
+              :class="{ 'media-dock-dark': store.isNight || appStore.theme === 'dark' }"
+            >
+              <div class="media-dock-title">{{ store.currentChapter?.title || '加载中...' }}</div>
+              <div class="custom-audio-player">
+                <div class="audio-progress-row">
+                  <span class="audio-time">{{ fmtTime(videoCurrent) }}</span>
+                  <div class="audio-track" @mousedown="seekVideoStart" @touchstart.prevent="seekVideoStart">
+                    <div class="audio-track-bg">
+                      <div class="audio-fill" :style="{ width: videoPct + '%' }"></div>
+                      <div class="audio-thumb" :style="{ left: videoPct + '%' }"></div>
+                    </div>
+                  </div>
+                  <span class="audio-time">{{ fmtTime(videoDuration) }}</span>
+                </div>
+
+                <div class="audio-ctrl-row">
+                  <button class="audio-btn" title="重新播放" @click="replayVideo">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                  </button>
+                  <button class="audio-btn" :disabled="store.currentIndex <= 0" title="上一集" @click="prevChapter">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                  </button>
+                  <button class="audio-btn-play" @click="toggleVideo">
+                    <svg v-if="!videoPlaying" viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+                    <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                  </button>
+                  <button class="audio-btn" :disabled="!store.hasNext" title="下一集" @click="nextChapter">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                  </button>
+                  <button class="audio-btn audio-rate" @click="cycleVideoRate">{{ videoRate }}x</button>
+                  <button class="audio-btn" title="下载本集" @click="downloadMedia">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                  </button>
+                </div>
+              </div>
             </div>
           </template>
 
@@ -700,9 +719,20 @@ const audioDuration = ref(0)
 const audioRate = ref(1.0)
 const RATES = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
+/* ---- custom video player state（与有声书统一风格） ---- */
+const videoPlaying = ref(false)
+const videoCurrent = ref(0)
+const videoDuration = ref(0)
+const videoRate = ref(1.0)
+
 const audioPct = computed(() => {
   if (!audioDuration.value || audioDuration.value <= 0) return 0
   return Math.min(100, Math.max(0, (audioCurrent.value / audioDuration.value) * 100))
+})
+
+const videoPct = computed(() => {
+  if (!videoDuration.value || videoDuration.value <= 0) return 0
+  return Math.min(100, Math.max(0, (videoCurrent.value / videoDuration.value) * 100))
 })
 
 function fmtTime(s: number): string {
@@ -727,6 +757,78 @@ function onAudioTick() {
   audioCurrent.value = el.currentTime || 0
   audioDuration.value = el.duration || audioDuration.value || 0
   persistMediaProgress()
+}
+
+/* ---- 视频播放器控制 ---- */
+function onVideoMetadata() {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  if (!el) return
+  videoDuration.value = el.duration || 0
+  el.playbackRate = videoRate.value
+  restoreMediaProgress()
+  el.play().then(() => { videoPlaying.value = true }).catch(() => {})
+}
+
+function onVideoTick() {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  if (!el) return
+  videoCurrent.value = el.currentTime || 0
+  videoDuration.value = el.duration || videoDuration.value || 0
+  persistMediaProgress()
+}
+
+function toggleVideo() {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  if (!el) return
+  if (el.paused) {
+    el.play().then(() => { videoPlaying.value = true }).catch(() => { videoPlaying.value = false })
+  } else {
+    el.pause()
+    videoPlaying.value = false
+  }
+}
+
+function replayVideo() {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  if (!el) return
+  el.currentTime = 0
+  videoCurrent.value = 0
+  el.play().then(() => { videoPlaying.value = true }).catch(() => {})
+}
+
+function cycleVideoRate() {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  const idx = RATES.indexOf(videoRate.value)
+  videoRate.value = RATES[(idx + 1) % RATES.length]
+  if (el) el.playbackRate = videoRate.value
+}
+
+function seekVideoStart(e: MouseEvent | TouchEvent) {
+  const el = mediaPlayerRef.value as HTMLMediaElement | null
+  if (!el || !videoDuration.value) return
+  const track = e.currentTarget as HTMLElement
+  const rect = track.getBoundingClientRect()
+  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+  const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+  el.currentTime = pct * videoDuration.value
+  videoCurrent.value = el.currentTime
+
+  const onMove = (ev: MouseEvent | TouchEvent) => {
+    const cx = 'touches' in ev ? ev.touches[0].clientX : ev.clientX
+    const p = Math.max(0, Math.min(1, (cx - rect.left) / rect.width))
+    el.currentTime = p * videoDuration.value
+    videoCurrent.value = el.currentTime
+  }
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('touchmove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.removeEventListener('touchend', onUp)
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('touchmove', onMove)
+  document.addEventListener('mouseup', onUp)
+  document.addEventListener('touchend', onUp)
 }
 
 function toggleAudio() {
@@ -2346,11 +2448,12 @@ watch(
   margin: 24px 0 40px;
 }
 
-/* 视频页：播放器居中，标题在上方小幅展示 */
+/* 视频页：播放器居中展示，控制条 Dock 在下方 */
 .media-video-stage {
-  min-height: calc(70vh - 120px);
+  min-height: calc(62vh - 120px);
   justify-content: center;
   margin: 8px 0 0;
+  padding-bottom: 120px;
 }
 
 /* ── 有声书播放器：停靠在底部 Dock 位置（悬浮液态玻璃条） ── */
@@ -2405,39 +2508,7 @@ watch(
   gap: 6px;
 }
 
-/* 视频页上一集 / 下一集按钮 */
-.media-nav-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.media-nav-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 7px 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 500;
-  color: inherit;
-  background: rgba(128, 128, 128, 0.12);
-  border: 1px solid rgba(128, 128, 128, 0.18);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.media-nav-btn:hover:not(:disabled) {
-  background: rgba(244, 63, 94, 0.12);
-  border-color: rgba(244, 63, 94, 0.28);
-}
-
-.media-nav-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
+/* 视频页控制条与有声书共用一个 Dock 样式，无需额外导航按钮样式 */
 
 /* ── 自定义有声书播放器 ── */
 .custom-audio-player {
