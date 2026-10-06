@@ -9,6 +9,8 @@
 [![Build Docker Image](https://github.com/Charmillionaire/xread/actions/workflows/build.yml/badge.svg)](https://github.com/Charmillionaire/xread/actions/workflows/build.yml)
 [![Image](https://img.shields.io/badge/ghcr.io-charmillionaire%2Fxread-2496ED?logo=docker&logoColor=white)](https://github.com/Charmillionaire/xread/pkgs/container/xread)
 
+**在线体验：** <https://read.xiaoyaoyou.xyz>
+
 </div>
 
 ---
@@ -19,21 +21,33 @@ XRead 是一个基于 Rust 构建的高性能书源阅读服务端，配套 Vue 
 
 沿用 Legado / reader 的书源生态，通过内置 QuickJS 引擎完整兼容各类书源规则，同时提供流式媒体播放、多用户权限体系与苹果风格的液态玻璃界面。
 
-> 本项目基于 [reader-rust](https://github.com/givenge/reader-rust) 二次开发；其源头为 [reader](https://github.com/hectorqin/reader)。
+> 本项目由 **逍遥游（[@Charmillionaire](https://github.com/Charmillionaire)）** 开发维护，基于 [reader-rust](https://github.com/givenge/reader-rust) 二次开发；其源头为 [reader](https://github.com/hectorqin/reader)。
 
 ## 界面预览
 
-| 书架 | 书海 | 搜索 |
-|:---:|:---:|:---:|
-| ![书架](docs/images/index/bookshelf/shelf.png) | ![书海](docs/images/index/booksea/booksea.png) | ![搜索](docs/images/index/search/search-results.png) |
+**书架**（桌面端 / 移动端）
 
-| 书源管理 | 用户管理 | 设置 |
-|:---:|:---:|:---:|
-| ![书源](docs/images/index/booksource/booksource.png) | ![用户管理](docs/images/index/user-manage/image.png) | ![设置](docs/images/index/settings.png) |
+| 桌面端 | 移动端 |
+|:---:|:---:|
+| ![书架](docs/images/index/bookshelf/shelf.png) | ![书架移动端](docs/images/index/bookshelf/shelf-mobile.png) |
 
-| AI 阅读 | 章节缓存 | 最近阅读 |
+**书海 · 搜索 · 最近阅读**
+
+| 书海 | 搜索 | 最近阅读 |
 |:---:|:---:|:---:|
-| ![AI 阅读](docs/images/index/ai-book/overview.png) | ![章节缓存](docs/images/index/bookshelf/bookcache.png) | ![最近阅读](docs/images/index/recent/recent.png) |
+| ![书海](docs/images/index/booksea/booksea.png) | ![搜索](docs/images/index/search/search-results.png) | ![最近阅读](docs/images/index/recent/recent.png) |
+
+**书源管理 · 设置**
+
+| 书源管理 | 设置 |
+|:---:|:---:|
+| ![书源管理](docs/images/index/booksource/booksource.png) | ![设置](docs/images/index/settings.png) |
+
+**RSS 订阅 · AI 阅读助手**
+
+| RSS | AI 阅读助手 |
+|:---:|:---:|
+| ![RSS](docs/images/index/rss/rss.png) | ![AI 阅读助手](docs/images/index/ai-book/overview.png) |
 
 ## 功能特性
 
@@ -61,6 +75,13 @@ XRead 是一个基于 Rust 构建的高性能书源阅读服务端，配套 Vue 
 - 播放位置按「书籍 + 章节」持久化记忆
 - 播放结束自动连播下一集
 
+### AI 阅读助手
+
+- 基于 **Gemini 3.8 Flash** 的书籍理解与 AI 资料生成
+- 人物关系图谱、章节摘要、故事脉络梳理
+- 支持浏览器直连与服务端代理两种调用方式
+- 可自定义文本模型与绘图模型
+
 ### 多用户与权限
 
 - 注册用户各自独立的书架、书源与阅读配置
@@ -71,7 +92,6 @@ XRead 是一个基于 Rust 构建的高性能书源阅读服务端，配套 Vue 
 ### 其他
 
 - RSS 订阅与文章阅读
-- AI 阅读助手（AI 资料）与模型代理
 - 服务端版本更新检查
 - 苹果风格 Dock 导航栏与液态玻璃 UI，支持亮色 / 暗色主题
 - PWA 支持，可安装到主屏幕离线使用
@@ -81,6 +101,8 @@ XRead 是一个基于 Rust 构建的高性能书源阅读服务端，配套 Vue 
 ### Docker 部署（推荐）
 
 ```bash
+docker pull ghcr.io/charmillionaire/xread:latest
+
 docker run -d \
   --name xread \
   -p 8080:8080 \
@@ -165,6 +187,7 @@ npm run dev
 
 - **后端**：Rust · axum · tokio · reqwest · sqlx (SQLite) · rquickjs (QuickJS)
 - **前端**：Vue 3 · Vite · TypeScript · Pinia · vue-router
+- **AI**：Gemini 3.8 Flash（AI 阅读助手）
 - **构建**：GitHub Actions → GitHub Container Registry (GHCR)
 
 ## 测试
@@ -215,11 +238,14 @@ xread/
 
 如任何权利人认为本项目相关内容或使用方式侵犯了其合法权益，请通过项目 Issues 联系维护者，我们将在核实后及时处理。
 
-## 致谢
+## 贡献者
 
-- [reader](https://github.com/hectorqin/reader) — 原始服务端实现
-- [reader-rust](https://github.com/givenge/reader-rust) — Rust 重构版本
-- Legado（阅读）— 书源规范与生态
+| 角色 | 贡献者 |
+|---|---|
+| 作者 / 维护者 | **逍遥游** ([@Charmillionaire](https://github.com/Charmillionaire)) |
+| 上游项目 | [reader-rust](https://github.com/givenge/reader-rust) · [reader](https://github.com/hectorqin/reader) |
+
+欢迎提交 Issue 与 Pull Request，一起把它做得更好。
 
 ## Star 趋势
 
