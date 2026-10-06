@@ -1,6 +1,8 @@
 # Build artifacts
 target/
 **/target/
+!target/x86_64-unknown-linux-musl/release/xread
+!target/aarch64-unknown-linux-musl/release/xread
 !target/x86_64-unknown-linux-musl/release/reader-rust
 !target/aarch64-unknown-linux-musl/release/reader-rust
 # Dependencies
