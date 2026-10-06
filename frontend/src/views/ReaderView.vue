@@ -217,6 +217,28 @@
             </div>
             <div v-else class="chapter-media media-video-stage">
               <div class="media-dock-title">{{ store.currentChapter?.title || '' }}</div>
+              <div class="media-nav-row">
+                <button
+                  class="media-nav-btn"
+                  type="button"
+                  :disabled="store.currentIndex <= 0"
+                  title="上一集"
+                  @click="prevChapter"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                  上一集
+                </button>
+                <button
+                  class="media-nav-btn"
+                  type="button"
+                  :disabled="!store.hasNext"
+                  title="下一集"
+                  @click="nextChapter"
+                >
+                  下一集
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                </button>
+              </div>
               <video
                 ref="mediaPlayerRef"
                 class="media-player media-video media-video-lg"
@@ -230,10 +252,6 @@
                 @pause="persistMediaProgress(true)"
                 @ended="handleMediaEnded"
               ></video>
-              <button class="media-download-btn" type="button" @click="downloadMedia">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-                下载本集
-              </button>
             </div>
           </template>
 
@@ -1582,8 +1600,8 @@ function handleScroll() {
       if (config.value.enablePreload && container.scrollHeight - (container.scrollTop + container.clientHeight) < container.clientHeight * 1.5) {
         store.preloadAroundChapter(store.currentIndex)
       }
-      // 单章滚动到底部时自动无感跳转下一章
-      if (store.hasNext && !store.loading && container.scrollHeight - (container.scrollTop + container.clientHeight) < 20) {
+      // 单章滚动到底部时自动无感跳转下一章（媒体播放页不自动跳转，避免鼠标滚动误切集）
+      if (!mediaContent.value && store.hasNext && !store.loading && container.scrollHeight - (container.scrollTop + container.clientHeight) < 20) {
         nextChapter()
       }
     }
@@ -2387,12 +2405,20 @@ watch(
   gap: 6px;
 }
 
-/* 视频页下载按钮 */
-.media-download-btn {
+/* 视频页上一集 / 下一集按钮 */
+.media-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.media-nav-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 18px;
+  gap: 4px;
+  padding: 7px 16px;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 500;
@@ -2400,12 +2426,17 @@ watch(
   background: rgba(128, 128, 128, 0.12);
   border: 1px solid rgba(128, 128, 128, 0.18);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 
-.media-download-btn:hover {
+.media-nav-btn:hover:not(:disabled) {
   background: rgba(244, 63, 94, 0.12);
   border-color: rgba(244, 63, 94, 0.28);
+}
+
+.media-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 /* ── 自定义有声书播放器 ── */
