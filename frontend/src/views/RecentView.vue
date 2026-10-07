@@ -478,17 +478,29 @@ onMounted(async () => {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.recent-view::-webkit-scrollbar {
+  display: none;
 }
 
 .recent-content {
   height: 100%;
-  max-width: 720px;
+  max-width: var(--content-max-width);
   margin: 0 auto;
-  padding: var(--space-6) var(--space-5) var(--space-12);
+  padding: var(--space-6) var(--space-6) var(--space-12);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.recent-content::-webkit-scrollbar {
+  display: none;
 }
 
 .stat-header {

@@ -412,7 +412,7 @@ async function handleReorderBooks(payload: { draggedUrl: string; targetUrl: stri
 }
 
 .group-tabs {
-  border-bottom: 2px solid var(--color-border-light);
+  border-bottom: none;
   margin-bottom: var(--space-2);
 }
 
@@ -436,8 +436,8 @@ async function handleReorderBooks(payload: { draggedUrl: string; targetUrl: stri
   white-space: nowrap;
   position: relative;
   transition: color var(--duration-fast);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
+  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .tab-item:hover {
@@ -446,7 +446,7 @@ async function handleReorderBooks(payload: { draggedUrl: string; targetUrl: stri
 
 .tab-item.active {
   color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  border-bottom: none;
 }
 
 .shelf-grid-wrapper {

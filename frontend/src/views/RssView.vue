@@ -232,7 +232,10 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px;
+  padding: 8px var(--space-6);
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  width: 100%;
   overflow: hidden;
 }
 

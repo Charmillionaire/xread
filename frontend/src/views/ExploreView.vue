@@ -150,6 +150,9 @@ async function handleAddToShelf(book: Book | SearchBook) {
 .explore-view {
   height: 100%;
   min-height: 0;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  width: 100%;
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
