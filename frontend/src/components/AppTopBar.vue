@@ -271,7 +271,7 @@ function openSettings() {
   background-clip: text;
 }
 
-/* 搜索栏：与阅读器媒体播放器统一的液态玻璃 Dock 风格 */
+/* 搜索栏：与阅读器媒体播放器统一的液态玻璃 Dock 风格（缩小 0.7 倍更精致紧凑） */
 .search-box {
   display: flex;
   align-items: center;
@@ -279,16 +279,16 @@ function openSettings() {
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.85);
   box-shadow:
-    0 16px 36px rgba(0, 0, 0, 0.10),
-    0 4px 10px rgba(0, 0, 0, 0.04),
-    inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.04);
+    0 12px 26px rgba(0, 0, 0, 0.08),
+    0 3px 8px rgba(0, 0, 0, 0.03),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.03);
   border-radius: var(--radius-full);
-  padding: 10px var(--space-4);
-  max-width: 520px;
+  padding: 5px 12px;
+  max-width: 360px;
   width: 100%;
   flex: 1 1 auto;
-  min-width: 220px;
+  min-width: 180px;
   backdrop-filter: blur(28px) saturate(200%);
   -webkit-backdrop-filter: blur(28px) saturate(200%);
   transition: all var(--duration-normal) var(--ease-out);
@@ -297,10 +297,10 @@ function openSettings() {
 .search-box.focused {
   border-color: rgba(244, 63, 94, 0.45);
   box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.12),
-    0 0 0 3px var(--color-primary-bg),
-    inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.04);
+    0 14px 28px rgba(0, 0, 0, 0.10),
+    0 0 0 2.5px var(--color-primary-bg),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.03);
 }
 
 /* 暗色模式下的液态玻璃搜索栏 */
@@ -308,9 +308,9 @@ function openSettings() {
   background: rgba(28, 29, 34, 0.66);
   border-color: rgba(255, 255, 255, 0.14);
   box-shadow:
-    0 18px 44px rgba(0, 0, 0, 0.45),
-    0 4px 12px rgba(0, 0, 0, 0.3),
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.18),
+    0 14px 32px rgba(0, 0, 0, 0.40),
+    0 3px 10px rgba(0, 0, 0, 0.25),
+    inset 0 1.2px 1.2px rgba(255, 255, 255, 0.18),
     inset 0 -1px 1px rgba(0, 0, 0, 0.45);
 }
 
@@ -353,8 +353,8 @@ function openSettings() {
 }
 
 .search-submit {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -462,13 +462,13 @@ function openSettings() {
   .search-box {
     max-width: none;
     min-width: 0;
-    gap: 6px;
-    padding: 7px 8px 7px var(--space-3);
+    gap: 4px;
+    padding: 5px 8px 5px 10px;
   }
 
   .search-submit {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
   }
 
   .topbar-left {
