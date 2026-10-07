@@ -1,9 +1,11 @@
 <template>
-  <div class="reader-artplayer-container" ref="artContainerRef"></div>
+  <div class="reader-artplayer-wrapper" :style="wrapperStyle">
+    <div class="reader-artplayer-container" ref="artContainerRef"></div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import Artplayer from 'artplayer'
 import Hls from 'hls.js'
 
@@ -34,12 +36,47 @@ const artContainerRef = ref<HTMLDivElement | null>(null)
 let art: Artplayer | null = null
 let hlsInstance: Hls | null = null
 
+// 动态视频宽高比（宽/高），默认 16:9
+const videoRatio = ref<number | null>(null)
+
+const wrapperStyle = computed(() => {
+  if (!videoRatio.value) {
+    return {
+      maxWidth: '960px',
+      aspectRatio: '16 / 9',
+    }
+  }
+  // 竖屏视频（短剧，宽高比 < 1）
+  if (videoRatio.value < 1) {
+    return {
+      maxWidth: 'min(480px, 92vw)',
+      aspectRatio: `${videoRatio.value}`,
+      maxHeight: '80vh',
+    }
+  }
+  // 横屏视频（电影/常规，宽高比 >= 1）
+  return {
+    maxWidth: 'min(1080px, 96vw)',
+    aspectRatio: `${videoRatio.value}`,
+    maxHeight: '82vh',
+  }
+})
+
 function destroyHls() {
   if (hlsInstance) {
     try {
       hlsInstance.destroy()
     } catch {}
     hlsInstance = null
+  }
+}
+
+function updateVideoRatio() {
+  if (!art || !art.video) return
+  const vw = art.video.videoWidth
+  const vh = art.video.videoHeight
+  if (vw && vh && vw > 0 && vh > 0) {
+    videoRatio.value = vw / vh
   }
 }
 
@@ -51,6 +88,7 @@ function initPlayer() {
     art = null
   }
   destroyHls()
+  videoRatio.value = null
 
   const isM3u8 = /\.m3u8(?:\?|$)/i.test(props.url)
 
@@ -138,10 +176,18 @@ function initPlayer() {
     },
   })
 
-  // 如果链接包含 m3u8 且使用 customType 处理
   if (isM3u8) {
     art.type = 'm3u8'
   }
+
+  // 监听视频元数据加载事件，自适应真实尺寸
+  art.on('video:loadedmetadata', () => {
+    updateVideoRatio()
+  })
+
+  art.on('video:canplay', () => {
+    updateVideoRatio()
+  })
 
   art.on('video:timeupdate', () => {
     if (art && art.video) {
@@ -178,23 +224,26 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.reader-artplayer-wrapper {
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
 .reader-artplayer-container {
   width: 100%;
   height: 100%;
-  min-height: 400px;
-  max-height: 80vh;
-  aspect-ratio: 16 / 9;
   border-radius: var(--radius-lg, 12px);
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
   background: #000;
-  margin: 0 auto;
 }
 
 @media (max-width: 768px) {
   .reader-artplayer-container {
-    min-height: 280px;
-    max-height: 70vh;
     border-radius: 8px;
   }
 }

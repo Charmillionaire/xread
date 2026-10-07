@@ -2418,12 +2418,13 @@ watch(
   margin: 24px 0 40px;
 }
 
-/* 视频页：播放器居中展示，控制条 Dock 在下方 */
+/* 视频页：播放器居中展示，自适应视频尺寸 */
 .media-video-stage {
-  min-height: calc(62vh - 120px);
+  min-height: auto;
   justify-content: center;
-  margin: 8px 0 0;
-  padding-bottom: 120px;
+  align-items: center;
+  margin: 12px 0 24px;
+  padding-bottom: 24px;
 }
 
 /* 有声书舞台与字幕卡片 */
