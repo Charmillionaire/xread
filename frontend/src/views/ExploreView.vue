@@ -39,7 +39,7 @@
           :value="store.variables[kind.paramKey || kind.title] || kind.default || ''"
           @change="onVariableChange(kind, $event)"
         >
-          <option v-for="opt in kind.chars || []" :key="opt" :value="opt">{{ opt }}</option>
+          <option v-for="opt in optionsFor(kind)" :key="opt" :value="opt">{{ opt }}</option>
         </select>
       </label>
     </div>
@@ -152,6 +152,17 @@ function onSourceChange(event: Event) {
 function onVariableChange(kind: ExploreKind, event: Event) {
   const key = kind.paramKey || kind.title
   store.setVariable(key, (event.target as HTMLSelectElement).value)
+}
+
+/**
+ * 下拉候选项。部分控件（如「平台」）的候选由书源云端配置动态提供，
+ * 首次拿不到 chars 时至少保留当前值，避免下拉框空白无法展示。
+ */
+function optionsFor(kind: ExploreKind) {
+  const chars = kind.chars ?? []
+  if (chars.length > 0) return chars
+  const current = store.variables[kind.paramKey || kind.title] || kind.default || ''
+  return current ? [current] : []
 }
 
 function onCategoryClick(kind: ExploreKind) {

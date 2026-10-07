@@ -38,7 +38,12 @@ export const useExploreStore = defineStore('explore', () => {
 
   // 可切换的下拉筛选控件（线路 / 类型 / 频道 / 平台 / 字数 / 更新 / 排序）
   const filterKinds = computed(() =>
-    kinds.value.filter((kind) => kind.type === 'select' && (kind.chars?.length ?? 0) > 0),
+    kinds.value.filter((kind) => {
+      if (kind.type !== 'select') return false
+      // 有候选项最好；若书源未给 chars（如「平台」由云端配置动态提供），
+      // 也要保留控件并回填默认值，否则用户完全看不到这个筛选项。
+      return (kind.chars?.length ?? 0) > 0 || !!kind.paramKey || !!kind.default
+    }),
   )
 
   // 榜单 / 分类标签（可点击并加载对应书单）
