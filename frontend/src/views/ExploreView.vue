@@ -1,64 +1,65 @@
 <template>
   <div class="explore-view">
-    <!-- 顶部标题 -->
-    <header class="explore-header">
-      <h2>发现</h2>
-    </header>
+    <!-- 顶部区域与书籍列表同处一个滚动容器，下滑时整体向上滚走 -->
+    <div class="content-panel" ref="scrollContainer" @scroll="handleScroll">
+      <!-- 顶部标题 -->
+      <header class="explore-header">
+        <h2>发现</h2>
+      </header>
 
-    <!-- 筛选控件：下拉切换（类型/频道/平台/字数/更新/排序等） -->
-    <div v-if="store.filterKinds.length" class="filter-bar">
-      <label v-for="kind in store.filterKinds" :key="kind.paramKey || kind.title" class="filter-chip">
-        <span class="filter-chip-label">{{ kind.title }}</span>
-        <select
-          :value="store.variables[kind.paramKey || kind.title] || kind.default || ''"
-          @change="onVariableChange(kind, $event)"
+      <!-- 筛选控件：下拉切换（类型/频道/平台/字数/更新/排序等） -->
+      <div v-if="store.filterKinds.length" class="filter-bar">
+        <label v-for="kind in store.filterKinds" :key="kind.paramKey || kind.title" class="filter-chip">
+          <span class="filter-chip-label">{{ kind.title }}</span>
+          <select
+            :value="store.variables[kind.paramKey || kind.title] || kind.default || ''"
+            @change="onVariableChange(kind, $event)"
+          >
+            <option v-for="opt in optionsFor(kind)" :key="opt" :value="opt">{{ opt }}</option>
+          </select>
+        </label>
+      </div>
+
+      <!-- 榜单 / 分类标签（默认最多2行，超出可展开） -->
+      <div v-if="store.rankingKinds.length" class="ranking-wrapper">
+        <div
+          ref="rankingBar"
+          class="ranking-bar"
+          :class="{ 'is-collapsed': isRankingCollapsed }"
+          :style="isRankingCollapsed && rankingCollapsedMax > 0 ? { maxHeight: rankingCollapsedMax + 'px' } : undefined"
         >
-          <option v-for="opt in optionsFor(kind)" :key="opt" :value="opt">{{ opt }}</option>
-        </select>
-      </label>
-    </div>
-
-    <!-- 榜单 / 分类标签（默认最多2行，超出可展开） -->
-    <div v-if="store.rankingKinds.length" class="ranking-wrapper">
-      <div
-        ref="rankingBar"
-        class="ranking-bar"
-        :class="{ 'is-collapsed': isRankingCollapsed }"
-        :style="isRankingCollapsed && rankingCollapsedMax > 0 ? { maxHeight: rankingCollapsedMax + 'px' } : undefined"
-      >
+          <button
+            v-for="kind in store.rankingKinds"
+            :key="kind.url || kind.title"
+            class="ranking-chip"
+            :class="{ active: store.activeCategoryUrl === kind.url }"
+            @click="onCategoryClick(kind)"
+          >
+            {{ kind.title }}
+          </button>
+        </div>
         <button
-          v-for="kind in store.rankingKinds"
-          :key="kind.url || kind.title"
-          class="ranking-chip"
-          :class="{ active: store.activeCategoryUrl === kind.url }"
-          @click="onCategoryClick(kind)"
+          v-if="rankingHasOverflow"
+          type="button"
+          class="ranking-toggle-btn"
+          :title="isRankingExpanded ? '收起标签' : '展开更多标签'"
+          @click="toggleRanking()"
         >
-          {{ kind.title }}
+          <span>{{ isRankingExpanded ? '收起' : '展开' }}</span>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            class="toggle-icon"
+            :class="{ 'is-expanded': isRankingExpanded }"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
         </button>
       </div>
-      <button
-        v-if="rankingHasOverflow"
-        type="button"
-        class="ranking-toggle-btn"
-        :title="isRankingExpanded ? '收起标签' : '展开更多标签'"
-        @click="toggleRanking()"
-      >
-        <span>{{ isRankingExpanded ? '收起' : '展开' }}</span>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          class="toggle-icon"
-          :class="{ 'is-expanded': isRankingExpanded }"
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-    </div>
 
-    <!-- 书籍列表：与书架一致的卡片网格 -->
-    <div class="content-panel" ref="scrollContainer" @scroll="handleScroll">
+      <!-- 书籍列表：与书架一致的卡片网格 -->
       <BookGrid
         :books="store.books"
         :is-search="true"
@@ -256,11 +257,10 @@ async function handleAddToShelf(book: Book | SearchBook) {
 }
 
 .explore-header {
-  padding: var(--space-5) var(--space-6) var(--space-3);
+  padding: var(--space-5) 0 var(--space-3);
   display: flex;
   justify-content: center;
   align-items: center;
-  flex-shrink: 0;
 }
 
 .explore-header h2 {
@@ -274,13 +274,12 @@ async function handleAddToShelf(book: Book | SearchBook) {
 
 /* 筛选控件 */
 .filter-bar {
-  padding: 0 var(--space-6) var(--space-3);
+  padding: 0 0 var(--space-3);
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: var(--space-2);
-  flex-shrink: 0;
 }
 
 .filter-chip {
@@ -312,12 +311,11 @@ async function handleAddToShelf(book: Book | SearchBook) {
 
 /* 榜单标签栏：最多显示两行，超出部分折叠，可用箭头展开 */
 .ranking-wrapper {
-  padding: 0 var(--space-6) var(--space-3);
+  padding: 0 0 var(--space-3);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
-  flex-shrink: 0;
 }
 
 .ranking-bar {
@@ -394,7 +392,7 @@ async function handleAddToShelf(book: Book | SearchBook) {
   font-weight: 600;
 }
 
-/* 列表区：与书架一致，隐藏滚动条 */
+/* 滚动区：顶部筛选区 + 书籍列表一起滚动，隐藏滚动条 */
 .content-panel {
   flex: 1;
   min-height: 0;
@@ -426,9 +424,6 @@ async function handleAddToShelf(book: Book | SearchBook) {
 }
 
 @media (max-width: 640px) {
-  .explore-header,
-  .filter-bar,
-  .ranking-bar,
   .content-panel {
     padding-left: var(--space-4);
     padding-right: var(--space-4);
