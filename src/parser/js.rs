@@ -18,10 +18,12 @@ use uuid::Uuid;
 
 static JS_KV: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
-/// 书源首次无源变量时的默认值：预置含 hosts 的云端配置，
-/// 避免光遇等 jsLib 里 getVariable('云端配置').version / ['hosts'] 访问 null 崩溃。
-/// 与 jsLib 头部 let hosts = [...] 保持一致。
-static DEFAULT_VARIABLE_JSON: &str = r#"{"云端配置":{"version":"","hosts":["https://v1.qingtian618.com","https://v2.qingtian618.com","https://v3.qingtian618.com","https://v4.qingtian618.com","https://v5.qingtian618.com","https://v6.qingtian618.com","https://v7.qingtian618.com"]}}"#;
+/// 书源首次无源变量时的默认值：预置含 hosts 和各分类平台的云端配置，
+/// 避免光遇等 jsLib 里 getVariable('云端配置').version / ['hosts'] / ['小说'] 访问 null 崩溃，
+/// 同时让云端同步失败时发现页仍能列出各大平台。
+/// `version` 刻意留空：它是「尚未与云端同步」的标记，后端据此在解析发现页前
+/// 主动调用书源自带的 getCloudSettings(true) 拉取真实配置。
+static DEFAULT_VARIABLE_JSON: &str = r#"{"云端配置":{"version":"","小说":["番茄","七猫","塔读","QQ阅读","书旗","红烛小说","豆瓣阅读","阅友APP","顶点","QQ","淘小说","69书吧","台湾小说","得间","猫眼","3A小说","伪69","米读","百度","小米","星星小说","爱下电子书","江湖","熊猫","晴天书库","笔趣阁22","得奇","搜书神器","知乎","全本小说","酷我小说","轻之文库","阅友小说","阅友小说2","笔趣阁345","老福特","超会专属小说","阅友小说","3A小说","中华典藏","速读谷","万相书城","阅文集团","西瓜小说","52书库","笔趣阁78","半夏小说","幻梦轻小说","追书神器","全免小说","AU文学","101看书","丁丁小说","无极书院","错层小说网","笔趣阁","笔趣阁39"],"听书":["番茄","七猫","书旗","喜马拉雅","酷我"],"漫画":["全面漫画","番茄","新新漫画","G社漫画"],"短剧":["番茄","YY短剧","星芽短剧","东梨短剧","量子影视","非凡影视"],"hosts":["https://v1.qingtian618.com","https://v2.qingtian618.com","https://v3.qingtian618.com","https://v4.qingtian618.com","https://v5.qingtian618.com","https://v6.qingtian618.com","https://v7.qingtian618.com"],"搜索小说":["番茄","七猫","塔读","QQ阅读","书旗","红烛小说","豆瓣阅读","阅友APP","顶点","QQ","淘小说","69书吧","台湾小说","得间","猫眼","3A小说","伪69","米读","百度","小米","星星小说","爱下电子书","江湖","熊猫","晴天书库","笔趣阁22","得奇","搜书神器","知乎","全本小说","酷我小说","轻之文库","阅友小说","阅友小说2","笔趣阁345","老福特","超会专属小说","阅友小说","3A小说","中华典藏","速读谷","万相书城","阅文集团","西瓜小说","52书库","笔趣阁78","半夏小说","幻梦轻小说","追书神器","全免小说","AU文学","101看书","丁丁小说","无极书院","错层小说网","笔趣阁","笔趣阁39"],"搜索听书":["番茄","七猫","书旗","喜马拉雅","酷我"],"搜索漫画":["番茄","全面漫画","新新漫画","G社漫画"],"搜索短剧":["番茄","YY短剧","星芽短剧","东梨短剧","量子影视","非凡影视"]}}"#;
 static JS_LIB_CACHE: Lazy<Mutex<HashMap<String, String>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 static JS_HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
@@ -98,6 +100,33 @@ pub fn with_js_lib<T>(js_lib: Option<&str>, f: impl FnOnce() -> T) -> T {
 
 pub fn eval_js(script: &str, input: &str, base_url: &str) -> anyhow::Result<String> {
     eval_js_inner(script, Some(input), Some(base_url), None, None, None)
+}
+
+/// 在求值发现页脚本前，先尝试用书源自带的 `getCloudSettings(true)` 同步云端配置。
+///
+/// 光遇聚合这类书源的发现页脚本里写的是 `if (!!!js) { getCloudSettings(true); }`，
+/// 而预置默认对象是 truthy，脚本自身永远不会去拉取云端配置，
+/// 结果 `getVariable('云端配置')['小说']` 为 undefined，
+/// `createFilter("平台", source_list, ...)` 的 chars 就成了 null。
+/// `version` 为空即「尚未同步」标记；书源没定义 getCloudSettings 时本函数是空操作。
+pub const CLOUD_SETTINGS_SYNC_PREAMBLE: &str = r#"
+(function() {
+    if (typeof getCloudSettings === 'function') {
+        try {
+            var js = typeof getVariable === 'function' ? getVariable('云端配置') : null;
+            if (!js || typeof js !== 'object' || !js.version) {
+                getCloudSettings(true);
+            }
+        } catch(e) {}
+    }
+})();
+"#;
+
+/// 同步云端配置并求值发现页脚本。
+/// 约定：调用方需已进入 `with_js_lib` / `with_js_source_variables` 作用域。
+pub fn eval_explore_script(script: &str, base_url: &str) -> anyhow::Result<String> {
+    let _ = eval_js(CLOUD_SETTINGS_SYNC_PREAMBLE, "", base_url);
+    eval_js(script, "", base_url)
 }
 
 pub fn eval_js_with_bindings(
@@ -1087,5 +1116,42 @@ mod tests {
     fn eval_js_accepts_bare_legado_placeholder() {
         let result = eval_js("let {{key}} = 5; String({{key}} + 1);", "", "https://example.com").unwrap();
         assert_eq!(result, "6");
+    }
+
+    /// 光遇聚合的「平台」下拉候选来自 `getVariable('云端配置')[tab]`。
+    /// 云端同步失败或尚未同步时，默认对象必须已经带有分类列表，
+    /// 否则 createFilter("平台", source_list, ...) 的 chars 会是 null，
+    /// 前端只能显示默认的「番茄」而选不到七猫/塔读/QQ阅读等平台。
+    #[test]
+    fn default_cloud_config_exposes_platform_choices() {
+        let result = eval_js(
+            r#"
+            const cloud = JSON.parse(source.getVariable())['云端配置'];
+            const novel = cloud['小说'] || [];
+            JSON.stringify({
+                hasVersion: typeof cloud.version === 'string',
+                novelCount: novel.length,
+                hasQimao: novel.indexOf('七猫') >= 0,
+                hasTadu: novel.indexOf('塔读') >= 0,
+                hasQQ: novel.indexOf('QQ阅读') >= 0,
+                hasHosts: (cloud.hosts || []).length > 0
+            });
+            "#,
+            "",
+            "https://example.com",
+        )
+        .unwrap();
+
+        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(value["hasVersion"].as_bool().unwrap(), "version 字段必须是字符串");
+        assert!(value["hasHosts"].as_bool().unwrap(), "hosts 不能为空");
+        assert!(value["hasQimao"].as_bool().unwrap(), "小说分类缺少七猫");
+        assert!(value["hasTadu"].as_bool().unwrap(), "小说分类缺少塔读");
+        assert!(value["hasQQ"].as_bool().unwrap(), "小说分类缺少QQ阅读");
+        assert!(
+            value["novelCount"].as_u64().unwrap() >= 10,
+            "小说分类平台数过少，实际 {}",
+            value["novelCount"]
+        );
     }
 }

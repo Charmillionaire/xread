@@ -10,7 +10,10 @@ use crate::model::{
     book_source::{BookSource, ExploreKind},
     search::SearchBook,
 };
-use crate::parser::js::{eval_js, eval_js_with_bindings, eval_js_with_source_bindings, get_js_cookie, with_js_lib};
+use crate::parser::js::{
+    eval_explore_script, eval_js, eval_js_with_bindings, eval_js_with_source_bindings,
+    get_js_cookie, with_js_lib,
+};
 use crate::parser::rule_engine::RuleEngine;
 use crate::storage::cache::file_cache::FileCache;
 use crate::util::hash::md5_hex;
@@ -1478,13 +1481,17 @@ fn parse_explore_kinds(
 
     let text = crate::parser::js::with_js_source_variables(variables, || {
         with_js_lib(source.js_lib.as_deref(), || {
-            if let Some(script) = raw.strip_prefix("@js:") {
-                eval_js(script, "", &source.book_source_url).map_err(AppError::Internal)
-            } else if let Some(script) = raw
-                .strip_prefix("<js>")
-                .and_then(|value| value.strip_suffix("</js>"))
-            {
-                eval_js(script, "", &source.book_source_url).map_err(AppError::Internal)
+            let script = if let Some(s) = raw.strip_prefix("@js:") {
+                Some(s)
+            } else {
+                raw.strip_prefix("<js>").and_then(|value| value.strip_suffix("</js>"))
+            };
+
+            if let Some(script) = script {
+                // 光遇聚合等书源在发现页脚本里用 `if (!!!js)` 判断是否已同步云端配置，
+                // 而预置默认对象是 truthy，导致脚本永远不会调用 getCloudSettings(true)。
+                // eval_explore_script 会在求值前主动同步一次云端配置。
+                eval_explore_script(script, &source.book_source_url).map_err(AppError::Internal)
             } else {
                 Ok(raw.to_string())
             }
