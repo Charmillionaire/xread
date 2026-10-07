@@ -18,8 +18,8 @@
       </label>
     </div>
 
-    <!-- 榜单 / 分类标签 + 操作按钮 -->
-    <div v-if="store.rankingKinds.length || store.buttonKinds.length" class="ranking-bar">
+    <!-- 榜单 / 分类标签 -->
+    <div v-if="store.rankingKinds.length" class="ranking-bar">
       <button
         v-for="kind in store.rankingKinds"
         :key="kind.url || kind.title"
@@ -29,71 +29,28 @@
       >
         {{ kind.title }}
       </button>
-      <span
-        v-for="kind in store.buttonKinds"
-        :key="'btn-' + kind.title"
-        class="action-chip"
-        :title="`由书源提供：${kind.title}`"
-      >
-        {{ kind.title }}
-      </span>
     </div>
 
-    <!-- 书籍列表 -->
+    <!-- 书籍列表：与书架一致的卡片网格 -->
     <div class="content-panel" ref="scrollContainer" @scroll="handleScroll">
-      <div v-if="store.books.length > 0" class="book-list">
-        <article
-          v-for="(book, index) in store.books"
-          :key="book.bookUrl + '-' + index"
-          class="book-item"
-          @click="handleBookClick(book)"
-        >
-          <img
-            v-if="coverOf(book)"
-            class="book-cover"
-            :src="coverOf(book)"
-            :alt="book.name"
-            loading="lazy"
-            @error="markCoverFailed(book.bookUrl)"
-          />
-          <div v-else class="book-cover placeholder">{{ book.name.charAt(0) }}</div>
+      <BookGrid
+        :books="store.books"
+        :is-search="true"
+        :loading="store.loading && store.books.length === 0"
+        :empty-text="store.activeCategoryUrl ? '暂无数据' : '请选择书源或榜单'"
+        @click="handleBookClick"
+        @info="handleBookInfo"
+        @addToShelf="handleAddToShelf"
+      />
 
-          <div class="book-info">
-            <h3 class="book-name">{{ book.name }}</h3>
-            <p class="book-author">作者：{{ book.author || '佚名' }}</p>
-
-            <div class="book-tags">
-              <span v-if="book.kind" class="tag kind">{{ book.kind }}</span>
-              <span v-if="book.wordCount" class="tag">{{ book.wordCount }}</span>
-              <span v-if="book.originName" class="tag origin">{{ book.originName }}</span>
-            </div>
-
-            <p v-if="book.lastChapter" class="book-latest">
-              <span>最新：</span>{{ book.lastChapter }}
-            </p>
-            <p v-if="book.intro" class="book-intro">{{ book.intro }}</p>
-          </div>
-
-          <button class="shelf-btn" @click.stop="handleAddToShelf(book)">加书架</button>
-        </article>
+      <div class="end-state" v-if="!store.loading && !store.hasMore && store.books.length > 0">
+        没有更多了
       </div>
-
-      <div class="loading-state" v-if="store.loading">
-        <div class="spinner"></div>
-        加载中...
-      </div>
-
-      <div class="end-state" v-else-if="!store.hasMore && store.books.length > 0">没有更多了</div>
 
       <div class="error-state" v-if="store.error">{{ store.error }}</div>
-
-      <div
-        class="empty-state"
-        v-if="!store.loading && !store.error && store.books.length === 0"
-      >
-        {{ store.activeCategoryUrl ? '暂无数据' : '请选择书源或榜单' }}
-      </div>
     </div>
+
+    <BookDetailModal v-model="showDetail" :book="selectedBook" />
   </div>
 </template>
 
@@ -102,8 +59,10 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useExploreStore } from '../stores/explore'
 import { useReaderStore } from '../stores/reader'
-import { getCoverUrl, saveBook } from '../api/bookshelf'
+import { saveBook } from '../api/bookshelf'
 import { useAppStore } from '../stores/app'
+import BookGrid from '../components/BookGrid.vue'
+import BookDetailModal from '../components/BookDetailModal.vue'
 import type { Book, SearchBook, ExploreKind } from '../types'
 
 const store = useExploreStore()
@@ -113,7 +72,8 @@ const router = useRouter()
 
 const scrollContainer = ref<HTMLElement>()
 const openingBookUrl = ref('')
-const failedCovers = ref<Set<string>>(new Set())
+const showDetail = ref(false)
+const selectedBook = ref<Book | SearchBook | null>(null)
 
 onMounted(async () => {
   await store.init()
@@ -149,15 +109,9 @@ function handleScroll() {
   }
 }
 
-function coverOf(book: SearchBook) {
-  if (failedCovers.value.has(book.bookUrl)) return ''
-  return book.coverUrl ? getCoverUrl(book.coverUrl) : ''
-}
-
-function markCoverFailed(bookUrl: string) {
-  const next = new Set(failedCovers.value)
-  next.add(bookUrl)
-  failedCovers.value = next
+function handleBookInfo(book: Book | SearchBook) {
+  selectedBook.value = book
+  showDetail.value = true
 }
 
 async function handleBookClick(book: Book | SearchBook) {
@@ -262,19 +216,15 @@ async function handleAddToShelf(book: Book | SearchBook) {
   max-width: 160px;
 }
 
-/* 榜单标签栏 */
+/* 榜单标签栏：标签过多时自动换行，不出现横向滚动条 */
 .ranking-bar {
   padding: 0 var(--space-6) var(--space-3);
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
   gap: var(--space-2);
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
   flex-shrink: 0;
-}
-
-.ranking-bar::-webkit-scrollbar {
-  display: none;
 }
 
 .ranking-chip {
@@ -301,160 +251,23 @@ async function handleAddToShelf(book: Book | SearchBook) {
   font-weight: 600;
 }
 
-.action-chip {
-  flex-shrink: 0;
-  padding: 8px 16px;
-  border-radius: var(--radius-full);
-  border: 1px dashed var(--color-border);
-  background: transparent;
-  color: var(--color-text-tertiary);
-  font-size: var(--text-sm);
-  white-space: nowrap;
-}
-
-/* 列表区 */
+/* 列表区：与书架一致，隐藏滚动条 */
 .content-panel {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 0 var(--space-6) var(--space-10);
+  padding: 0 var(--space-6) calc(104px + var(--space-6));
   position: relative;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.book-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+.content-panel::-webkit-scrollbar {
+  display: none;
 }
 
-.book-item {
-  position: relative;
-  display: flex;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border-light);
-  background: var(--color-bg-elevated);
-  box-shadow: var(--shadow-xs);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
-}
-
-.book-item:hover {
-  border-color: var(--color-primary-border);
-  box-shadow: var(--shadow-sm);
-}
-
-.book-cover {
-  flex-shrink: 0;
-  width: 92px;
-  height: 126px;
-  border-radius: var(--radius-md);
-  object-fit: cover;
-  background: var(--color-bg-sunken);
-}
-
-.book-cover.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--text-2xl);
-  color: var(--color-text-tertiary);
-}
-
-.book-info {
-  flex: 1;
-  min-width: 0;
-  padding-right: 76px;
-}
-
-.book-name {
-  font-size: var(--text-lg);
-  font-weight: 700;
-  line-height: var(--leading-tight);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.book-author {
-  margin-top: 4px;
-  font-size: var(--text-xs);
-  color: var(--color-text-tertiary);
-}
-
-.book-tags {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.tag {
-  padding: 3px 9px;
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-sunken);
-  color: var(--color-text-secondary);
-  font-size: var(--text-xs);
-}
-
-.tag.kind {
-  background: var(--color-primary-bg);
-  color: var(--color-primary);
-}
-
-.tag.origin {
-  background: rgba(74, 144, 217, 0.12);
-  color: var(--color-accent);
-}
-
-.book-latest {
-  margin-top: 8px;
-  font-size: var(--text-xs);
-  color: var(--color-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.book-latest span {
-  color: var(--color-text-tertiary);
-}
-
-.book-intro {
-  margin-top: 6px;
-  font-size: var(--text-xs);
-  line-height: var(--leading-normal);
-  color: var(--color-text-tertiary);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.shelf-btn {
-  position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
-  padding: 6px 12px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-border-light);
-  background: var(--color-bg-elevated);
-  color: var(--color-text-secondary);
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.shelf-btn:hover {
-  color: var(--color-primary);
-  border-color: var(--color-primary-border);
-}
-
-.loading-state,
 .end-state,
-.error-state,
-.empty-state {
+.error-state {
   text-align: center;
   padding: 20px 0;
   color: var(--color-text-tertiary);
@@ -469,44 +282,13 @@ async function handleAddToShelf(book: Book | SearchBook) {
   color: var(--color-danger);
 }
 
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @media (max-width: 640px) {
   .explore-header,
-  .filter-summary,
   .filter-bar,
   .ranking-bar,
   .content-panel {
     padding-left: var(--space-4);
     padding-right: var(--space-4);
-  }
-
-  .book-cover {
-    width: 78px;
-    height: 106px;
-  }
-
-  .book-info {
-    padding-right: 0;
-  }
-
-  .shelf-btn {
-    position: static;
-    align-self: flex-start;
-    margin-left: auto;
   }
 }
 </style>
