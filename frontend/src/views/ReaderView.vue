@@ -1010,7 +1010,6 @@ const {
   rebuildHorizontalPages,
   updateHorizontalMetrics,
   updateHorizontalEndState,
-  alignHorizontalToNearestPage,
   resetHorizontalPagePosition,
 } = useHorizontalPaging(
   store,
