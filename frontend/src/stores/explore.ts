@@ -45,7 +45,10 @@ export const useExploreStore = defineStore('explore', () => {
   const rankingKinds = computed(() =>
     kinds.value.filter((kind) => {
       if (kind.kindType === 'button' || kind.kindType === 'select') return false
-      return !!kind.url?.trim()
+      const url = kind.url?.trim()
+      if (!url) return false
+      // `{{java.startBrowser(...)}}` 这类跳转动作不是书单地址，不能当榜单芯片点击
+      return !url.startsWith('{{') && !url.includes('java.')
     }),
   )
 
@@ -108,7 +111,7 @@ export const useExploreStore = defineStore('explore', () => {
   }
 
   async function pickInitialCategory() {
-    const firstRanking = rankingKinds.value.find((kind) => kind.url?.trim())?.url?.trim()
+    const firstRanking = rankingKinds.value[0]?.url?.trim()
     const fallbackUrl = getInitialExploreCategoryUrl(fallbackCategories.value)
     const target = firstRanking || fallbackUrl || ''
 
