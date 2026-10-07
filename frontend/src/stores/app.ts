@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, watch, computed } from 'vue'
+import { recordReadingTime } from '../utils/readingStats'
 import { getUserInfo } from '../api/user'
 import { dismissVersionUpdate, getVersionUpdate } from '../api/update'
 import type { UserInfo, VersionUpdateInfo } from '../types'
@@ -197,12 +198,15 @@ export const useAppStore = defineStore('app', () => {
     if (!readingSessionStartedAt) readingSessionStartedAt = Date.now()
   }
 
-  function stopReadingSession() {
+  function stopReadingSession(bookInfo?: { bookUrl: string; bookName: string; author?: string; coverUrl?: string; origin?: string }) {
     if (!readingSessionStartedAt) return
     const delta = Math.max(0, Math.round((Date.now() - readingSessionStartedAt) / 1000))
     readingStats.value.totalSeconds += delta
     readingSessionStartedAt = 0
     persistStats()
+    if (delta > 0) {
+      recordReadingTime(delta, bookInfo)
+    }
   }
 
   function markBookOpened(bookUrl: string) {

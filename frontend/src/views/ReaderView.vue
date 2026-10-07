@@ -2060,7 +2060,13 @@ onMounted(async () => {
 
 onUnmounted(() => {
     persistReadingProgressKeepalive()
-    appStore.stopReadingSession()
+    appStore.stopReadingSession(store.book ? {
+      bookUrl: store.book.bookUrl,
+      bookName: store.book.name,
+      author: store.book.author,
+      coverUrl: store.book.coverUrl,
+      origin: store.book.origin,
+    } : undefined)
     window.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('mouseup', handleMouseUpSelection)
   document.removeEventListener('touchend', handleTouchEndSelection)
