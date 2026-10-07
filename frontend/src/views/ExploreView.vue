@@ -18,16 +18,42 @@
       </label>
     </div>
 
-    <!-- 榜单 / 分类标签 -->
-    <div v-if="store.rankingKinds.length" class="ranking-bar">
-      <button
-        v-for="kind in store.rankingKinds"
-        :key="kind.url || kind.title"
-        class="ranking-chip"
-        :class="{ active: store.activeCategoryUrl === kind.url }"
-        @click="onCategoryClick(kind)"
+    <!-- 榜单 / 分类标签（默认最多2行，超出可展开） -->
+    <div v-if="store.rankingKinds.length" class="ranking-wrapper">
+      <div
+        ref="rankingBar"
+        class="ranking-bar"
+        :class="{ 'is-collapsed': isRankingCollapsed }"
+        :style="isRankingCollapsed && rankingCollapsedMax > 0 ? { maxHeight: rankingCollapsedMax + 'px' } : undefined"
       >
-        {{ kind.title }}
+        <button
+          v-for="kind in store.rankingKinds"
+          :key="kind.url || kind.title"
+          class="ranking-chip"
+          :class="{ active: store.activeCategoryUrl === kind.url }"
+          @click="onCategoryClick(kind)"
+        >
+          {{ kind.title }}
+        </button>
+      </div>
+      <button
+        v-if="rankingHasOverflow"
+        type="button"
+        class="ranking-toggle-btn"
+        :title="isRankingExpanded ? '收起标签' : '展开更多标签'"
+        @click="toggleRanking()"
+      >
+        <span>{{ isRankingExpanded ? '收起' : '展开' }}</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          class="toggle-icon"
+          :class="{ 'is-expanded': isRankingExpanded }"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </button>
     </div>
 
@@ -55,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useExploreStore } from '../stores/explore'
 import { useReaderStore } from '../stores/reader'
@@ -75,9 +101,77 @@ const openingBookUrl = ref('')
 const showDetail = ref(false)
 const selectedBook = ref<Book | SearchBook | null>(null)
 
+// 榜单标签：默认只显示两行，超出部分折叠，可用箭头展开
+const rankingBar = ref<HTMLElement>()
+const isRankingExpanded = ref(false)
+const isRankingCollapsed = computed(() => !isRankingExpanded.value)
+const rankingCollapsedMax = ref(0)
+const rankingNaturalHeight = ref(0)
+const rankingHasOverflow = computed(
+  () => rankingNaturalHeight.value > rankingCollapsedMax.value + 1,
+)
+
+/**
+ * 测量标签行高，得出「前两行」的高度作为折叠高度。
+ * 标签的换行位置只由宽度决定，因此即使处于折叠态，各行 offsetTop 仍是完整布局值。
+ */
+function measureRanking() {
+  const el = rankingBar.value
+  if (!el) return
+  const previousMaxHeight = el.style.maxHeight
+  // 测量时临时取消高度限制，避免任何意外干扰行位置
+  el.style.maxHeight = 'none'
+
+  const chips = Array.from(el.querySelectorAll<HTMLElement>('.ranking-chip'))
+  if (chips.length === 0) {
+    rankingCollapsedMax.value = 0
+    rankingNaturalHeight.value = 0
+    el.style.maxHeight = previousMaxHeight
+    return
+  }
+
+  // 按行归组：key 为行顶端，value 为该行最低底端
+  const rows = new Map<number, number>()
+  for (const chip of chips) {
+    const top = chip.offsetTop
+    const bottom = top + chip.offsetHeight
+    rows.set(top, Math.max(rows.get(top) ?? top, bottom))
+  }
+  const tops = Array.from(rows.keys()).sort((a, b) => a - b)
+  const firstTop = tops[0]!
+  rankingNaturalHeight.value = Math.max(...rows.values()) - firstTop
+  rankingCollapsedMax.value = tops.length <= 2
+    ? rankingNaturalHeight.value
+    : rows.get(tops[1]!)! - firstTop
+
+  el.style.maxHeight = previousMaxHeight
+}
+
+function toggleRanking() {
+  isRankingExpanded.value = !isRankingExpanded.value
+}
+
 onMounted(async () => {
   await store.init()
+  await nextTick()
+  measureRanking()
+  window.addEventListener('resize', measureRanking)
+  // 字体加载完成后标签尺寸可能变化，重新测一次。
+  document.fonts?.ready.then(measureRanking).catch(() => undefined)
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', measureRanking)
+})
+
+// 榜单/分类标签变化（切换书源、筛选条件后重新拉取）时需要重新测量
+watch(
+  () => store.rankingKinds.map((kind) => kind.title).join('|'),
+  async () => {
+    await nextTick()
+    measureRanking()
+  },
+)
 
 function onVariableChange(kind: ExploreKind, event: Event) {
   const key = kind.paramKey || kind.title
@@ -216,15 +310,64 @@ async function handleAddToShelf(book: Book | SearchBook) {
   max-width: 160px;
 }
 
-/* 榜单标签栏：标签过多时自动换行，不出现横向滚动条 */
-.ranking-bar {
+/* 榜单标签栏：最多显示两行，超出部分折叠，可用箭头展开 */
+.ranking-wrapper {
   padding: 0 var(--space-6) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.ranking-bar {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: var(--space-2);
-  flex-shrink: 0;
+  width: 100%;
+  overflow: hidden;
+  transition: max-height var(--duration-normal) var(--ease-out);
+}
+
+/* 折叠高度优先取 JS 实测值（内联 max-height）；这里只是未测量前的兜底。 */
+.ranking-bar.is-collapsed {
+  max-height: 76px;
+}
+
+/* 展开时不限制高度 */
+.ranking-bar:not(.is-collapsed) {
+  max-height: none;
+}
+
+.ranking-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.ranking-toggle-btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary-border);
+}
+
+.toggle-icon {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.toggle-icon.is-expanded {
+  transform: rotate(180deg);
 }
 
 .ranking-chip {
