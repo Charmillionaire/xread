@@ -40,6 +40,7 @@ import SourceManager from './components/SourceManager.vue'
 import UserManager from './components/UserManager.vue'
 import WebdavManager from './components/WebdavManager.vue'
 import GroupManagerModal from './components/bookshelf/GroupManagerModal.vue'
+import { applyCustomUiTheme, loadCustomUiTheme } from './utils/themeCustom'
 
 const route = useRoute()
 const appStore = useAppStore()
@@ -48,6 +49,7 @@ const showHeader = computed(() => route.name !== 'reader')
 const showBottomNav = computed(() => route.name !== 'reader')
 
 onMounted(() => {
+  applyCustomUiTheme(loadCustomUiTheme())
   appStore.fetchUserInfo()
 })
 

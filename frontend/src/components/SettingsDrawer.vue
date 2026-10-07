@@ -283,6 +283,18 @@
               </button>
             </div>
           </section>
+
+          <section class="drawer-section">
+            <h3 class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 15l5-5 4 4 3-3 6 6" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+              </svg>
+              &#30028;&#38754;&#23450;&#21046;
+            </h3>
+            <CustomThemeCard />
+          </section>
         </div>
       </aside>
     </Transition>
@@ -295,6 +307,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/app'
 import { useBookshelfStore } from '../stores/bookshelf'
 import { changePassword, logout as apiLogout } from '../api/user'
+import CustomThemeCard from './CustomThemeCard.vue'
 
 const props = defineProps<{
   modelValue: boolean
