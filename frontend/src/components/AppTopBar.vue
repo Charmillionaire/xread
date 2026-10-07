@@ -271,26 +271,47 @@ function openSettings() {
   background-clip: text;
 }
 
+/* 搜索栏：与阅读器媒体播放器统一的液态玻璃 Dock 风格 */
 .search-box {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.10),
+    0 4px 10px rgba(0, 0, 0, 0.04),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.04);
   border-radius: var(--radius-full);
-  padding: var(--space-2) var(--space-4);
+  padding: 10px var(--space-4);
   max-width: 520px;
   width: 100%;
   flex: 1 1 auto;
   min-width: 220px;
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
   transition: all var(--duration-normal) var(--ease-out);
 }
 
 .search-box.focused {
-  border-color: var(--color-primary);
-  background: var(--color-bg-elevated);
-  box-shadow: 0 0 0 3px var(--color-primary-bg), 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-color: rgba(244, 63, 94, 0.45);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.12),
+    0 0 0 3px var(--color-primary-bg),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.04);
+}
+
+/* 暗色模式下的液态玻璃搜索栏 */
+[data-theme='dark'] .search-box {
+  background: rgba(28, 29, 34, 0.66);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.45),
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.18),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.45);
 }
 
 .search-icon {
@@ -305,13 +326,14 @@ function openSettings() {
   border: none;
   background: none;
   outline: none;
-  font-size: var(--text-sm);
+  font-size: var(--text-base, 15px);
   color: var(--color-text);
   min-width: 0;
 }
 
 .search-box input::placeholder {
   color: var(--color-text-tertiary);
+  opacity: 0.85;
 }
 
 .search-clear {
@@ -484,12 +506,12 @@ function openSettings() {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 6px;
+  padding: 5px 8px;
   background: transparent;
   border: none;
-  border-radius: var(--radius-sm, 6px);
-  color: var(--color-text, #333);
-  font-size: var(--text-sm, 14px);
+  border-radius: var(--radius-sm, 8px);
+  color: var(--color-text-secondary, #666);
+  font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
   transition: all var(--duration-fast, 0.15s) ease;
@@ -497,15 +519,15 @@ function openSettings() {
 }
 
 .category-trigger:hover {
-  color: var(--color-primary, #1890ff);
+  color: var(--color-primary, #f43f5e);
   background: var(--color-bg-hover, rgba(0, 0, 0, 0.04));
 }
 
 .category-arrow {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   transition: transform var(--duration-fast, 0.15s) ease;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-tertiary, #999);
 }
 
 .category-arrow.open {
@@ -531,12 +553,12 @@ function openSettings() {
 .category-item {
   width: 100%;
   text-align: center;
-  padding: 8px 14px;
+  padding: 9px 16px;
   border: none;
   background: none;
-  border-radius: var(--radius-sm, 6px);
-  font-size: var(--text-sm, 14px);
-  color: var(--color-text, #333);
+  border-radius: var(--radius-sm, 8px);
+  font-size: 1rem;
+  color: var(--color-text-secondary, #666);
   cursor: pointer;
   transition: all var(--duration-fast, 0.15s) ease;
 }
