@@ -57,13 +57,17 @@ export interface SearchBook {
   bookSourceUrls?: string[]
 }
 
-// ─── 发现页筛选控件（对应后端 ExploreKind） ───
+// ─── 发现页筛选控件（对应后端 ExploreKind 的序列化字段名） ───
 export interface ExploreKind {
   title: string
-  url?: string
-  kindType?: string
-  chars?: string[]
-  defaultValue?: string
+  url?: string | null
+  /** 控件类型：'select'（下拉筛选）/ 'button' / 'text' / 空（普通链接） */
+  type?: string
+  /** 'select' 的候选项 */
+  chars?: string[] | null
+  /** 'select' 的当前选中值 */
+  default?: string
+  /** 控件对应的书源源变量名 */
   paramKey?: string
   action?: string
   viewName?: string

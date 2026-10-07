@@ -36,15 +36,16 @@ export const useExploreStore = defineStore('explore', () => {
     return sourceStore.sources.find((s: BookSource) => s.bookSourceUrl === activeSourceUrl.value)
   })
 
-  // 可切换的下拉筛选控件（线路 / 类型 / 频道 / 平台）
+  // 可切换的下拉筛选控件（线路 / 类型 / 频道 / 平台 / 字数 / 更新 / 排序）
   const filterKinds = computed(() =>
-    kinds.value.filter((kind) => kind.kindType === 'select' && (kind.chars?.length ?? 0) > 0),
+    kinds.value.filter((kind) => kind.type === 'select' && (kind.chars?.length ?? 0) > 0),
   )
 
   // 榜单 / 分类标签（可点击并加载对应书单）
   const rankingKinds = computed(() =>
     kinds.value.filter((kind) => {
-      if (kind.kindType === 'button' || kind.kindType === 'select') return false
+      // button / select / text 不是书单入口
+      if (kind.type === 'button' || kind.type === 'select' || kind.type === 'text') return false
       const url = kind.url?.trim()
       if (!url) return false
       // `{{java.startBrowser(...)}}` 这类跳转动作不是书单地址，不能当榜单芯片点击
@@ -53,9 +54,7 @@ export const useExploreStore = defineStore('explore', () => {
   )
 
   // 操作类按钮（更新配置 / 更新书源 / 书源设置等），仅作展示
-  const buttonKinds = computed(() =>
-    kinds.value.filter((kind) => kind.kindType === 'button'),
-  )
+  const buttonKinds = computed(() => kinds.value.filter((kind) => kind.type === 'button'))
 
   // 回退方案：书源脚本不可用时，使用静态 exploreUrl 解析出的分类
   const fallbackCategories = computed<ExploreCategory[]>(() =>
@@ -66,7 +65,7 @@ export const useExploreStore = defineStore('explore', () => {
     filterKinds.value
       .map((kind) => {
         const key = kind.paramKey || kind.title
-        const value = variables.value[key] || kind.defaultValue || ''
+        const value = variables.value[key] || kind.default || ''
         return { key, title: kind.title, value }
       })
       .filter((item) => !!item.value),
@@ -101,9 +100,9 @@ export const useExploreStore = defineStore('explore', () => {
       const chars = kind.chars ?? []
       const current = next[kind.paramKey]
       if (!current || (chars.length > 0 && !chars.includes(current))) {
-        const fallback = kind.defaultValue && chars.includes(kind.defaultValue)
-          ? kind.defaultValue
-          : chars[0] ?? kind.defaultValue ?? ''
+        // 回落顺序：书源声明的 default → 候选项第一项。
+        // 注意不能因 default 不在 chars 里就丢掉它（例如「平台」的候选项由 jsLib 动态提供）。
+        const fallback = kind.default || chars[0] || ''
         if (fallback) next[kind.paramKey] = fallback
       }
     }

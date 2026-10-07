@@ -36,7 +36,7 @@
       <label v-for="kind in store.filterKinds" :key="kind.paramKey || kind.title" class="filter-chip">
         <span class="filter-chip-label">{{ kind.title }}</span>
         <select
-          :value="store.variables[kind.paramKey || kind.title] || kind.defaultValue || ''"
+          :value="store.variables[kind.paramKey || kind.title] || kind.default || ''"
           @change="onVariableChange(kind, $event)"
         >
           <option v-for="opt in kind.chars || []" :key="opt" :value="opt">{{ opt }}</option>
