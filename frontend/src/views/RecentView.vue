@@ -73,42 +73,6 @@
 
       <section class="card">
         <div class="card-head">
-          <span class="card-title">阅读热力图</span>
-          <span class="card-meta">最近 {{ heatmapWeekCount }} 周</span>
-        </div>
-        <div class="heatmap-scroll">
-          <div class="heatmap-inner">
-            <div class="heatmap-months">
-              <span v-for="(week, wi) in heatmapWeeks" :key="wi" class="heatmap-month-slot">
-                <em v-if="week.monthLabel">{{ week.monthLabel }}</em>
-              </span>
-            </div>
-            <div class="heatmap">
-              <div v-for="(week, wi) in heatmapWeeks" :key="wi" class="heatmap-week">
-                <span
-                  v-for="day in week.days"
-                  :key="day.date"
-                  class="heatmap-cell"
-                  :class="'level-' + day.level"
-                  :title="day.title"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="heatmap-legend">
-          <span>少</span>
-          <i class="heatmap-cell level-0" />
-          <i class="heatmap-cell level-1" />
-          <i class="heatmap-cell level-2" />
-          <i class="heatmap-cell level-3" />
-          <i class="heatmap-cell level-4" />
-          <span>多</span>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="card-head">
           <span class="card-title">最近在读</span>
           <span class="card-meta">{{ recentList.length }} 本</span>
         </div>
@@ -214,13 +178,6 @@ import {
 import type { Book, SearchBook } from '../types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const heatmapWeekCount = 16
-
-interface DayCell {
-  date: string
-  level: number
-  title: string
-}
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -243,13 +200,6 @@ const goalOptions = [
   { label: '3小时', value: 180 },
   { label: '5小时', value: 300 },
 ]
-
-function dateKeyOf(d: Date) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
 
 function parseDateKey(key: string) {
   const [y, m, d] = key.split('-').map(Number)
@@ -277,49 +227,6 @@ const goalPercent = computed(() => {
 })
 
 const bookCount = computed(() => Object.keys(summary.value.bookRecords).length)
-
-function levelOf(seconds: number) {
-  if (seconds <= 0) return 0
-  if (seconds < 300) return 1
-  if (seconds < 900) return 2
-  if (seconds < 1800) return 3
-  return 4
-}
-
-const heatmapWeeks = computed(() => {
-  const records = summary.value.dailyRecords
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const endOfWeek = new Date(today.getTime() + (6 - today.getDay()) * DAY_MS)
-  let cursor = endOfWeek.getTime() - (heatmapWeekCount * 7 - 1) * DAY_MS
-
-  const weeks: Array<{ days: DayCell[]; monthLabel?: string }> = []
-  let lastMonth = -1
-
-  for (let w = 0; w < heatmapWeekCount; w += 1) {
-    const days: DayCell[] = []
-    let weekMonth = -1
-    for (let d = 0; d < 7; d += 1) {
-      const cur = new Date(cursor)
-      if (d === 0) weekMonth = cur.getMonth()
-      const key = dateKeyOf(cur)
-      const seconds = records[key] || 0
-      days.push({
-        date: key,
-        level: levelOf(seconds),
-        title: `${key} · ${formatDuration(seconds)}`,
-      })
-      cursor += DAY_MS
-    }
-    const week: { days: DayCell[]; monthLabel?: string } = { days }
-    if (weekMonth !== lastMonth) {
-      week.monthLabel = `${weekMonth + 1}月`
-      lastMonth = weekMonth
-    }
-    weeks.push(week)
-  }
-  return weeks
-})
 
 const recentList = computed(() =>
   shelfStore.recentBooks.slice(0, 8).map((book) => {

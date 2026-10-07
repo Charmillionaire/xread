@@ -53,6 +53,11 @@ export const useExploreStore = defineStore('explore', () => {
     kinds.value.filter((kind) => {
       // button / select / text 不是书单入口
       if (kind.type === 'button' || kind.type === 'select' || kind.type === 'text') return false
+      const title = kind.title?.trim() || ''
+      // 过滤掉「晴天书架」、「登录晴天书源」等无关引流或外链项
+      if (title.includes('晴天书架') || title.includes('登录晴天') || title.includes('番茄书架')) {
+        return false
+      }
       const url = kind.url?.trim()
       if (!url) return false
       // `{{java.startBrowser(...)}}` 这类跳转动作不是书单地址，不能当榜单芯片点击
