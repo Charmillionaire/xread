@@ -69,8 +69,25 @@
         <span v-if="sourceGroup" class="source-chip source-group">{{ sourceGroup }}</span>
       </div>
 
-      <div class="chapter-lines">
-        <p v-if="asBook.durChapterTitle && !isSearch" class="book-progress">
+      <!-- 发现页/搜索结果：展示标签（状态/评分/分类/更新时间等） -->
+      <div v-if="isSearch && kindChips.length > 0" class="book-kind-row">
+        <span
+          v-for="(chip, idx) in kindChips"
+          :key="idx"
+          class="kind-chip"
+          :class="chip.type"
+        >
+          {{ chip.text }}
+        </span>
+      </div>
+
+      <!-- 发现页/搜索结果：展示简介（最多 3 行） -->
+      <p v-if="isSearch && bookIntro" class="book-intro">
+        {{ bookIntro }}
+      </p>
+
+      <div v-if="!isSearch" class="chapter-lines">
+        <p v-if="asBook.durChapterTitle" class="book-progress">
           已读：{{ asBook.durChapterTitle }}
         </p>
         <p v-if="latestChapterText" class="book-latest">
@@ -188,6 +205,43 @@ const showAiEntry = computed(() => {
   if (props.isSearch || props.editMode) return false
   const currentBook = props.book as Book
   return currentBook.recentKind !== 'rss'
+})
+
+interface KindChip {
+  text: string
+  type: 'status' | 'score' | 'time' | 'category'
+}
+
+/**
+ * 将书源的 kind 字段（如 "连载中,9.4,传统玄幻,2024-01-11 18:10:39"）切分为独立标签，
+ * 并根据内容分别赋予状态/评分/时间/分类类型。
+ */
+const kindChips = computed<KindChip[]>(() => {
+  if (!props.isSearch) return []
+  const raw = asSearchBook.value.kind || ''
+  if (!raw.trim()) return []
+  const parts = raw
+    .split(/[,，、|/]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  return parts.map((text) => {
+    if (/^(连载|完结|连载中|已完结|全本)$/.test(text)) {
+      return { text, type: 'status' }
+    }
+    if (/^\d+(\.\d+)?分?$/.test(text) && parseFloat(text) <= 10) {
+      return { text, type: 'score' }
+    }
+    if (/^\d{4}-\d{1,2}-\d{1,2}/.test(text)) {
+      return { text, type: 'time' }
+    }
+    return { text, type: 'category' }
+  })
+})
+
+const bookIntro = computed(() => {
+  if (!props.isSearch) return ''
+  return asSearchBook.value.intro?.trim() || ''
 })
 </script>
 
@@ -534,6 +588,62 @@ const showAiEntry = computed(() => {
 .source-group {
   background: rgba(0, 0, 0, 0.05);
   color: var(--color-text-secondary);
+}
+
+.book-kind-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 20px;
+}
+
+.kind-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+  background: var(--color-bg-sunken);
+  color: var(--color-text-secondary);
+}
+
+.kind-chip.status {
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.kind-chip.score {
+  background: rgba(234, 179, 8, 0.15);
+  color: #ca8a04;
+  font-weight: 700;
+}
+
+.kind-chip.category {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.kind-chip.time {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--color-text-tertiary);
+  font-size: 10.5px;
+}
+
+.book-intro {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-text-tertiary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .book-cache-row {
