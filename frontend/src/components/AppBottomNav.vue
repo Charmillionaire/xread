@@ -52,7 +52,7 @@ const items: Array<{ key: NavKey; label: string; path: string; paths: string[] }
   },
   {
     key: 'explore',
-    label: '书海',
+    label: '发现',
     path: '/explore',
     paths: ['M12 3a9 9 0 1 0 9 9', 'm16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z'],
   },

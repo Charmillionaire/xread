@@ -46,12 +46,12 @@
           <span class="btn-label">书架</span>
         </button>
 
-        <button class="header-btn" :class="{ active: currentSection === 'explore' }" @click="handleExplore" title="书海">
+        <button class="header-btn" :class="{ active: currentSection === 'explore' }" @click="handleExplore" title="发现">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" />
             <path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" />
           </svg>
-          <span class="btn-label">书海</span>
+          <span class="btn-label">发现</span>
         </button>
 
         <button class="header-btn" :class="{ active: currentSection === 'recent' }" @click="handleRecent" title="最近阅读">

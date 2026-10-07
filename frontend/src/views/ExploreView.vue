@@ -1,37 +1,11 @@
 <template>
   <div class="explore-view">
-    <!-- 顶部：书源切换 -->
+    <!-- 顶部标题 -->
     <header class="explore-header">
-      <div class="header-left">
-        <h2>发现书海</h2>
-        <div class="source-selector">
-          <select
-            v-if="store.exploreSources.length > 0"
-            :value="store.activeSourceUrl"
-            @change="onSourceChange"
-          >
-            <option
-              v-for="src in store.exploreSources"
-              :key="src.bookSourceUrl"
-              :value="src.bookSourceUrl"
-            >
-              {{ src.bookSourceName }}
-            </option>
-          </select>
-          <span v-else class="no-sources-text">无带有发现规则的书源</span>
-        </div>
-      </div>
+      <h2>发现</h2>
     </header>
 
-    <!-- 当前筛选摘要：线路 / 类型 / 频道 / 平台 -->
-    <div v-if="store.activeFilterSummary.length" class="filter-summary">
-      <span v-for="item in store.activeFilterSummary" :key="item.key" class="summary-item">
-        <em>{{ item.title }}</em>
-        <b>{{ item.value }}</b>
-      </span>
-    </div>
-
-    <!-- 筛选控件：下拉切换（线路/类型/频道/平台） -->
+    <!-- 筛选控件：下拉切换（类型/频道/平台/字数/更新/排序等） -->
     <div v-if="store.filterKinds.length" class="filter-bar">
       <label v-for="kind in store.filterKinds" :key="kind.paramKey || kind.title" class="filter-chip">
         <span class="filter-chip-label">{{ kind.title }}</span>
@@ -145,10 +119,6 @@ onMounted(async () => {
   await store.init()
 })
 
-function onSourceChange(event: Event) {
-  store.setSource((event.target as HTMLSelectElement).value)
-}
-
 function onVariableChange(kind: ExploreKind, event: Event) {
   const key = kind.paramKey || kind.title
   store.setVariable(key, (event.target as HTMLSelectElement).value)
@@ -238,62 +208,20 @@ async function handleAddToShelf(book: Book | SearchBook) {
 }
 
 .explore-header {
-  padding: var(--space-5) var(--space-6) var(--space-2);
+  padding: var(--space-5) var(--space-6) var(--space-3);
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   flex-shrink: 0;
 }
 
-.header-left h2 {
+.explore-header h2 {
   font-size: var(--text-2xl);
   font-weight: 700;
-  margin: 0 0 8px 0;
+  margin: 0;
   color: var(--color-text);
   letter-spacing: -0.02em;
-}
-
-.source-selector select {
-  padding: 8px 14px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-border-light);
-  background: var(--color-bg-elevated);
-  color: var(--color-text);
-  font-size: var(--text-sm);
-  outline: none;
-  cursor: pointer;
-  max-width: 320px;
-}
-
-.no-sources-text {
-  font-size: var(--text-sm);
-  color: var(--color-text-tertiary);
-}
-
-/* 筛选摘要 */
-.filter-summary {
-  padding: var(--space-2) var(--space-6);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  font-size: var(--text-xs);
-  flex-shrink: 0;
-}
-
-.summary-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.summary-item em {
-  font-style: normal;
-  color: var(--color-text-tertiary);
-}
-
-.summary-item b {
-  font-weight: 600;
-  color: var(--color-text);
+  text-align: center;
 }
 
 /* 筛选控件 */
@@ -301,6 +229,8 @@ async function handleAddToShelf(book: Book | SearchBook) {
   padding: 0 var(--space-6) var(--space-3);
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
 }

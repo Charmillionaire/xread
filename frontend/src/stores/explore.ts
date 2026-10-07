@@ -36,10 +36,12 @@ export const useExploreStore = defineStore('explore', () => {
     return sourceStore.sources.find((s: BookSource) => s.bookSourceUrl === activeSourceUrl.value)
   })
 
-  // 可切换的下拉筛选控件（线路 / 类型 / 频道 / 平台 / 字数 / 更新 / 排序）
+  // 可切换的下拉筛选控件（类型 / 频道 / 平台 / 字数 / 更新 / 排序，排除「线路」）
   const filterKinds = computed(() =>
     kinds.value.filter((kind) => {
       if (kind.type !== 'select') return false
+      // 排除「线路」筛选控件
+      if (kind.title === '线路' || kind.paramKey === '线路') return false
       // 有候选项最好；若书源未给 chars（如「平台」由云端配置动态提供），
       // 也要保留控件并回填默认值，否则用户完全看不到这个筛选项。
       return (kind.chars?.length ?? 0) > 0 || !!kind.paramKey || !!kind.default
