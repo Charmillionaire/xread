@@ -68,6 +68,25 @@ fn active_source_variable(key: &str) -> Option<String> {
     ACTIVE_SOURCE_VARIABLES.with(|cell| cell.borrow().get(key).cloned())
 }
 
+/// jsLib 的 `getVariable(k)` 实现是「无参取整段 JSON → parsed[k]」，
+/// 所以发现页筛选变量必须合并进这段 JSON，否则选中值永远被 defaultConfig 覆盖。
+fn merge_source_variables_into_json(base: &str) -> String {
+    let injected = ACTIVE_SOURCE_VARIABLES.with(|cell| cell.borrow().clone());
+    if injected.is_empty() {
+        return base.to_string();
+    }
+    let mut root = serde_json::from_str::<JsonValue>(base)
+        .ok()
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+    for (key, value) in injected {
+        let parsed = serde_json::from_str::<JsonValue>(&value)
+            .unwrap_or(JsonValue::String(value));
+        root.insert(key, parsed);
+    }
+    JsonValue::Object(root).to_string()
+}
+
 pub fn with_js_lib<T>(js_lib: Option<&str>, f: impl FnOnce() -> T) -> T {
     ACTIVE_JS_LIB.with(|cell| {
         let previous = cell.replace(js_lib.map(|value| value.to_string()));
@@ -248,11 +267,12 @@ fn eval_js_inner_with_source(
                 let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
                 let raw = map.get(&var_key).cloned();
                 drop(map);
-                match raw {
+                let base = match raw {
                     Some(s) if !s.trim().is_empty() => s,
                     // 首次无变量：预置含 hosts 的云端配置默认对象
                     _ => DEFAULT_VARIABLE_JSON.to_string(),
-                }
+                };
+                merge_source_variables_into_json(&base)
             }),
         )?;
         source_obj.set(
@@ -1001,7 +1021,50 @@ fn split_ajax_spec(spec: &str) -> (&str, Option<&str>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{eval_js, replace_bare_legado_placeholders};
+    use super::{
+        eval_js, replace_bare_legado_placeholders, with_js_source_variables,
+    };
+    use std::collections::HashMap;
+
+    /// jsLib 的 `getVariable(k)` 是「无参取整段 JSON → parsed[k]」，
+    /// 所以发现页筛选变量必须合并进这段 JSON；否则用户选的「女频/漫画」
+    /// 会被 defaultConfig 里的「男频/小说」静默覆盖，筛选看起来完全失灵。
+    #[test]
+    fn injects_source_variables_into_noarg_get_variable() {
+        let mut vars = HashMap::new();
+        vars.insert("频道".to_string(), "女频".to_string());
+        vars.insert("发现页类型".to_string(), "漫画".to_string());
+
+        let result = with_js_source_variables(Some(&vars), || {
+            eval_js(
+                r#"
+                const parsed = JSON.parse(source.getVariable());
+                parsed['频道'] + '/' + parsed['发现页类型'];
+                "#,
+                "",
+                "https://example.com",
+            )
+            .unwrap()
+        });
+
+        assert_eq!(result, "女频/漫画");
+    }
+
+    /// 未注入变量时不能凭空造值，应回落到书源自带的默认配置。
+    #[test]
+    fn leaves_variables_untouched_without_injection() {
+        let result = eval_js(
+            r#"
+            const parsed = JSON.parse(source.getVariable());
+            String(parsed['云端配置'] !== undefined && parsed['频道'] === undefined);
+            "#,
+            "",
+            "https://example.com",
+        )
+        .unwrap();
+
+        assert_eq!(result, "true");
+    }
 
     /// 光遇聚合等发现页脚本会把模板占位符当变量名直接用（`let {{key}} = ...`），
     /// QuickJS 会以 "invalid property name" 报错；该拼写必须被还原成普通变量。

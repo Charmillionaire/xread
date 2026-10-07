@@ -1540,14 +1540,20 @@ fn extract_param_key(action: &str) -> Option<String> {
 }
 
 /// 补全 `createFilter` 控件缺失的 paramKey / action 字段。
+/// 注意：`action` 里 `show(infoMap['显示名'],'真实变量名')` 的第二个参数才是变量名，
+/// `viewName` 只是展示用的提示，所以必须优先从 action 提取，否则会把「类型」当成变量而覆盖不了真实的「发现页类型」。
 fn enrich_explore_kind(mut kind: ExploreKind) -> ExploreKind {
     if kind.param_key.is_none() {
         kind.param_key = kind
-            .view_name
+            .action
             .as_deref()
-            .map(|name| name.trim_matches('\'').to_string())
-            .filter(|value| !value.is_empty())
-            .or_else(|| kind.action.as_deref().and_then(extract_param_key));
+            .and_then(extract_param_key)
+            .or_else(|| {
+                kind.view_name
+                    .as_deref()
+                    .map(|name| name.trim_matches('\'').to_string())
+                    .filter(|value| !value.is_empty())
+            });
     }
     kind
 }
