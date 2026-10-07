@@ -505,7 +505,7 @@ const isContinuousMode = computed(() => {
   return config.value.readMethod === '上下滚动' || config.value.readMethod === '上下滚动2'
 })
 const hideReadChaptersMode = computed(() => config.value.readMethod === '上下滚动2')
-const isHorizontalPageMode = computed(() => config.value.readMethod === '左右翻页')
+const isHorizontalPageMode = computed(() => false)
 const isIosWebkit = computed(() => {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
   return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1)
@@ -1787,7 +1787,7 @@ function handleScroll() {
   serverProgressAutoSaveScheduler.schedule()
 }
 
-function handleTouchStart(event: TouchEvent) {
+function handleTouchStart(_event: TouchEvent) {
   stopAutoScroll()
   hideSelectionMenu()
   // 小说阅读模式下完全使用原生上下滚动，禁用水平手势与左右翻页滑动，避免移动端乱跳
@@ -1800,6 +1800,7 @@ function handleTouchMove(_event: TouchEvent) {
 
 function handleTouchEnd(_event: TouchEvent) {
   touchState.value.moving = false
+  scheduleSelectionMenuUpdate(260)
 }
 
 function openCachePanel() {
