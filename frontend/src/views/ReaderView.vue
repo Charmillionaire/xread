@@ -251,7 +251,6 @@
               <video
                 ref="mediaPlayerRef"
                 class="media-player media-video media-video-lg"
-                :src="mediaPlaybackUrl"
                 :controls="false"
                 autoplay
                 playsinline
@@ -406,7 +405,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, onBeforeUnmount, nextTick, defineAsyncComponent } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { useReaderStore, fontPresets } from '../stores/reader'
 import { useAppStore } from '../stores/app'
@@ -416,6 +415,7 @@ import { countBrowserBookCache } from '../utils/browserCache'
 import { APP_VIEWPORT_CHANGE_EVENT, syncViewportSize } from '../utils/viewport'
 import { isReaderInteractiveClickTarget } from '../utils/readerClick'
 import { parseMediaContent, buildMediaProxyUrl } from '../utils/mediaContent'
+import Hls from 'hls.js'
 import { parseLrc, type LrcLine } from '../utils/lrcParser'
 import { readMediaProgress, writeMediaProgress, createMediaProgressThrottle } from '../utils/mediaProgress'
 import { createReaderProgressAutoSaveScheduler, createReaderProgressExitSaver } from '../utils/readerProgressAutoSave'
@@ -755,11 +755,96 @@ const mediaPlaybackUrl = computed(() => {
   const media = mediaContent.value
   if (!media) return ''
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('accessToken') : null
+  // m3u8 流媒体优先使用源站直链（源站大多带有跨域头且内部相对切片不需要二次代理改写）；非 m3u8 或失败时通过代理
+  if (/\.m3u8(?:\?|$)/i.test(media.url)) {
+    return media.url
+  }
   return buildMediaProxyUrl(media.url, store.book?.origin, token)
 })
 
 // ── 听书 / 短剧播放进度与控制 ──
 const mediaPlayerRef = ref<HTMLMediaElement | null>(null)
+let hlsInstance: Hls | null = null
+
+function destroyHls() {
+  if (hlsInstance) {
+    try {
+      hlsInstance.destroy()
+    } catch {}
+    hlsInstance = null
+  }
+}
+
+function setupHlsIfNeeded() {
+  destroyHls()
+  const media = mediaContent.value
+  if (!media || media.kind !== 'video') return
+  const videoEl = mediaPlayerRef.value as HTMLVideoElement | null
+  if (!videoEl) return
+
+  const playUrl = mediaPlaybackUrl.value
+  if (!playUrl) return
+
+  const isM3u8 = /\.m3u8(?:\?|$)/i.test(playUrl) || /\.m3u8(?:\?|$)/i.test(media.url)
+  if (!isM3u8) {
+    videoEl.src = playUrl
+    return
+  }
+
+  // Safari 原生支持 HLS
+  if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+    videoEl.src = playUrl
+    return
+  }
+
+  // 其他现代浏览器（Chrome / Edge / Firefox）通过 hls.js 解复用
+  if (Hls.isSupported()) {
+    const hls = new Hls({
+      enableWorker: true,
+      lowLatencyMode: false,
+    })
+    hlsInstance = hls
+    hls.loadSource(playUrl)
+    hls.attachMedia(videoEl)
+    hls.on(Hls.Events.ERROR, (_event, data) => {
+      if (data.fatal) {
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            // 网络失败尝试代理重试一次
+            if (!videoEl.src.includes('bookSourceProxy')) {
+              const proxyUrl = buildMediaProxyUrl(media.url, store.book?.origin, localStorage.getItem('accessToken'))
+              hls.loadSource(proxyUrl)
+            } else {
+              hls.startLoad()
+            }
+            break
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            hls.recoverMediaError()
+            break
+          default:
+            destroyHls()
+            break
+        }
+      }
+    })
+  } else {
+    videoEl.src = playUrl
+  }
+}
+
+watch(
+  () => [mediaPlaybackUrl.value, mediaPlayerRef.value],
+  () => {
+    nextTick(() => {
+      setupHlsIfNeeded()
+    })
+  },
+)
+
+onBeforeUnmount(() => {
+  destroyHls()
+})
+
 const shouldWriteMediaProgress = createMediaProgressThrottle(5000)
 let mediaRestoredKey = ''
 
