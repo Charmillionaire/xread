@@ -103,8 +103,8 @@ export const useBookshelfStore = defineStore('bookshelf', () => {
 
   const displayGroups = computed(() => {
     const all: BookGroup = { groupId: -1, groupName: '全部' }
-    const unassigned: BookGroup = { groupId: 0, groupName: '未分组' }
-    return [all, unassigned, ...groups.value]
+    const unassigned: BookGroup = { groupId: 0, groupName: '其它' }
+    return [all, ...groups.value, unassigned]
   })
 
   const filteredBooks = computed(() => {

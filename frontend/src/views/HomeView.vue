@@ -418,6 +418,7 @@ async function handleReorderBooks(payload: { draggedUrl: string; targetUrl: stri
 
 .tabs-scroll {
   display: flex;
+  justify-content: center;
   gap: 0;
   overflow-x: auto;
   scrollbar-width: none;
