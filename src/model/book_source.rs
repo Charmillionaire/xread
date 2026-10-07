@@ -55,6 +55,20 @@ pub struct ExploreKind {
     pub title: String,
     pub url: Option<String>,
     pub style: Option<Value>,
+    /// Legado 发现页控件类型：普通链接为空/"link"，可选筛选为 "select"，按钮为 "button"。
+    #[serde(rename = "type")]
+    pub kind_type: Option<String>,
+    /// `select` 类型的候选项（如 ["小说","听书","短剧","漫画"]）。
+    pub chars: Option<Vec<String>>,
+    /// `select` 类型的当前选中值。
+    #[serde(rename = "default")]
+    pub default_value: Option<String>,
+    /// 控件对应的源变量名，取自 `createFilter(...)` 动作串中的 paramKey。
+    pub param_key: Option<String>,
+    /// `createFilter` 生成的原始动作串，如 `show(infoMap['线路'],'线路')`。
+    pub action: Option<String>,
+    /// 仅用于展示的变量提示（如 "'线路'"）。
+    pub view_name: Option<String>,
 }
 
 fn deserialize_rule_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>

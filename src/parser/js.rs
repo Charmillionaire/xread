@@ -47,6 +47,25 @@ static JS_DEVICE_ID: Lazy<String> = Lazy::new(|| {
 type Aes128CbcDecryptor = cbc::Decryptor<Aes128>;
 thread_local! {
     static ACTIVE_JS_LIB: RefCell<Option<String>> = const { RefCell::new(None) };
+    static ACTIVE_SOURCE_VARIABLES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+}
+
+/// 在一次书源请求内预置「发现页筛选变量」（线路/类型/频道/平台等），
+/// 供 jsLib 的 getVariable(k) 读取，让筛选条件真正影响请求 URL。
+pub fn with_js_source_variables<T>(
+    variables: Option<&HashMap<String, String>>,
+    f: impl FnOnce() -> T,
+) -> T {
+    ACTIVE_SOURCE_VARIABLES.with(|cell| {
+        let previous = cell.replace(variables.cloned().unwrap_or_default());
+        let result = f();
+        cell.replace(previous);
+        result
+    })
+}
+
+fn active_source_variable(key: &str) -> Option<String> {
+    ACTIVE_SOURCE_VARIABLES.with(|cell| cell.borrow().get(key).cloned())
 }
 
 pub fn with_js_lib<T>(js_lib: Option<&str>, f: impl FnOnce() -> T) -> T {
@@ -573,6 +592,9 @@ fn eval_js_inner_with_source(
         globals.set(
             "getVariable",
             Func::new(|key: String| -> String {
+                if let Some(value) = active_source_variable(&key) {
+                    return value;
+                }
                 let map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
                 map.get(&key).cloned().unwrap_or_else(|| "{}".to_string())
             }),
@@ -580,6 +602,9 @@ fn eval_js_inner_with_source(
         globals.set(
             "setVariable",
             Func::new(|key: String, val: String| -> bool {
+                ACTIVE_SOURCE_VARIABLES.with(|cell| {
+                    cell.borrow_mut().insert(key.clone(), val.clone());
+                });
                 let mut map = JS_KV.lock().unwrap_or_else(|e| e.into_inner());
                 map.insert(key, val);
                 true
@@ -738,10 +763,72 @@ fn java_aes_base64_decode_to_string(input: &str, key: &str, algorithm: &str, iv:
         .unwrap_or_default()
 }
 
+/// 仅替换字符串字面量（'...' / "..." / `...`）之外的 `{{name}}` 占位符。
+/// Legado 发现页脚本里既有 `let {{key}} = ...` 这种语法（需替换），
+/// 也有 `"/bookshelf?page={{page}}"` 这种要原样返回给抓取层的 URL 模板（不能动）。
+fn replace_bare_legado_placeholders(script: &str) -> String {
+    if !script.contains("{{") {
+        return script.to_string();
+    }
+
+    let chars: Vec<char> = script.chars().collect();
+    let mut out = String::with_capacity(script.len());
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    let mut i = 0usize;
+
+    while i < chars.len() {
+        let ch = chars[i];
+
+        if let Some(q) = quote {
+            out.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == q {
+                quote = None;
+            }
+            i += 1;
+            continue;
+        }
+
+        if ch == '\'' || ch == '"' || ch == '`' {
+            quote = Some(ch);
+            out.push(ch);
+            i += 1;
+            continue;
+        }
+
+        if ch == '{' && i + 1 < chars.len() && chars[i + 1] == '{' {
+            if let Some(end) = (i + 2..chars.len()).find(|&j| chars[j] == '}') {
+                let name: String = chars[i + 2..end].iter().collect();
+                let is_ident = !name.is_empty()
+                    && name.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                    && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+                if is_ident && end + 1 < chars.len() && chars[end + 1] == '}' {
+                    out.push_str(&name);
+                    i = end + 2;
+                    continue;
+                }
+            }
+        }
+
+        out.push(ch);
+        i += 1;
+    }
+
+    out
+}
+
 fn eval_script<'js>(ctx: rquickjs::Ctx<'js>, script: &str) -> anyhow::Result<Value<'js>> {
     // Legado/Rhino accepts `\\{` in source strings as a literal `{`; QuickJS
     // rejects it as an invalid escape. Normalize this narrow compatibility spelling.
     let script = script.replace("\\{", "{");
+    // Legado 的发现页脚本会在源码里直接写 `let {{key}} = ...`（把占位符当变量名用），
+    // QuickJS 会以 "invalid property name" 报错。这里只在**字符串字面量之外**
+    // 把 {{key}} / {{page}} 还原成同名变量，避免破坏 URL 模板（如 "?page={{page}}"）。
+    let script = replace_bare_legado_placeholders(&script);
     // QuickJS 默认 strict=true 会让普通函数调用时 this=undefined，
     // 而 Legado(Rhino) 书源 jsLib 大量依赖 this.xxx（this 指向全局）。
     // 设为非严格后，普通函数调用 this 指向 globalThis，兼容光遇等重度书源。
@@ -910,4 +997,32 @@ fn split_ajax_spec(spec: &str) -> (&str, Option<&str>) {
     }
 
     (spec, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{eval_js, replace_bare_legado_placeholders};
+
+    /// 光遇聚合等发现页脚本会把模板占位符当变量名直接用（`let {{key}} = ...`），
+    /// QuickJS 会以 "invalid property name" 报错；该拼写必须被还原成普通变量。
+    #[test]
+    fn replaces_placeholder_outside_string_literals() {
+        let cleaned = replace_bare_legado_placeholders("let {{key}} = 5; String({{key}} + 1);");
+        assert_eq!(cleaned, "let key = 5; String(key + 1);");
+    }
+
+    /// 字符串字面量里的占位符是抓取层要消费的 URL 模板，绝不能在 JS 求值阶段被改掉，
+    /// 否则 `{{page}}` 会被替换成变量而丢失翻页参数。
+    #[test]
+    fn preserves_placeholder_inside_string_literals() {
+        let cleaned = replace_bare_legado_placeholders(r#"let u = "/bookshelf?page={{page}}"; u;"#);
+        assert_eq!(cleaned, r#"let u = "/bookshelf?page={{page}}"; u;"#);
+    }
+
+    /// 端到端：带占位符的脚本现在能在 QuickJS 里正常求值。
+    #[test]
+    fn eval_js_accepts_bare_legado_placeholder() {
+        let result = eval_js("let {{key}} = 5; String({{key}} + 1);", "", "https://example.com").unwrap();
+        assert_eq!(result, "6");
+    }
 }

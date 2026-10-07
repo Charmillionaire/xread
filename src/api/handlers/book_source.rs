@@ -46,6 +46,10 @@ pub struct ExploreKindsRequest {
     book_source_url: Option<String>,
     #[serde(rename = "bookSource")]
     book_source: Option<BookSource>,
+    /// 当前已选筛选变量（线路/类型/频道/平台等），
+    /// 让发现页脚本按当前选择返回对应的榜单列表。
+    #[serde(default)]
+    variables: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -260,7 +264,9 @@ pub async fn get_explore_kinds(
             .ok_or_else(|| AppError::NotFound("bookSource not found".to_string()))?
     };
 
-    let kinds = state.book_service.explore_kinds(&source)?;
+    let kinds = state
+        .book_service
+        .explore_kinds_with_variables(&source, req.variables.as_ref())?;
     Ok(Json(ApiResponse::ok(
         serde_json::to_value(kinds).unwrap_or_default(),
     )))

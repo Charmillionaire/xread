@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useExploreStore } from './explore'
 import { useSourceStore } from './source'
 import { getBookSources } from '../api/source'
-import { exploreBook } from '../api/explore'
+import { exploreBook, getExploreKinds } from '../api/explore'
 import type { BookSource } from '../types'
 
 vi.mock('../api/source', () => ({
@@ -12,17 +12,22 @@ vi.mock('../api/source', () => ({
 
 vi.mock('../api/explore', () => ({
   exploreBook: vi.fn(),
+  getExploreKinds: vi.fn(),
 }))
 
 const getBookSourcesMock = vi.mocked(getBookSources)
 const exploreBookMock = vi.mocked(exploreBook)
+const getExploreKindsMock = vi.mocked(getExploreKinds)
 
 describe('explore store source sync', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     getBookSourcesMock.mockReset()
     exploreBookMock.mockReset()
+    getExploreKindsMock.mockReset()
     exploreBookMock.mockResolvedValue([])
+    // 默认走静态 exploreUrl 回退分支，保持断言稳定
+    getExploreKindsMock.mockResolvedValue([])
   })
 
   it('repairs a stale active source when explore sources are already loaded', async () => {
@@ -34,7 +39,7 @@ describe('explore store source sync', () => {
     await store.init()
 
     expect(store.activeSourceUrl).toBe('https://m.cuoceng.com')
-    expect(store.categories.map((category) => category.title)).toEqual(['书 库', '排 行'])
+    expect(store.fallbackCategories.map((category) => category.title)).toEqual(['书 库', '排 行'])
     expect(store.activeCategoryUrl).toBe('/book/category/catalog.html')
   })
 })

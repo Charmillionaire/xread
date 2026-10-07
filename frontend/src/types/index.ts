@@ -57,6 +57,19 @@ export interface SearchBook {
   bookSourceUrls?: string[]
 }
 
+// ─── 发现页筛选控件（对应后端 ExploreKind） ───
+export interface ExploreKind {
+  title: string
+  url?: string
+  kindType?: string
+  chars?: string[]
+  defaultValue?: string
+  paramKey?: string
+  action?: string
+  viewName?: string
+  style?: Record<string, unknown>
+}
+
 // ─── 章节 ───
 export interface BookChapter {
   title: string

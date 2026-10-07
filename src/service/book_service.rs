@@ -296,21 +296,40 @@ impl BookService {
         source: &BookSource,
         rule_find_url: &str,
         page: i32,
+        variables: Option<&std::collections::HashMap<String, String>>,
     ) -> Result<Vec<SearchBook>, AppError> {
         if rule_find_url.trim().is_empty() {
             return Err(AppError::BadRequest("ruleFindUrl required".to_string()));
         }
-        let mut spec = analyze_url(rule_find_url, "", page, &source.book_source_url, source)?;
+
+        // 发现页筛选变量（线路/类型/频道/平台等）必须在解析 URL 的 JS 里生效，
+        // 否则书源拿不到当前选项，会返回默认榜单而非用户选中的榜单。
+        let mut spec = crate::parser::js::with_js_source_variables(variables, || {
+            analyze_url(rule_find_url, "", page, &source.book_source_url, source)
+        })?;
 
         self.apply_source_cookie(user_ns, source, &mut spec.headers)
             .await;
 
         let res = apply_login_check_js(source, self.fetch_with_rate(source, spec).await?);
-        Ok(self.parser.explore_books(source, &res.body, &res.url))
+        Ok(crate::parser::js::with_js_source_variables(variables, || {
+            self.parser.explore_books(source, &res.body, &res.url)
+        }))
     }
 
     pub fn explore_kinds(&self, source: &BookSource) -> Result<Vec<ExploreKind>, AppError> {
-        parse_explore_kinds(source)
+        parse_explore_kinds(source, None)
+    }
+
+    /// 带筛选变量的发现页控件解析：
+    /// 发现页脚本会依据当前选中的线路/类型/频道/平台返回不同榜单，
+    /// 因此这里需要把变量注入 JS 环境后再执行。
+    pub fn explore_kinds_with_variables(
+        &self,
+        source: &BookSource,
+        variables: Option<&std::collections::HashMap<String, String>>,
+    ) -> Result<Vec<ExploreKind>, AppError> {
+        parse_explore_kinds(source, variables)
     }
 
     pub async fn test_book_source_availability(
@@ -355,7 +374,7 @@ impl BookService {
                 .find(|url| !url.is_empty())
         });
         let (explore_ok, explore_error) = if let Some(url) = explore_url.as_deref() {
-            match self.explore_book(user_ns, source, url, 1).await {
+            match self.explore_book(user_ns, source, url, 1, None).await {
                 Ok(books) => (!books.is_empty(), None),
                 Err(err) => (false, Some(format!("{err:?}"))),
             }
@@ -1444,7 +1463,10 @@ fn apply_login_check_js(source: &BookSource, res: FetchResponse) -> FetchRespons
     })
 }
 
-fn parse_explore_kinds(source: &BookSource) -> Result<Vec<ExploreKind>, AppError> {
+fn parse_explore_kinds(
+    source: &BookSource,
+    variables: Option<&std::collections::HashMap<String, String>>,
+) -> Result<Vec<ExploreKind>, AppError> {
     let Some(raw) = source
         .explore_url
         .as_deref()
@@ -1454,17 +1476,19 @@ fn parse_explore_kinds(source: &BookSource) -> Result<Vec<ExploreKind>, AppError
         return Ok(Vec::new());
     };
 
-    let text = with_js_lib(source.js_lib.as_deref(), || {
-        if let Some(script) = raw.strip_prefix("@js:") {
-            eval_js(script, "", &source.book_source_url).map_err(AppError::Internal)
-        } else if let Some(script) = raw
-            .strip_prefix("<js>")
-            .and_then(|value| value.strip_suffix("</js>"))
-        {
-            eval_js(script, "", &source.book_source_url).map_err(AppError::Internal)
-        } else {
-            Ok(raw.to_string())
-        }
+    let text = crate::parser::js::with_js_source_variables(variables, || {
+        with_js_lib(source.js_lib.as_deref(), || {
+            if let Some(script) = raw.strip_prefix("@js:") {
+                eval_js(script, "", &source.book_source_url).map_err(AppError::Internal)
+            } else if let Some(script) = raw
+                .strip_prefix("<js>")
+                .and_then(|value| value.strip_suffix("</js>"))
+            {
+                eval_js(script, "", &source.book_source_url).map_err(AppError::Internal)
+            } else {
+                Ok(raw.to_string())
+            }
+        })
     })?;
 
     for json_text in [&text, &normalize_relaxed_explore_json(&text)] {
@@ -1472,6 +1496,7 @@ fn parse_explore_kinds(source: &BookSource) -> Result<Vec<ExploreKind>, AppError
             return Ok(kinds
                 .into_iter()
                 .filter(|kind| !kind.title.trim().is_empty())
+                .map(enrich_explore_kind)
                 .collect());
         }
     }
@@ -1498,9 +1523,33 @@ fn parse_explore_kinds(source: &BookSource) -> Result<Vec<ExploreKind>, AppError
                 title: title.to_string(),
                 url,
                 style: None,
+                ..Default::default()
             })
         })
         .collect())
+}
+
+/// `createFilter(...)` 生成的动作串形如 `show(infoMap['线路'],'线路')`，
+/// 从中提取 source 变量名（paramKey），供前端筛选控件读写源变量。
+fn extract_param_key(action: &str) -> Option<String> {
+    let re = regex::Regex::new(r"show\(\s*infoMap\[[^\]]*\]\s*,\s*'([^']*)'\s*\)").ok()?;
+    re.captures(action)
+        .and_then(|cap| cap.get(1))
+        .map(|m| m.as_str().trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+/// 补全 `createFilter` 控件缺失的 paramKey / action 字段。
+fn enrich_explore_kind(mut kind: ExploreKind) -> ExploreKind {
+    if kind.param_key.is_none() {
+        kind.param_key = kind
+            .view_name
+            .as_deref()
+            .map(|name| name.trim_matches('\'').to_string())
+            .filter(|value| !value.is_empty())
+            .or_else(|| kind.action.as_deref().and_then(extract_param_key));
+    }
+    kind
 }
 
 fn normalize_relaxed_explore_json(text: &str) -> String {

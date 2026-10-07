@@ -62,6 +62,9 @@ pub struct ExploreBookRequest {
     book_source_url: Option<String>,
     #[serde(rename = "bookSource")]
     book_source: Option<BookSource>,
+    /// 发现页筛选变量（线路/类型/频道/平台等），透传给书源 JS 的 getVariable(k)。
+    #[serde(default)]
+    variables: Option<std::collections::HashMap<String, String>>,
 }
 #[derive(Debug, Deserialize)]
 pub struct BookInfoRequest {
@@ -427,7 +430,7 @@ pub async fn explore_book(
     .await?;
     let list = state
         .book_service
-        .explore_book(&user_ns, &source, &rule_find_url, page)
+        .explore_book(&user_ns, &source, &rule_find_url, page, req.variables.as_ref())
         .await?;
     Ok(Json(ApiResponse::ok(
         serde_json::to_value(list).unwrap_or_default(),
