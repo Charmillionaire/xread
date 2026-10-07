@@ -1738,15 +1738,16 @@ function handleScroll() {
     if (Date.now() >= suppressContinuousAutoLoadUntil && container.scrollHeight - (container.scrollTop + container.clientHeight) < 480) {
       loadContinuousNext()
     }
-    // 只有当存在上一章可供加载、且页面确实发生了滚动（scrollTop <= 5 触顶）、且当前未在加载上一章时才触发，避免刚进章节 scrollTop 为 0 时死循环连续往上跳
+    // 只有当存在上一章可供加载、且页面确实发生了滚动（scrollTop <= 10 触顶）、且当前未在加载上一章时才触发加载
     if (
       Date.now() >= suppressContinuousAutoLoadUntil &&
       !continuousLoadingPrev.value &&
-      container.scrollTop <= 5 &&
+      container.scrollTop <= 10 &&
       continuousChapters.value.length > 0 &&
       continuousChapters.value[0].index > 0
     ) {
-      suppressContinuousAutoLoadUntil = Date.now() + 800
+      suppressContinuousAutoLoadUntil = Date.now() + 1200
+      suppressContinuousScrollSyncUntil = Date.now() + 1200
       loadContinuousPrev()
     }
   } else if (container) {
@@ -1789,98 +1790,16 @@ function handleScroll() {
 function handleTouchStart(event: TouchEvent) {
   stopAutoScroll()
   hideSelectionMenu()
-  const touch = event.touches[0]
-  if (!touch) return
-  touchState.value = {
-    startX: touch.clientX,
-    startY: touch.clientY,
-    startAt: Date.now(),
-    moving: true,
-    horizontalLocked: false,
-  }
-}
-
-function handleTouchMove(event: TouchEvent) {
-  if (!isMobile.value || config.value.readMethod !== '左右翻页' || !touchState.value.moving) return
-  const selectedText = window.getSelection?.()?.toString().trim()
-  if (selectedText) return
-  // Keep long-press text selection gestures available on mobile.
-  if (Date.now() - touchState.value.startAt > 220) return
-  const touch = event.touches[0]
-  if (!touch) return
-  const deltaX = touch.clientX - touchState.value.startX
-  const deltaY = touch.clientY - touchState.value.startY
-  if (Math.abs(deltaX) > 12 && Math.abs(deltaX) > Math.abs(deltaY)) {
-    touchState.value.horizontalLocked = true
-    event.preventDefault()
-  }
-}
-
-function handleTouchEnd(event: TouchEvent) {
-  if (!isMobile.value || config.value.readMethod !== '左右翻页' || !touchState.value.moving) {
-    touchState.value.moving = false
-    return
-  }
-  const target = event.target as HTMLElement | null
-  if (isReaderInteractiveClickTarget(target)) {
-    touchState.value.moving = false
-    return
-  }
-  const touchDuration = Date.now() - touchState.value.startAt
-  const selectedText = window.getSelection?.()?.toString().trim()
-  if (selectedText) {
-    suppressNextTapUntil = Date.now() + 900
-    touchState.value.moving = false
-    scheduleSelectionMenuUpdate(260)
-    return
-  }
-  const touch = event.changedTouches[0]
-  if (!touch) {
-    touchState.value.moving = false
-    return
-  }
-  const deltaX = touch.clientX - touchState.value.startX
-  const deltaY = touch.clientY - touchState.value.startY
-  let didPageTurn = false
-  if (Math.abs(deltaX) > 18 && Math.abs(deltaX) > Math.abs(deltaY)) {
-    suppressNextTapUntil = Date.now() + 350
-    if (deltaX < 0) {
-      pageForward()
-    } else {
-      pageBackward()
-    }
-    didPageTurn = true
-  }
+  // 小说阅读模式下完全使用原生上下滚动，禁用水平手势与左右翻页滑动，避免移动端乱跳
   touchState.value.moving = false
-  if (!didPageTurn && touchDuration > 260) {
-    // Long-press should be reserved for native text selection, not page action.
-    suppressNextTapUntil = Date.now() + 900
-    scheduleSelectionMenuUpdate(260)
-    return
-  }
-  if (!didPageTurn) {
-    const moved = Math.hypot(deltaX, deltaY)
-    if (touchDuration <= 260 && moved < 10) {
-      suppressNextTapUntil = Date.now() + 350
-      if (showControls.value && !store.activePanel) {
-        showControls.value = false
-      } else {
-        const x = touch.clientX / window.innerWidth
-        if (x < 0.3) {
-          clickZoneAction('prev')
-        } else if (x > 0.7) {
-          clickZoneAction('next')
-        } else {
-          clickZoneAction('menu')
-        }
-      }
-    } else {
-      window.setTimeout(() => {
-        alignHorizontalToNearestPage(touchState.value.moving)
-      }, 120)
-    }
-  }
-  scheduleSelectionMenuUpdate(260)
+}
+
+function handleTouchMove(_event: TouchEvent) {
+  // 小说阅读不拦截任何 touchmove，保证原生纵向平滑滚动
+}
+
+function handleTouchEnd(_event: TouchEvent) {
+  touchState.value.moving = false
 }
 
 function openCachePanel() {

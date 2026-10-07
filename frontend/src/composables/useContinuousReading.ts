@@ -147,8 +147,9 @@ export function useContinuousReading(
     if (prevIndex < 0) return
 
     const container = scrollContainerRef.value
-    const previousHeight = container?.scrollHeight || 0
-    const previousTop = container?.scrollTop || 0
+    if (!container) return
+    const previousHeight = container.scrollHeight
+    const previousTop = container.scrollTop
 
     continuousLoadingPrev.value = true
     try {
@@ -156,10 +157,9 @@ export function useContinuousReading(
       if (prev && !getContinuousChapter(prev.index)) {
         continuousChapters.value = [prev, ...continuousChapters.value]
         await nextTick()
-        if (container) {
-          const heightDiff = container.scrollHeight - previousHeight
-          container.scrollTop = previousTop + heightDiff
-        }
+        const heightDiff = container.scrollHeight - previousHeight
+        // 严格精确补偿滚动高度，锚定在用户原本阅读的同一行内容，绝不跳到上一章顶部
+        container.scrollTop = previousTop + heightDiff
       }
     } finally {
       continuousLoadingPrev.value = false

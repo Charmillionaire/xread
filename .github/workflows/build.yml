@@ -3,6 +3,7 @@ name: Build Docker Image
 on:
   push:
     branches: [ master ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ master ]
 
@@ -59,6 +60,7 @@ jobs:
       with:
         images: ghcr.io/${{ github.repository }}
         tags: |
+          type=ref,event=tag
           type=raw,value=latest
           type=sha,prefix=
 
