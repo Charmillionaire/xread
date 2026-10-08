@@ -179,9 +179,8 @@ function initPlayer() {
         name: 'catalog-episodes',
         index: 10,
         position: 'left',
-        html: `<button class="art-custom-btn" style="background:none;border:none;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 8px;gap:2px;" title="选集 / 目录">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 11h16M4 16h16M4 21h10"/></svg>
-          <span style="font-size:10px;line-height:1;transform:scale(0.85);transform-origin:center top;">选集</span>
+        html: `<button class="art-custom-btn" style="background:none;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;padding:0 6px;" title="选集 / 目录">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
         </button>`,
         click: () => {
           emit('catalog')
