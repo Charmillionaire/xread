@@ -28,10 +28,21 @@
 
   /* Neutrals */
   --color-bg: #faf9f7;
-  --color-bg-elevated: #ffffff;
-  --color-bg-sunken: #f0eeeb;
-  --color-bg-hover: rgba(0, 0, 0, 0.03);
-  --color-bg-active: rgba(0, 0, 0, 0.06);
+  --color-bg-elevated: rgba(255, 255, 255, 0.72);
+  --color-bg-sunken: rgba(240, 238, 235, 0.6);
+  --color-bg-hover: rgba(0, 0, 0, 0.04);
+  --color-bg-active: rgba(0, 0, 0, 0.08);
+
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.68);
+  --glass-bg-hover: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-border-subtle: rgba(255, 255, 255, 0.45);
+  --glass-blur: 24px;
+  --glass-saturate: 180%;
+  --glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.03);
+  --glass-shadow-hover: 0 16px 40px rgba(0, 0, 0, 0.09), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --glass-inset-highlight: inset 0 1px 1.5px rgba(255, 255, 255, 0.8);
 
   /* Text */
   --color-text: #1a1a1a;
@@ -116,10 +127,21 @@
   --color-primary-border: rgba(251, 113, 133, 0.3);
 
   --color-bg: #141414;
-  --color-bg-elevated: #1e1e1e;
-  --color-bg-sunken: #0a0a0a;
-  --color-bg-hover: rgba(255, 255, 255, 0.04);
-  --color-bg-active: rgba(255, 255, 255, 0.08);
+  --color-bg-elevated: rgba(30, 30, 34, 0.72);
+  --color-bg-sunken: rgba(16, 16, 18, 0.6);
+  --color-bg-hover: rgba(255, 255, 255, 0.05);
+  --color-bg-active: rgba(255, 255, 255, 0.09);
+
+  /* Glassmorphism Dark */
+  --glass-bg: rgba(26, 26, 30, 0.68);
+  --glass-bg-hover: rgba(36, 36, 42, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-border-subtle: rgba(255, 255, 255, 0.08);
+  --glass-blur: 24px;
+  --glass-saturate: 180%;
+  --glass-shadow: 0 16px 36px rgba(0, 0, 0, 0.42), 0 3px 10px rgba(0, 0, 0, 0.25);
+  --glass-shadow-hover: 0 20px 44px rgba(0, 0, 0, 0.52), 0 5px 14px rgba(0, 0, 0, 0.3);
+  --glass-inset-highlight: inset 0 1px 1.2px rgba(255, 255, 255, 0.18);
 
   --color-text: #e8e6e3;
   --color-text-secondary: #a0a0a0;

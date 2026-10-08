@@ -510,9 +510,11 @@ onMounted(async () => {
 .card {
   padding: var(--space-4);
   border-radius: 16px;
-  border: 1px solid var(--color-border-light);
-  background: var(--color-bg-elevated);
-  box-shadow: var(--shadow-xs);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 
 .card-head {
@@ -615,9 +617,11 @@ onMounted(async () => {
 .stat-cell {
   padding: var(--space-4);
   border-radius: 16px;
-  border: 1px solid var(--color-border-light);
-  background: var(--color-bg-elevated);
-  box-shadow: var(--shadow-xs);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 
 .stat-cell-value {

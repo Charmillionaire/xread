@@ -170,10 +170,12 @@ ul, ol {
 
 .toast {
   padding: var(--space-3) var(--space-5);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   font-size: var(--text-sm);
   animation: toastIn var(--duration-normal) var(--ease-out) forwards;
 }

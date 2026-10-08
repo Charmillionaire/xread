@@ -118,14 +118,15 @@ export function applyCustomUiTheme(config: CustomUiThemeConfig) {
   // ── 透明度（无背景图时作用于面板/卡片底色） ──
   if (!config.enableCustomImage && config.opacity < 100) {
     rules.push(`
-      .card, .stat-cell, .book-card, .recent-search-input, .filter-chip {
+      .card, .stat-cell, .book-card, .recent-search-input, .filter-chip, .ranking-chip {
         background-color: rgba(255, 255, 255, ${alpha}) !important;
       }
       [data-theme='dark'] .card,
       [data-theme='dark'] .stat-cell,
       [data-theme='dark'] .book-card,
       [data-theme='dark'] .recent-search-input,
-      [data-theme='dark'] .filter-chip {
+      [data-theme='dark'] .filter-chip,
+      [data-theme='dark'] .ranking-chip {
         background-color: rgba(30, 30, 30, ${alpha}) !important;
       }
     `)

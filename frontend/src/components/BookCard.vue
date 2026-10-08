@@ -254,9 +254,14 @@ const bookIntro = computed(() => {
   height: 100%;
   min-height: 148px;
   padding: 13px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border-light);
-  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg, 14px);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow:
+    var(--glass-shadow),
+    var(--glass-inset-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   cursor: pointer;
   transition:
     background var(--duration-normal) var(--ease-out),
@@ -280,11 +285,12 @@ const bookIntro = computed(() => {
 }
 
 .book-card:hover {
-  border-color: var(--color-primary-border);
+  background: var(--glass-bg-hover);
+  border-color: rgba(255, 255, 255, 0.85);
   box-shadow:
-    0 12px 26px rgba(39, 32, 22, 0.09),
-    0 1px 7px rgba(39, 32, 22, 0.04);
-  transform: translateY(-1px);
+    var(--glass-shadow-hover),
+    var(--glass-inset-highlight);
+  transform: translateY(-2px);
 }
 
 .book-card:hover::before {

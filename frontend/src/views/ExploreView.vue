@@ -286,10 +286,19 @@ async function handleAddToShelf(book: Book | SearchBook) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 6px 14px;
   border-radius: var(--radius-full);
-  border: 1px solid var(--color-border-light);
-  background: var(--color-bg-elevated);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.filter-chip:hover {
+  background: var(--glass-bg-hover);
+  border-color: rgba(255, 255, 255, 0.85);
 }
 
 .filter-chip-label {
@@ -345,8 +354,11 @@ async function handleAddToShelf(book: Book | SearchBook) {
   gap: 4px;
   padding: 4px 12px;
   border-radius: var(--radius-full);
-  border: 1px solid var(--color-border-light);
-  background: var(--color-bg-elevated);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   color: var(--color-text-tertiary);
   font-size: var(--text-xs);
   cursor: pointer;
@@ -355,7 +367,8 @@ async function handleAddToShelf(book: Book | SearchBook) {
 
 .ranking-toggle-btn:hover {
   color: var(--color-primary);
-  border-color: var(--color-primary-border);
+  border-color: rgba(255, 255, 255, 0.85);
+  background: var(--glass-bg-hover);
 }
 
 .toggle-icon {
@@ -372,8 +385,11 @@ async function handleAddToShelf(book: Book | SearchBook) {
   flex-shrink: 0;
   padding: 8px 16px;
   border-radius: var(--radius-full);
-  border: 1px solid var(--color-border-light);
-  background: var(--color-bg-elevated);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   color: var(--color-text-secondary);
   font-size: var(--text-sm);
   cursor: pointer;
@@ -382,7 +398,8 @@ async function handleAddToShelf(book: Book | SearchBook) {
 
 .ranking-chip:hover {
   color: var(--color-primary);
-  border-color: var(--color-primary-border);
+  background: var(--glass-bg-hover);
+  border-color: rgba(255, 255, 255, 0.85);
 }
 
 .ranking-chip.active {
