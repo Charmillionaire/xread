@@ -38,6 +38,7 @@ jobs:
         if [ "${{ matrix.arch }}" = "arm64" ]; then
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc
           export CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc
+          export CFLAGS_aarch64_unknown_linux_musl="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0"
         fi
         cargo build --release --target ${{ matrix.target }}
         mkdir -p dist-bin
