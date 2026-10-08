@@ -16,6 +16,19 @@
           role="search"
           @submit.prevent="handleSearch"
         >
+          <button
+            class="search-submit"
+            type="submit"
+            title="搜索"
+            aria-label="搜索"
+            :disabled="!canSearch"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </button>
+
           <input
             v-model="searchValue"
             type="text"
@@ -55,19 +68,6 @@
               </button>
             </div>
           </div>
-
-          <button
-            class="search-submit"
-            type="submit"
-            title="搜索"
-            aria-label="搜索"
-            :disabled="!canSearch"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-          </button>
         </form>
       </div>
 
@@ -353,36 +353,39 @@ function openSettings() {
 }
 
 .search-submit {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  color: var(--color-text-inverse);
-  background: var(--color-primary);
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border: none;
   flex-shrink: 0;
   padding: 0;
-  transition: transform var(--duration-fast), opacity var(--duration-fast), background var(--duration-fast);
+  cursor: pointer;
+  transition: color var(--duration-fast), transform var(--duration-fast);
 }
 
-.search-submit:hover:not(:disabled) {
-  background: var(--color-primary-dark);
+.search-box.focused .search-submit,
+.search-submit:not(:disabled):hover {
+  color: var(--color-primary);
 }
 
 .search-submit:active:not(:disabled) {
-  transform: scale(0.94);
+  transform: scale(0.92);
 }
 
 .search-submit:disabled {
   color: var(--color-text-tertiary);
-  background: transparent;
-  opacity: 0.75;
+  opacity: 0.65;
+  cursor: default;
 }
 
 .search-submit svg {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
 }
 
 .topbar-right {
