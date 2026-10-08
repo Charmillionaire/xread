@@ -33,14 +33,14 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu
         fi
 
-    - name: Build Rust binary
+    - name: Install cross
       run: |
-        if [ "${{ matrix.arch }}" = "arm64" ]; then
-          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc
-          export CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc
-          export CFLAGS_aarch64_unknown_linux_musl="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0"
-        fi
-        cargo build --release --target ${{ matrix.target }}
+        curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+        cargo binstall --no-confirm cross
+
+    - name: Build Rust binary with cross
+      run: |
+        cross build --release --target ${{ matrix.target }}
         mkdir -p dist-bin
         cp target/${{ matrix.target }}/release/xread dist-bin/xread-${{ matrix.arch }}
 
