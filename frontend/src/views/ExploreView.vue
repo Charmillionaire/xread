@@ -252,7 +252,7 @@ async function handleAddToShelf(book: Book | SearchBook) {
   width: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg);
+  background: transparent;
   overflow: hidden;
 }
 

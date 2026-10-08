@@ -98,8 +98,18 @@ export function applyCustomUiTheme(config: CustomUiThemeConfig) {
     }
     if (config.enableCustomColor && config.bgColor) {
       rules.push(`
+        :root {
+          --color-bg: ${config.bgColor} !important;
+        }
         body, #app, .app-main {
           background-color: ${config.bgColor} !important;
+        }
+        .app-topbar {
+          background-color: ${config.bgColor} !important;
+          border-bottom-color: rgba(0, 0, 0, 0.06) !important;
+        }
+        [data-theme='dark'] .app-topbar {
+          border-bottom-color: rgba(255, 255, 255, 0.08) !important;
         }
       `)
     }
