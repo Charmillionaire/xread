@@ -341,7 +341,7 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 .meta-chip {
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(244, 63, 94, 0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   color: var(--color-primary);
   font-size: 10px;
 }
@@ -378,8 +378,8 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 }
 
 .scope-chip.active {
-  border-color: rgba(244, 63, 94, 0.26);
-  background: rgba(244, 63, 94, 0.1);
+  border-color: color-mix(in srgb, var(--color-primary) 26%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   color: var(--color-primary);
 }
 
@@ -564,8 +564,8 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 }
 
 .article-item.active {
-  border-color: rgba(244, 63, 94, 0.26);
-  background: rgba(244, 63, 94, 0.08);
+  border-color: color-mix(in srgb, var(--color-primary) 26%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
 .article-title {

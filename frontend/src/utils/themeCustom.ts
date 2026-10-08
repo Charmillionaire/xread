@@ -12,12 +12,12 @@ export interface CustomUiThemeConfig {
   primaryColor: string
 }
 
-export const DEFAULT_PRIMARY_COLOR = '#f43f5e'
+export const DEFAULT_PRIMARY_COLOR = '#3b82f6'
 
-/** 界面设置里提供的预设主题色 */
+/** 界面设置里提供的预设主题色（首个为默认蓝色） */
 export const PRIMARY_COLOR_PRESETS = [
-  { label: '粉红', value: '#f43f5e' },
   { label: '天蓝', value: '#3b82f6' },
+  { label: '粉红', value: '#f43f5e' },
   { label: '紫罗兰', value: '#8b5cf6' },
   { label: '翡翠绿', value: '#10b981' },
   { label: '琥珀橙', value: '#f59e0b' },

@@ -543,7 +543,7 @@ async function handleSetDefaultBookSources(user: UserInfo) {
   gap: var(--space-2);
   padding: 6px 10px;
   border-radius: var(--radius-md);
-  background: rgba(244, 63, 94, 0.1);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .banner-label {
@@ -582,9 +582,9 @@ async function handleSetDefaultBookSources(user: UserInfo) {
 }
 
 .search-field input:focus {
-  border-color: rgba(244, 63, 94, 0.45);
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
   background: var(--color-bg-elevated);
-  box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.12);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 
 .summary-card,
@@ -627,8 +627,8 @@ async function handleSetDefaultBookSources(user: UserInfo) {
   gap: 4px;
   padding: var(--space-3) var(--space-4);
   font-size: var(--text-sm);
-  background: rgba(244, 63, 94, 0.12);
-  border-color: rgba(244, 63, 94, 0.18);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
 .panel {
@@ -728,9 +728,9 @@ async function handleSetDefaultBookSources(user: UserInfo) {
 }
 
 .mini-btn.active {
-  background: rgba(244, 63, 94, 0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   color: var(--color-primary-dark);
-  border-color: rgba(244, 63, 94, 0.18);
+  border-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
 .action-btn:disabled,
@@ -805,13 +805,13 @@ async function handleSetDefaultBookSources(user: UserInfo) {
 }
 
 .badge.accent {
-  background: rgba(244, 63, 94, 0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   color: var(--color-primary-dark);
 }
 
 .default-badge,
 .status-chip.active {
-  background: rgba(244, 63, 94, 0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   color: var(--color-primary-dark);
 }
 

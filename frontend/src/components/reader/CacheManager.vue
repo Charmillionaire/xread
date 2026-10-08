@@ -323,7 +323,7 @@ function stopWorking() {
 .summary-card {
   border-radius: 16px;
   padding: 16px;
-  background: rgba(244, 63, 94, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -364,7 +364,7 @@ function stopWorking() {
 }
 
 .info-card {
-  background: rgba(244, 63, 94, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   padding: 16px;
   border-radius: 12px;
   border-left: 4px solid var(--color-primary, #f43f5e);
@@ -390,7 +390,7 @@ function stopWorking() {
 
 .cache-opt:hover {
   border-color: var(--color-primary, #f43f5e);
-  background: rgba(244, 63, 94, 0.04);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
 }
 
 .cache-opt.primary {

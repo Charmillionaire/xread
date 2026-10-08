@@ -349,12 +349,12 @@ onBeforeUnmount(() => {
 }
 
 .nav-item.active {
-  color: #e11d48;
+  color: var(--color-primary-dark, #e11d48);
   font-weight: 600;
 }
 
 .bottom-nav-shell.theme-dark .nav-item.active {
-  color: #fb7185;
+  color: var(--color-primary, #fb7185);
 }
 
 .nav-item:active {

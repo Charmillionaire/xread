@@ -2235,9 +2235,9 @@ watch(
   margin: 0 auto;
   width: min(100%, 880px);
   padding: 10px 16px;
-  background: rgba(244, 63, 94, 0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   color: var(--color-primary);
-  border-bottom: 1px solid rgba(244, 63, 94, 0.18);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
   font-size: 13px;
   line-height: 1.5;
   text-align: center;
@@ -2366,9 +2366,9 @@ watch(
 }
 
 :deep(.chapter-text p.reading) {
-  background: rgba(244, 63, 94, 0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   border-radius: 10px;
-  box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.18);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
 :deep(.chapter-text p.reader-indent) {
@@ -2658,7 +2658,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-primary) 35%, transparent);
   transition: transform 0.12s;
 }
 .audio-btn-play:hover { transform: scale(1.07); }

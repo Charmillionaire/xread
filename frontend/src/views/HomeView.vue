@@ -387,7 +387,7 @@ async function handleReorderBooks(payload: { draggedUrl: string; targetUrl: stri
 [data-theme='dark'] .shelf-btn:hover,
 .theme-dark .shelf-btn:hover {
   background: rgba(45, 47, 54, 0.85);
-  color: #fb7185;
+  color: var(--color-primary);
   border-color: rgba(255, 255, 255, 0.25);
 }
 
@@ -395,7 +395,7 @@ async function handleReorderBooks(payload: { draggedUrl: string; targetUrl: stri
   background: var(--color-primary);
   color: white;
   border-color: var(--color-primary);
-  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-primary) 35%, transparent);
 }
 
 .shelf-btn:active {

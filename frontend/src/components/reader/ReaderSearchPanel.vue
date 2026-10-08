@@ -161,7 +161,7 @@ watch(() => props.show, (visible) => {
 
 .search-result-item.active {
   border-color: var(--color-primary);
-  background: rgba(244, 63, 94, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
 .search-result-title {

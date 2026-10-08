@@ -550,8 +550,8 @@ async function restoreBackup(entry: EntryRow) {
 }
 
 .notice.warning {
-  background: rgba(244, 63, 94, 0.12);
-  border: 1px solid rgba(244, 63, 94, 0.18);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
 .notice.error {

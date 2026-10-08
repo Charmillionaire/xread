@@ -409,8 +409,8 @@ async function handleSwitch(res: SearchBook) {
   margin: 8px 16px 14px;
   padding: 12px;
   border-radius: 14px;
-  background: rgba(244, 63, 94, 0.08);
-  border: 1px solid rgba(244, 63, 94, 0.14);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
 }
 
 .book-brief-cover {
@@ -488,9 +488,9 @@ async function handleSwitch(res: SearchBook) {
 }
 
 .source-item:hover { background: rgba(0,0,0,0.03); }
-.source-item.current { background: rgba(244, 63, 94, 0.04); cursor: default; }
+.source-item.current { background: color-mix(in srgb, var(--color-primary) 4%, transparent); cursor: default; }
 .source-item.selected {
-  background: rgba(244, 63, 94, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   box-shadow: inset 3px 0 0 var(--color-primary, #f43f5e);
 }
 
@@ -573,8 +573,8 @@ async function handleSwitch(res: SearchBook) {
   margin: 8px 16px 18px;
   padding: 14px;
   border-radius: 16px;
-  background: rgba(244, 63, 94, 0.08);
-  border: 1px solid rgba(244, 63, 94, 0.14);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
 }
 
 .compare-header {
@@ -617,8 +617,8 @@ async function handleSwitch(res: SearchBook) {
 }
 
 .compare-card.highlight {
-  border-color: rgba(244, 63, 94, 0.28);
-  background: rgba(244, 63, 94, 0.12);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 
 .compare-title {
@@ -691,7 +691,7 @@ async function handleSwitch(res: SearchBook) {
 }
 
 .load-more-btn:hover:not(:disabled) {
-  background: rgba(244, 63, 94, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   border-color: var(--color-primary, #f43f5e);
   color: var(--color-primary, #f43f5e);
 }

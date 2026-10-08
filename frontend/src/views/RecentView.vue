@@ -685,15 +685,15 @@ onMounted(async () => {
 }
 
 .heatmap-cell.level-1 {
-  background: rgba(244, 63, 94, 0.22);
+  background: color-mix(in srgb, var(--color-primary) 22%, transparent);
 }
 
 .heatmap-cell.level-2 {
-  background: rgba(244, 63, 94, 0.42);
+  background: color-mix(in srgb, var(--color-primary) 42%, transparent);
 }
 
 .heatmap-cell.level-3 {
-  background: rgba(244, 63, 94, 0.65);
+  background: color-mix(in srgb, var(--color-primary) 65%, transparent);
 }
 
 .heatmap-cell.level-4 {

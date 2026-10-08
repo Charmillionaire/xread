@@ -744,7 +744,7 @@ async function handleCheckVersionUpdate() {
 [data-theme='dark'] .action-btn:hover,
 .theme-dark .action-btn:hover {
   background: rgba(45, 47, 54, 0.85);
-  color: #fb7185;
+  color: var(--color-primary);
   border-color: rgba(255, 255, 255, 0.22);
 }
 
@@ -756,7 +756,7 @@ async function handleCheckVersionUpdate() {
   background: var(--color-primary);
   color: white;
   border-color: var(--color-primary);
-  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-primary) 35%, transparent);
 }
 
 .action-btn.primary:hover {
@@ -836,8 +836,8 @@ async function handleCheckVersionUpdate() {
 }
 
 .status-card.accent {
-  background: rgba(244, 63, 94, 0.12);
-  border: 1px solid rgba(244, 63, 94, 0.18);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
 .status-card.muted {
