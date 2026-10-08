@@ -258,17 +258,27 @@ function openSettings() {
   border-radius: 6px;
   width: 28px;
   height: 28px;
-  color: var(--color-primary);
+  filter: invert(1);
+  transition: filter var(--duration-fast) var(--ease-out);
+}
+
+[data-theme='dark'] .logo-icon {
+  filter: none;
 }
 
 .logo-text {
   font-size: var(--text-2xl);
   font-weight: 700;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--color-text);
+  background: none;
+  -webkit-background-clip: unset;
+  -webkit-text-fill-color: initial;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+[data-theme='dark'] .logo-text {
+  color: #ffffff;
 }
 
 /* 搜索栏：与阅读器媒体播放器统一的液态玻璃 Dock 风格（缩小 0.7 倍更精致紧凑） */
