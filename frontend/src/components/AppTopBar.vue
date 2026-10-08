@@ -212,10 +212,10 @@ function openSettings() {
   z-index: var(--z-sticky);
   min-height: calc(var(--header-height) + var(--safe-area-top) + 10px);
   padding-top: var(--safe-area-top);
-  background: var(--color-bg-elevated);
-  border-bottom: 1px solid var(--color-border-light);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: transparent !important;
+  border-bottom: none !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-sizing: border-box;
 }
 
