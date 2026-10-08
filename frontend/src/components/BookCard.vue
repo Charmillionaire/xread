@@ -277,8 +277,8 @@ const bookIntro = computed(() => {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 0 0, rgba(244, 63, 94, 0.08), transparent 34%),
-    linear-gradient(90deg, rgba(244, 63, 94, 0.035), transparent 42%);
+    radial-gradient(circle at 0 0, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent 34%),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 3.5%, transparent), transparent 42%);
   opacity: 0;
   transition: opacity var(--duration-normal) var(--ease-out);
   pointer-events: none;
@@ -338,7 +338,7 @@ const bookIntro = computed(() => {
   justify-content: center;
   padding: var(--space-2);
   background:
-    linear-gradient(160deg, rgba(244, 63, 94, 0.12), rgba(70, 134, 121, 0.08)),
+    linear-gradient(160deg, color-mix(in srgb, var(--color-primary) 12%, transparent), rgba(70, 134, 121, 0.08)),
     var(--color-bg-sunken);
   text-align: center;
   gap: var(--space-1);
@@ -373,7 +373,7 @@ const bookIntro = computed(() => {
   min-width: 18px;
   text-align: center;
   line-height: 15px;
-  box-shadow: 0 6px 14px rgba(244, 63, 94, 0.28);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--color-primary) 28%, transparent);
   z-index: 1;
 }
 
@@ -587,7 +587,7 @@ const bookIntro = computed(() => {
 }
 
 .source-name {
-  background: rgba(244, 63, 94, 0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   color: var(--color-primary);
 }
 
@@ -617,7 +617,7 @@ const bookIntro = computed(() => {
 }
 
 .kind-chip.status {
-  background: rgba(244, 63, 94, 0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   color: var(--color-primary);
   font-weight: 600;
 }
@@ -674,7 +674,7 @@ const bookIntro = computed(() => {
 }
 
 .cache-chip.primary {
-  background: rgba(244, 63, 94, 0.13);
+  background: color-mix(in srgb, var(--color-primary) 13%, transparent);
   color: var(--color-primary);
 }
 
@@ -686,9 +686,9 @@ const bookIntro = computed(() => {
   min-height: 28px;
   padding: 0 10px;
   margin-left: auto;
-  background: rgba(244, 63, 94, 0.075);
+  background: color-mix(in srgb, var(--color-primary) 7.5%, transparent);
   color: var(--color-primary);
-  border: 1px solid rgba(244, 63, 94, 0.24);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
   border-radius: 7px;
   font-size: 12px;
   font-weight: 800;
@@ -697,8 +697,8 @@ const bookIntro = computed(() => {
 }
 
 .ai-entry-btn:hover {
-  background: rgba(244, 63, 94, 0.16);
-  border-color: rgba(244, 63, 94, 0.42);
+  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 42%, transparent);
   transform: translateY(-1px);
 }
 

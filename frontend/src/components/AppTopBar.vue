@@ -305,7 +305,7 @@ function openSettings() {
 }
 
 .search-box.focused {
-  border-color: rgba(244, 63, 94, 0.45);
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
   box-shadow:
     0 14px 28px rgba(0, 0, 0, 0.10),
     0 0 0 2.5px var(--color-primary-bg),
@@ -429,7 +429,7 @@ function openSettings() {
   border-radius: var(--radius-full);
   background: var(--color-warning);
   border: 2px solid var(--color-bg-elevated);
-  box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.14);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 14%, transparent);
 }
 
 .topbar-btn:hover {

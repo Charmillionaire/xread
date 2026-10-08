@@ -6,7 +6,6 @@
       background: theme.body,
       color: theme.fontColor,
       fontFamily: currentFontFamily,
-      '--color-primary': '#f43f5e'
     }"
     @click="handleBackgroundClick"
     @contextmenu.prevent="handleContextMenu"

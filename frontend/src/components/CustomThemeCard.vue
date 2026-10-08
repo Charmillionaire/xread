@@ -58,6 +58,45 @@
     </div>
 
     <div class="ui-row">
+      <span class="ui-row-label">自定义主题色</span>
+      <button
+        class="ui-switch"
+        type="button"
+        role="switch"
+        :aria-checked="config.enableCustomPrimary"
+        :class="{ on: config.enableCustomPrimary }"
+        @click="togglePrimary"
+      >
+        <i />
+      </button>
+    </div>
+
+    <div v-if="config.enableCustomPrimary" class="ui-primary-block">
+      <div class="ui-row">
+        <span class="ui-row-label">主题颜色</span>
+        <label class="ui-color-picker">
+          <input v-model="config.primaryColor" type="color" @input="handlePrimaryChange" />
+          <span class="ui-color-dot" :style="{ background: config.primaryColor }" />
+        </label>
+      </div>
+      <div class="ui-row">
+        <span class="ui-row-label">预设颜色</span>
+        <div class="ui-preset-group">
+          <button
+            v-for="preset in primaryPresets"
+            :key="preset.value"
+            type="button"
+            class="ui-preset-dot"
+            :class="{ active: sameColor(config.primaryColor, preset.value) }"
+            :style="{ background: preset.value }"
+            :title="preset.label"
+            @click="setPrimaryColor(preset.value)"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="ui-row">
       <span class="ui-row-label">自定义背景图片</span>
       <button
         class="ui-switch"
@@ -123,12 +162,14 @@ import {
   loadCustomUiTheme,
   resetCustomUiTheme,
   saveCustomUiTheme,
+  PRIMARY_COLOR_PRESETS,
   type CustomUiThemeConfig,
 } from '../utils/themeCustom'
 
 const config = reactive<CustomUiThemeConfig>(loadCustomUiTheme())
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const previewFailed = ref(false)
+const primaryPresets = PRIMARY_COLOR_PRESETS
 
 const sizeOptions: Array<{ label: string; value: CustomUiThemeConfig['bgSize'] }> = [
   { label: '填充', value: 'cover' },
@@ -158,6 +199,25 @@ function toggleImage() {
   config.enableCustomImage = !config.enableCustomImage
   if (config.enableCustomImage) config.enableCustomColor = false
   handleChange()
+}
+
+function togglePrimary() {
+  config.enableCustomPrimary = !config.enableCustomPrimary
+  handleChange()
+}
+
+function handlePrimaryChange() {
+  handleChange()
+}
+
+function setPrimaryColor(value: string) {
+  config.primaryColor = value
+  config.enableCustomPrimary = true
+  handleChange()
+}
+
+function sameColor(a: string, b: string) {
+  return (a || '').toLowerCase() === (b || '').toLowerCase()
 }
 
 function setBgSize(value: CustomUiThemeConfig['bgSize']) {
@@ -311,6 +371,39 @@ function handleReset() {
   border-radius: var(--radius-full);
   border: 2px solid var(--color-border-light);
   box-shadow: var(--shadow-xs);
+}
+
+.ui-primary-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ui-preset-group {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-preset-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  padding: 0;
+  transition: transform var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+
+.ui-preset-dot:hover {
+  transform: scale(1.1);
+}
+
+.ui-preset-dot.active {
+  border-color: var(--color-text-secondary);
+  transform: scale(1.08);
 }
 
 .ui-text-input {

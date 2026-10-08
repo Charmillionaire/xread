@@ -6,7 +6,23 @@ export interface CustomUiThemeConfig {
   enableCustomImage: boolean
   bgImage: string
   bgSize: 'cover' | 'contain' | 'auto'
+  /** 是否启用自定义全局主题色（按钮/高亮/激活态） */
+  enableCustomPrimary: boolean
+  /** 自定义主题色（十六进制） */
+  primaryColor: string
 }
+
+export const DEFAULT_PRIMARY_COLOR = '#f43f5e'
+
+/** 界面设置里提供的预设主题色 */
+export const PRIMARY_COLOR_PRESETS = [
+  { label: '粉红', value: '#f43f5e' },
+  { label: '天蓝', value: '#3b82f6' },
+  { label: '紫罗兰', value: '#8b5cf6' },
+  { label: '翡翠绿', value: '#10b981' },
+  { label: '琥珀橙', value: '#f59e0b' },
+  { label: '青碧', value: '#06b6d4' },
+]
 
 export const UI_THEME_STORAGE_KEY = 'xread-custom-ui-theme'
 const STYLE_TAG_ID = 'xread-custom-ui-theme-style'
@@ -19,6 +35,8 @@ export const defaultUiThemeConfig: CustomUiThemeConfig = {
   enableCustomImage: false,
   bgImage: '',
   bgSize: 'cover',
+  enableCustomPrimary: false,
+  primaryColor: DEFAULT_PRIMARY_COLOR,
 }
 
 export function loadCustomUiTheme(): CustomUiThemeConfig {
@@ -54,6 +72,37 @@ export function saveCustomUiTheme(config: CustomUiThemeConfig) {
     // ignore quota errors
   }
   applyCustomUiTheme(config)
+}
+
+/** 由主色推导出浅色 / 深色 / 淡底 / 边框四个派生色。 */
+export function derivePrimaryPalette(hex: string) {
+  const normalized = hex.trim().replace('#', '')
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return null
+  const r = parseInt(normalized.slice(0, 2), 16)
+  const g = parseInt(normalized.slice(2, 4), 16)
+  const b = parseInt(normalized.slice(4, 6), 16)
+
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)))
+  const lighten = (ratio: number) =>
+    `rgb(${clamp(r + (255 - r) * ratio)}, ${clamp(g + (255 - g) * ratio)}, ${clamp(b + (255 - b) * ratio)})`
+  const darken = (ratio: number) =>
+    `rgb(${clamp(r * (1 - ratio))}, ${clamp(g * (1 - ratio))}, ${clamp(b * (1 - ratio))})`
+
+  return {
+    primary: `rgb(${r}, ${g}, ${b})`,
+    dark: darken(0.16),
+    light: lighten(0.24),
+    bg: `rgba(${r}, ${g}, ${b}, 0.08)`,
+    bgStrong: `rgba(${r}, ${g}, ${b}, 0.1)`,
+    border: `rgba(${r}, ${g}, ${b}, 0.25)`,
+    borderStrong: `rgba(${r}, ${g}, ${b}, 0.3)`,
+  }
+}
+
+/** 供组件展示用：把任意颜色转成十六进制。 */
+export function toHexColor(hex: string) {
+  const normalized = hex.trim()
+  return /^#[0-9a-fA-F]{6}$/.test(normalized) ? normalized : DEFAULT_PRIMARY_COLOR
 }
 
 export function applyCustomUiTheme(config: CustomUiThemeConfig) {
@@ -107,6 +156,29 @@ export function applyCustomUiTheme(config: CustomUiThemeConfig) {
         .app-topbar {
           background-color: transparent !important;
           border-bottom: none !important;
+        }
+      `)
+    }
+  }
+
+  // ── 自定义全局主题色（按钮 / 高亮 / 选中态 / 进度条） ──
+  if (config.enableCustomPrimary) {
+    const palette = derivePrimaryPalette(toHexColor(config.primaryColor))
+    if (palette) {
+      rules.push(`
+        :root {
+          --color-primary: ${palette.primary} !important;
+          --color-primary-light: ${palette.light} !important;
+          --color-primary-dark: ${palette.dark} !important;
+          --color-primary-bg: ${palette.bg} !important;
+          --color-primary-border: ${palette.border} !important;
+        }
+        [data-theme='dark'] {
+          --color-primary: ${palette.light} !important;
+          --color-primary-light: ${palette.light} !important;
+          --color-primary-dark: ${palette.primary} !important;
+          --color-primary-bg: ${palette.bgStrong} !important;
+          --color-primary-border: ${palette.borderStrong} !important;
         }
       `)
     }
