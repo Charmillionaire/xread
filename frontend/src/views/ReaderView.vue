@@ -128,7 +128,10 @@
       <article
         v-if="!store.loading && !isContinuousMode"
         class="chapter-content"
-        :class="{ 'horizontal-page-article': isHorizontalPageMode }"
+        :class="{
+          'horizontal-page-article': isHorizontalPageMode,
+          'media-video-article': mediaContent && mediaContent.kind === 'video'
+        }"
         :style="{
           maxWidth: mediaContent ? 'none' : (isHorizontalPageMode ? 'none' : (config.pageWidth + 'px')),
           fontSize: config.fontSize + 'px',
@@ -2418,13 +2421,30 @@ watch(
   margin: 24px 0 40px;
 }
 
+/* 视频页：取消小说排版的大内边距与最大宽度限制，消除外层大白框，全屏沉浸居中 */
+.chapter-content.media-video-article {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+}
+
 /* 视频页：播放器居中展示，自适应视频尺寸 */
 .media-video-stage {
   min-height: auto;
+  width: 100%;
+  height: 100%;
+  display: flex;
   justify-content: center;
   align-items: center;
-  margin: 12px 0 24px;
-  padding-bottom: 24px;
+  margin: 0;
+  padding: 0;
 }
 
 /* 有声书舞台与字幕卡片 */

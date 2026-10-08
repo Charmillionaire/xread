@@ -1,13 +1,13 @@
 <template>
   <div class="reader-artplayer-stage">
-    <div
-      v-if="props.title"
-      class="reader-video-title"
-      :class="{ 'is-hidden': titleHidden }"
-    >
-      <span class="reader-video-title-text">{{ props.title }}</span>
-    </div>
     <div class="reader-artplayer-wrapper" :style="wrapperStyle">
+      <div
+        v-if="props.title"
+        class="reader-video-title"
+        :class="{ 'is-hidden': titleHidden }"
+      >
+        <span class="reader-video-title-text">{{ props.title }}</span>
+      </div>
       <div class="reader-artplayer-container" ref="artContainerRef"></div>
     </div>
   </div>
@@ -298,18 +298,18 @@ onBeforeUnmount(() => {
   background: transparent;
 }
 
-/* 顶部视频标题：悬浮在画面上方，控制层隐藏时同步淡出 */
+/* 顶部视频标题：仅悬浮在视频播放器画面内部正上方，绝不外溢撑满全屏 */
 .reader-video-title {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   z-index: 20;
-  padding: 14px 16px 26px;
+  padding: 10px 14px 20px;
   display: flex;
   align-items: center;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0) 100%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0) 100%);
   transition: opacity 0.35s ease;
 }
 
@@ -319,17 +319,18 @@ onBeforeUnmount(() => {
 
 .reader-video-title-text {
   color: #fff;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0.2px;
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .reader-artplayer-wrapper {
+  position: relative;
   margin: 0 auto;
   max-width: 100%;
   background: transparent;
