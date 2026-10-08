@@ -1,0 +1,55 @@
+# Multi-stage CI Dockerfile - builds everything from source
+# Stage 1: Build frontend
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json ./frontend/
+RUN cd frontend && npm ci
+COPY frontend/ ./frontend/
+RUN cd frontend && npm run build
+
+# Stage 2: Build Rust binary
+FROM rust:latest AS rust-builder
+ARG TARGETARCH
+WORKDIR /app
+RUN apt-get update && apt-get install -y musl-tools pkg-config && rm -rf /var/lib/apt/lists/*
+RUN rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl 2>/dev/null || true
+
+# Install cross for aarch64 if needed
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+      apt-get update && apt-get install -y gcc-aarch64-linux-gnu && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+COPY Cargo.toml Cargo.lock ./
+COPY src/ ./src/
+
+# Build with musl target
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+      cargo build --release --target x86_64-unknown-linux-musl && \
+      cp target/x86_64-unknown-linux-musl/release/xread /app/xread; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+      export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc && \
+      export CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc && \
+      cargo build --release --target aarch64-unknown-linux-musl && \
+      cp target/aarch64-unknown-linux-musl/release/xread /app/xread; \
+    fi
+
+# Stage 3: Final image
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates tzdata
+WORKDIR /app
+COPY --from=rust-builder /app/xread /app/xread
+RUN chmod +x /app/xread
+COPY --from=frontend-builder /app/frontend/dist /app/web/dist
+RUN mkdir -p /app/storage/assets
+
+ENV SERVER_HOST=0.0.0.0
+ENV SERVER_PORT=7777
+ENV DATABASE_URL=sqlite:/app/storage/reader.db?mode=rwc
+ENV STORAGE_DIR=/app/storage
+ENV ASSETS_DIR=/app/storage/assets
+ENV WEB_ROOT=/app/web/dist
+ENV LOG_LEVEL=info
+
+EXPOSE 7777
+VOLUME ["/app/storage"]
+CMD ["./xread"]
