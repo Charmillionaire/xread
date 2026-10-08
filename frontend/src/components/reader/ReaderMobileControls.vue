@@ -343,12 +343,12 @@ void emit
   pointer-events: none;
 }
 
-/* 屏幕垂直居中悬浮控制面板（不透明实底，保证清晰可读） */
+/* 底部悬浮控制面板（不透明实底，保证清晰可读；不遮挡正文） */
 .m-panel {
   position: absolute;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  bottom: calc(28px + var(--safe-area-bottom));
+  transform: translateX(-50%);
   width: min(560px, calc(100vw - 32px));
   padding: 14px 14px 10px;
   border-radius: 24px;
@@ -545,7 +545,7 @@ void emit
 .panel-pop-enter-from,
 .panel-pop-leave-to {
   opacity: 0;
-  transform: translate(-50%, -50%) scale(0.94);
+  transform: translateX(-50%) translateY(14px) scale(0.96);
 }
 
 @media (max-width: 380px) {
