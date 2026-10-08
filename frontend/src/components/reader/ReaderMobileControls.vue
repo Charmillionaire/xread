@@ -343,12 +343,12 @@ void emit
   pointer-events: none;
 }
 
-/* 居中悬浮玻璃控制面板 */
+/* 屏幕垂直居中悬浮控制面板（不透明实底，保证清晰可读） */
 .m-panel {
   position: absolute;
   left: 50%;
-  bottom: calc(28px + var(--safe-area-bottom));
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
   width: min(560px, calc(100vw - 32px));
   padding: 14px 14px 10px;
   border-radius: 24px;
@@ -357,26 +357,20 @@ void emit
   gap: 12px;
   box-sizing: border-box;
   pointer-events: auto;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow:
-    0 20px 44px rgba(0, 0, 0, 0.14),
-    0 4px 12px rgba(0, 0, 0, 0.05),
-    inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.04);
-  backdrop-filter: blur(32px) saturate(200%);
-  -webkit-backdrop-filter: blur(32px) saturate(200%);
+    0 24px 56px rgba(0, 0, 0, 0.28),
+    0 6px 18px rgba(0, 0, 0, 0.12);
   color: #1a1a1a;
 }
 
 .m-panel.is-dark {
-  background: rgba(28, 29, 34, 0.72);
+  background: #1e1e24;
   border-color: rgba(255, 255, 255, 0.14);
   box-shadow:
-    0 22px 50px rgba(0, 0, 0, 0.5),
-    0 4px 14px rgba(0, 0, 0, 0.3),
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.18),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.45);
+    0 26px 60px rgba(0, 0, 0, 0.62),
+    0 6px 20px rgba(0, 0, 0, 0.4);
   color: #f5f5f5;
 }
 
@@ -551,7 +545,7 @@ void emit
 .panel-pop-enter-from,
 .panel-pop-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(16px) scale(0.96);
+  transform: translate(-50%, -50%) scale(0.94);
 }
 
 @media (max-width: 380px) {

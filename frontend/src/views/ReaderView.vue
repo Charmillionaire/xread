@@ -413,10 +413,11 @@ const chapterTextRef = ref<HTMLElement>()
 const showControls = ref(false)
 const showPcSidebars = ref(true)
 
-/** 阅读控制面板可见性：手机跟随点击开关，桌面默认展开，抽屉打开时保持可见。 */
-const readerPanelVisible = computed(
-  () => (isMobile.value ? showControls.value : showPcSidebars.value) || !!store.activePanel,
-)
+/** 阅读控制面板可见性：有声书 / 短剧视频播放界面不展示；其余情况手机跟随点击开关，桌面默认展开。 */
+const readerPanelVisible = computed(() => {
+  if (mediaContent.value) return false
+  return (isMobile.value ? showControls.value : showPcSidebars.value) || !!store.activePanel
+})
 const isMobile = ref(false)
 let speechTimerTicker: number | null = null
 let suppressNextTapUntil = 0
