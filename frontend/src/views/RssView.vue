@@ -100,14 +100,27 @@
 
       <article v-if="!isMobileLayout" class="article-content-panel" :class="{ collapsed: !store.activeArticle }">
         <template v-if="store.activeArticle">
-          <div class="panel-head">
+          <div class="panel-head content-head">
             <div class="content-head-main">
               <h2>{{ store.activeArticle.title || '正文' }}</h2>
               <div class="content-head-meta">
                 <div v-if="store.activeArticle.pubDate" class="content-head-time">
                   {{ formatRelativeTime(store.activeArticle.pubDate) }}
                 </div>
+                <span v-if="store.activeArticle.origin" class="content-head-dot">·</span>
                 <div v-if="store.activeArticle.origin" class="content-head-origin">{{ store.activeArticle.origin }}</div>
+                <a
+                  v-if="store.activeArticle.link"
+                  class="content-origin-link"
+                  :href="store.activeArticle.link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  打开原文
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M7 17 17 7M9 7h8v8" />
+                  </svg>
+                </a>
               </div>
             </div>
           </div>
@@ -242,9 +255,12 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 .rss-toolbar,
 .article-list-panel,
 .article-content-panel {
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-light);
-  border-radius: 24px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 22px;
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 
 .rss-toolbar {
@@ -307,10 +323,19 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
   width: 18ch;
   min-width: 10ch;
   max-width: 18ch;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg);
-  border-radius: 12px;
-  padding: 4px 8px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  border-radius: var(--radius-full);
+  padding: 5px 12px;
+  color: var(--color-text);
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.source-select select:hover {
+  background: var(--glass-bg-hover);
 }
 
 .meta-chip {
@@ -338,13 +363,18 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 .scope-chip,
 .load-more-btn,
 .ghost-btn {
-  padding: 4px 9px;
+  padding: 5px 12px;
   border-radius: 999px;
-  border: 1px solid var(--color-border-light);
-  background: var(--color-bg);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--color-text-secondary);
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   transition: all var(--duration-fast) var(--ease-out);
   white-space: nowrap;
   font-size: 12px;
+  cursor: pointer;
 }
 
 .scope-chip.active {
@@ -430,20 +460,64 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 .content-head-main {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  width: 100%;
+}
+
+.content-head-main h2 {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  margin: 0;
 }
 
 .content-head-meta {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .content-head-time,
 .content-head-origin {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--color-text-tertiary);
+}
+
+.content-head-dot {
+  color: var(--color-text-tertiary);
+  opacity: 0.6;
+  font-size: 12px;
+}
+
+.content-origin-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  padding: 4px 11px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.content-origin-link:hover {
+  color: var(--color-primary);
+  background: var(--glass-bg-hover);
+}
+
+.content-origin-link svg {
+  width: 13px;
+  height: 13px;
 }
 
 .content-placeholder {
@@ -469,13 +543,17 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 }
 
 .article-item {
+  position: relative;
   display: block;
   width: 100%;
   text-align: left;
-  padding: 14px;
-  border-radius: 18px;
-  border: 1px solid transparent;
-  background: var(--color-bg);
+  padding: 14px 15px;
+  border-radius: 16px;
+  border: 1px solid var(--glass-border-subtle);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
   transition: all var(--duration-fast) var(--ease-out);
   flex: 0 0 auto;
 }
@@ -520,18 +598,28 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
 }
 
 .content-html {
-  line-height: 1.85;
+  line-height: 1.9;
   color: var(--color-text);
+  font-size: 16px;
+  letter-spacing: 0.01em;
   max-width: 100%;
   overflow-wrap: anywhere;
-  width: min(760px, 100%);
+  width: min(720px, 100%);
   margin: 0 auto;
+  padding: 4px 2px 40px;
+}
+
+.content-html :deep(p) {
+  margin: 0 0 1.25em;
 }
 
 .content-html :deep(img) {
+  display: block;
   max-width: 100%;
   height: auto;
   border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.10);
+  margin: 1.2em auto;
 }
 
 .content-html :deep(video),
