@@ -37,6 +37,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'prev'): void
   (e: 'next'): void
+  (e: 'catalog'): void
   (e: 'ended'): void
   (e: 'timeupdate', current: number, duration: number): void
 }>()
@@ -175,6 +176,18 @@ function initPlayer() {
     lang: 'zh-cn',
     controls: [
       {
+        name: 'catalog-episodes',
+        index: 10,
+        position: 'left',
+        html: `<button class="art-custom-btn" style="background:none;border:none;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 8px;gap:2px;" title="选集 / 目录">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 11h16M4 16h16M4 21h10"/></svg>
+          <span style="font-size:10px;line-height:1;transform:scale(0.85);transform-origin:center top;">选集</span>
+        </button>`,
+        click: () => {
+          emit('catalog')
+        },
+      },
+      {
         name: 'prev-chapter',
         index: 11,
         position: 'left',
@@ -202,9 +215,7 @@ function initPlayer() {
         position: 'right',
         html: `<button class="art-custom-btn" style="background:none;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;padding:0 6px;" title="下载视频">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
+            <path d="M12 3v13M7 11l5 5 5-5M5 20h14" />
           </svg>
         </button>`,
         click: () => {
