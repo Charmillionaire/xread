@@ -325,16 +325,73 @@ pub async fn search_book_multi(
     }
 
     // Merge books with same name and author
-    let merged = merge_search_results(results);
+    let merged = merge_search_results(results, &key);
 
     Ok(Json(ApiResponse::ok(
         serde_json::to_value(merged).unwrap_or_default(),
     )))
 }
 
+/// 去掉搜索模式前缀（x:/m:/t:/d:），得到用户实际输入的关键词。
+fn plain_search_keyword(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let mut chars = trimmed.chars();
+    match (chars.next(), chars.next()) {
+        (Some(first), Some(sep))
+            if matches!(first, 'x' | 'X' | 'm' | 'M' | 't' | 'T' | 'd' | 'D')
+                && (sep == ':' || sep == '：') =>
+        {
+            chars.as_str().trim().to_string()
+        }
+        _ => trimmed.to_string(),
+    }
+}
+
+/// 相关性打分：书名精确 &gt; 前缀 &gt; 包含 &gt; 作者 &gt; 简介/分类。
+fn search_relevance(book: &crate::model::search::SearchBook, keyword: &str) -> i32 {
+    if keyword.is_empty() {
+        return 0;
+    }
+    let name = book.name.trim().to_lowercase();
+    let author = book.author.trim().to_lowercase();
+    let kw = keyword.to_lowercase();
+
+    let mut score = if name == kw {
+        100
+    } else if name.starts_with(&kw) {
+        80
+    } else if name.contains(&kw) {
+        60
+    } else if author == kw {
+        55
+    } else if author.contains(&kw) {
+        50
+    } else {
+        let haystack = format!(
+            "{}{}",
+            book.intro.as_deref().unwrap_or(""),
+            book.kind.as_deref().unwrap_or("")
+        )
+        .to_lowercase();
+        if haystack.contains(&kw) {
+            20
+        } else {
+            0
+        }
+    };
+
+    // 同样命中时，书名越短越精确（最多加 5 分）
+    if score > 0 {
+        let name_len = book.name.chars().count() as i32;
+        score += (5 - name_len / 4).max(0);
+    }
+    score
+}
+
 /// Merge search results from different book sources for the same book
 fn merge_search_results(
     results: Vec<crate::model::search::SearchBook>,
+    raw_keyword: &str,
 ) -> Vec<crate::model::search::SearchBook> {
     use crate::model::search::SearchBook;
     use std::collections::HashMap;
@@ -377,8 +434,19 @@ fn merge_search_results(
     }
 
     let mut result: Vec<SearchBook> = merged.into_values().collect();
-    // Sort by name for consistent ordering
-    result.sort_by(|a, b| a.name.cmp(&b.name));
+    // 按相关性倒序，同分时书名更短者优先，最后按名称保证稳定顺序
+    let keyword = plain_search_keyword(raw_keyword);
+    result.sort_by(|a, b| {
+        let diff = search_relevance(b, &keyword).cmp(&search_relevance(a, &keyword));
+        if diff != std::cmp::Ordering::Equal {
+            return diff;
+        }
+        let len_diff = a.name.chars().count().cmp(&b.name.chars().count());
+        if len_diff != std::cmp::Ordering::Equal {
+            return len_diff;
+        }
+        a.name.cmp(&b.name)
+    });
     result
 }
 

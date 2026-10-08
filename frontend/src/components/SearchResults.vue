@@ -7,7 +7,9 @@
           <span class="dot-pulse"></span>
           搜索中...
         </span>
-        <span v-else class="result-count">({{ displayResults.length }} 个结果)</span>
+        <span v-else class="result-count">
+          ({{ displayResults.length }} 个结果<template v-if="exactMatchCount > 0">，{{ exactMatchCount }} 个匹配</template>)
+        </span>
       </h2>
       <button class="back-btn" @click="$emit('back')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
@@ -153,6 +155,61 @@ const displayResults = computed<SearchBook[]>(() => {
   })
 })
 
+/** 去掉搜索模式前缀（x:/m:/t:/d:），得到用户真正输入的关键词。 */
+function plainKeyword(raw: string) {
+  return raw.replace(/^[xmtdXMTD][:：]\s*/, '').trim()
+}
+
+/**
+ * 相关性评分：精确命中优先，其次前缀、包含、作者匹配，最后才看简介/分类。
+ * 同分时书名更短者优先，避免《XX之剑来传》压过《剑来》。
+ */
+function relevanceScore(book: SearchBook, keyword: string) {
+  if (!keyword) return 0
+  const name = (book.name || '').trim()
+  const author = (book.author || '').trim()
+  const lowerName = name.toLowerCase()
+  const lowerAuthor = author.toLowerCase()
+  const kw = keyword.toLowerCase()
+
+  let score = 0
+  if (lowerName === kw) score = 100
+  else if (lowerName.startsWith(kw)) score = 80
+  else if (lowerName.includes(kw)) score = 60
+  else if (lowerAuthor === kw) score = 55
+  else if (lowerAuthor.includes(kw)) score = 50
+  else {
+    const haystack = `${book.intro || ''}${book.kind || ''}`.toLowerCase()
+    if (haystack.includes(kw)) score = 20
+  }
+
+  // 书名长度做微小加成：同样命中时短书名更精确（最多 5 分）
+  if (score > 0) score += Math.max(0, 5 - Math.floor(name.length / 4))
+  return score
+}
+
+/** 按相关性就地重排，保证精确结果始终浮在最前面。 */
+function sortByRelevance(list: SearchBook[], rawKeyword: string): SearchBook[] {
+  const keyword = plainKeyword(rawKeyword)
+  if (!keyword) return list
+  return [...list].sort((a, b) => {
+    const diff = relevanceScore(b, keyword) - relevanceScore(a, keyword)
+    if (diff !== 0) return diff
+    return (a.name || '').length - (b.name || '').length
+  })
+}
+
+/** 顶部统计：书名或作者真正命中关键词的条数。 */
+const exactMatchCount = computed(() => {
+  const keyword = plainKeyword(searchKey.value || '').toLowerCase()
+  if (!keyword) return 0
+  return displayResults.value.filter((book) => {
+    const name = (book.name || '').toLowerCase()
+    const author = (book.author || '').toLowerCase()
+    return name.includes(keyword) || author.includes(keyword)
+  }).length
+})
+
 function closeEventSource() {
   if (eventSource) {
     eventSource.close()
@@ -210,13 +267,19 @@ function doSearch(rawKey: string) {
     bookSourceUrl: searchScope.value === 'source' ? selectedSourceUrl.value : undefined,
   })
 
+  const keywordForSort = finalKey
+
   eventSource.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data)
       if (data.data && Array.isArray(data.data)) {
         const existing = new Set(shelfStore.searchResults.map((r) => `${r.origin}::${r.bookUrl}`))
         const newBooks = data.data.filter((b: SearchBook) => !existing.has(`${b.origin}::${b.bookUrl}`))
-        shelfStore.searchResults = [...shelfStore.searchResults, ...newBooks]
+        // 每收到一批就按相关性重排，精确结果始终置顶，不必等全部搜完
+        shelfStore.searchResults = sortByRelevance(
+          [...shelfStore.searchResults, ...newBooks],
+          keywordForSort,
+        )
       }
     } catch { /* skip */ }
   }
