@@ -61,6 +61,8 @@
     <ReaderMobileControls
       v-if="isMobile"
       :show="showControls || !!store.activePanel"
+      :is-speaking="store.isSpeaking"
+      :is-paused="store.isPaused"
       @goHome="goHome"
       @scrollTop="scrollToTop"
       @scrollBottom="scrollToBottom"
