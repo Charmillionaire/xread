@@ -110,6 +110,27 @@ function onWindowResize() {
   fitToVideo()
 }
 
+function downloadCurrentVideo() {
+  if (!props.url) return
+  const title = (props.title || 'video').trim()
+  const safeTitle = title.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)
+  const isM3u8 = /\.m3u8(?:\?|$)/i.test(props.url)
+  const guessedExt = isM3u8 ? 'm3u8' : 'mp4'
+  const match = props.url.match(/\.([a-z0-9]{2,4})(?:\?|#|$)/i)
+  const ext = match ? match[1].toLowerCase() : guessedExt
+  const a = document.createElement('a')
+  a.href = props.url
+  a.download = `${safeTitle}.${ext}`
+  a.target = '_blank'
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  if (art) {
+    art.notice.show = '已开始下载本集视频'
+  }
+}
+
 function initPlayer() {
   if (!artContainerRef.value || !props.url) return
 
@@ -134,7 +155,7 @@ function initPlayer() {
     pip: true,
     autoSize: false,
     autoMini: false,
-    screenshot: true,
+    screenshot: false,
     setting: true,
     loop: false,
     flip: true,
@@ -173,6 +194,21 @@ function initPlayer() {
         </button>`,
         click: () => {
           if (props.hasNext) emit('next')
+        },
+      },
+      {
+        name: 'download-video',
+        index: 20,
+        position: 'right',
+        html: `<button class="art-custom-btn" style="background:none;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;padding:0 6px;" title="下载视频">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>`,
+        click: () => {
+          downloadCurrentVideo()
         },
       },
     ],
