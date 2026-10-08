@@ -32,35 +32,9 @@
       </Transition>
     </Teleport>
 
-    <!-- PC Desktop Toolbars (Toggle on middle click) -->
-    <Transition name="fade-slide-left">
-      <ReaderSidebar
-        v-if="!isMobile && (showPcSidebars || !!store.activePanel)"
-        @goHome="goHome"
-        @scrollTop="scrollToTop"
-        @scrollBottom="scrollToBottom"
-      />
-    </Transition>
-    <Transition name="fade-slide-right">
-      <ReaderToolbar
-        v-if="!isMobile && (showPcSidebars || !!store.activePanel)"
-        :is-speaking="store.isSpeaking"
-        :is-paused="store.isPaused"
-        @bookmark="toggleBookmark"
-        @search="toggleSearch"
-        @info="openInfo"
-        @ai="openAiBook"
-        @tts="handleTTS"
-        @prev="prevChapter"
-        @next="nextChapter"
-        @progress="openCachePanel"
-      />
-    </Transition>
-
-    <!-- Mobile Controls (Click to toggle) -->
+    <!-- 阅读控制面板：手机与桌面统一使用居中悬浮卡片（点击屏幕中间呼出/收起） -->
     <ReaderMobileControls
-      v-if="isMobile"
-      :show="showControls || !!store.activePanel"
+      :show="readerPanelVisible"
       :is-speaking="store.isSpeaking"
       :is-paused="store.isPaused"
       @goHome="goHome"
@@ -383,8 +357,6 @@ import { readMediaProgress, writeMediaProgress, createMediaProgressThrottle } fr
 import { createReaderProgressAutoSaveScheduler, createReaderProgressExitSaver } from '../utils/readerProgressAutoSave'
 import type { Book } from '../types'
 
-import ReaderSidebar from '../components/reader/ReaderSidebar.vue'
-import ReaderToolbar from '../components/reader/ReaderToolbar.vue'
 import ReaderMobileControls from '../components/reader/ReaderMobileControls.vue'
 import ReaderVideoPlayer from '../components/reader/ReaderVideoPlayer.vue'
 import { useReaderSearch } from '../composables/useReaderSearch'
@@ -441,6 +413,11 @@ const scrollContainerRef = ref<HTMLElement>()
 const chapterTextRef = ref<HTMLElement>()
 const showControls = ref(false)
 const showPcSidebars = ref(true)
+
+/** 阅读控制面板可见性：手机跟随点击开关，桌面默认展开，抽屉打开时保持可见。 */
+const readerPanelVisible = computed(
+  () => (isMobile.value ? showControls.value : showPcSidebars.value) || !!store.activePanel,
+)
 const isMobile = ref(false)
 let speechTimerTicker: number | null = null
 let suppressNextTapUntil = 0
@@ -508,7 +485,6 @@ const {
   searchIndex,
   searchCount,
   bookSearchStatus,
-  toggleSearch,
   openSearch,
   closeSearch,
   runSearch,
