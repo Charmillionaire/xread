@@ -2,9 +2,9 @@
 
 # XRead
 
-**自托管高性能现代UI风格阅读服务端 · Rust + Vue 3**
+**高性能自托管现代阅读服务端与流式媒体引擎 · Rust + Vue 3**
 
-支持自定义书源、多格式解析、短剧/听书流式播放、多用户权限、RSS 与 AI 阅读助手
+轻量高效 · 生态兼容 · 流媒体代理 · 私有化多用户 · AI 助读
 
 [![Build Docker Image](https://github.com/Charmillionaire/xread/actions/workflows/build.yml/badge.svg)](https://github.com/Charmillionaire/xread/actions/workflows/build.yml)
 [![Image](https://img.shields.io/badge/ghcr.io-charmillionaire%2Fxread-2496ED?logo=docker&logoColor=white)](https://github.com/Charmillionaire/xread/pkgs/container/xread)
@@ -13,70 +13,57 @@
 
 ---
 
-## 简介
+## 项目概述
 
-XRead 是一个基于 Rust 构建的自托管高性能现代UI风格阅读服务端，配套 Vue 3 现代 Web 客户端。
+XRead 是一个采用 Rust（后端）与 Vue 3（前端）构建的高性能、自托管数字阅读服务端与流式媒体代理引擎。
 
-沿用 Legado / reader 的书源生态，通过内置 QuickJS 引擎完整兼容各类书源规则，同时提供流式媒体播放、多用户权限体系与苹果风格的液态玻璃界面。
+系统专注于提供极低的系统资源占用、毫秒级响应速度以及对通用开源阅读规则生态的深度兼容。通过内置轻量级脚本运行时，系统能够灵活解析结构化文本与流媒体，并配套现代化的响应式液态玻璃 UI 界面，为自建服务用户提供私密、安全且完全自主受控的阅读与音视频交互环境。
 
-> 本项目由 **逍遥游（[@Charmillionaire](https://github.com/Charmillionaire)）** 开发维护，基于 [reader-rust](https://github.com/givenge/reader-rust) 二次开发；其源头为 [reader](https://github.com/hectorqin/reader)。
+> 本项目由 **逍遥游（[@Charmillionaire](https://github.com/Charmillionaire)）** 主导维护，基于 [reader-rust](https://github.com/givenge/reader-rust) 深度二次开发重构；其架构溯源自开源项目 [reader](https://github.com/hectorqin/reader)。
 
-## 界面预览
+---
 
-| 桌面端 | 移动端 |
-|:---:|:---:|
-| ![书架](docs/images/index/bookshelf/shelf.png) | ![书架移动端](docs/images/index/bookshelf/shelf-mobile.png) |
+## 核心设计与特性
 
-## 功能特性
+### 1. 规则解析与生态兼容
+- **通用生态支持**：深度兼容主流开源移动阅读器（如 Legado）的规则规范，降低迁移与配置成本。
+- **内置轻量脚本引擎**：集成 QuickJS 运行时，安全沙箱执行数据清洗与逻辑重整。
+- **全格式解析能力**：支持 CSS Selector、XPath、JSONPath、正则表达式以及 JS + JSONPath 复合规则链路。
+- **会话状态管理**：内置全站网络会话状态自动处理与状态持久化机制。
 
-### 书源解析
+### 2. 沉浸式阅读与排版引擎
+- **居中悬浮控制面板**：无边框毛玻璃控制栏，单色自适应图标体系，支持中心唤醒，杜绝边缘误触。
+- **纯粹翻页控制**：纯显式按需导航，移除隐式越界自动翻页，阅读翻页反馈精准平稳。
+- **多端设备自适应**：无缝支持桌面宽屏与移动端竖屏，提供一致的操作流。
+- **本地文档解析**：支持标准 `.txt` 与 `.epub` 格式文件的导入、元数据提取与分章节存储。
+- **智能离线缓存**：支持后台预加载与章节批量下载，保障弱网环境下的阅读连续性。
 
-- 完整兼容 Legado 书源格式，内置 QuickJS 脚本引擎
-- 支持 CSS 选择器、JSONPath、XPath、正则、JavaScript 多种解析方式
-- 复合规则解析：`<js>...</js>$.data` 形式的 JS + JSONPath 混合规则
-- 全站 Cookie 智能回退与登录态持久化
-- 书源批量测试、失效清理、登录取源、导入导出
-- 替换规则管理
+### 3. 多媒体流式代理引擎
+- **音视频切片代理**：针对有声书（音频）与短剧（视频）提供高性能流媒体中继支持。
+- **HTTP 206 断点续传**：完整实现 Range 请求支持，拖动进度条毫秒级响应。
+- **媒体选集与下载**：内嵌轻量级播放器选集弹窗与直链转存下载能力。
+- **精细进度记忆**：播放状态基于用户与章节粒度精确持久化，支持自动连播。
 
-### 阅读与内容
+### 4. 现代交互与主题系统
+- **液态玻璃美学**：卡片与功能模块全局采用现代 Glassmorphism 毛玻璃拟态设计。
+- **无缝顶栏沉浸**：无边界一体化顶部导航，搭配黑白自适应动态品牌标识。
+- **全站主题色联动**：支持在 UI 设置中自由定制全站主色调与背景色，底栏 Dock 与全局组件自动跟随。
+- **相关度排序搜索**：内置搜索结果相关度加权算法，多结果匹配更精准。
 
-- 书籍搜索、目录获取、正文加载与章节缓存
-- 本地 `.txt` / `.epub` 导入与解析
-- 分组管理、批量操作、书架排序
-- 阅读进度记忆、书架云同步
-- TTS 语音朗读
+### 5. 智能化阅读辅助
+- **AI 上下文梳理**：集成大语言模型能力，提供长文速读、章节摘要与人物脉络分析。
+- **双模调用链路**：支持前端直连与服务端代理两种调用方式，兼顾灵活性与密钥安全。
 
-### 媒体播放
+### 6. 私有化部署与权限管理
+- **细粒度多用户体系**：支持多账号独立书架、个人偏好与阅读进度隔离。
+- **公开/私有模式切换**：支持公开只读（游客访问受限资源）与全私有鉴权模式。
+- **数据自主掌控**：支持 SQLite 本地持久化与 WebDAV 云端自动化热备份。
 
-- 短剧视频 / 听书音频流式代理播放
-- 完整支持 HTTP Range（206 断点续传与拖动）
-- 播放位置按「书籍 + 章节」持久化记忆
-- 播放结束自动连播下一集
+---
 
-### AI 阅读助手
+## 快速部署
 
-- 基于 **Gemini 3.8 Flash** 的书籍理解与 AI 资料生成
-- 人物关系图谱、章节摘要、故事脉络梳理
-- 支持浏览器直连与服务端代理两种调用方式
-- 可自定义文本模型与绘图模型
-
-### 多用户与权限
-
-- 注册用户各自独立的书架、书源与阅读配置
-- 公开只读模式下游客可浏览管理员共享内容，但无权写入
-- 管理员拥有最高权限：用户增删、密码重置、权限调整
-- 服务器备份与恢复（WebDAV）
-
-### 其他
-
-- RSS 订阅与文章阅读
-- 服务端版本更新检查
-- 苹果风格 Dock 导航栏与液态玻璃 UI，支持亮色 / 暗色主题
-- PWA 支持，可安装到主屏幕离线使用
-
-## 快速开始
-
-### Docker 部署（推荐）
+### Docker 容器化运行（推荐）
 
 ```bash
 docker pull ghcr.io/charmillionaire/xread:latest
@@ -86,11 +73,11 @@ docker run -d \
   -p 7777:7777 \
   -v $(pwd)/storage:/app/storage \
   -e SECURE=true \
-  -e PUBLIC_READ=true \
+  -e PUBLIC_READ=false \
   ghcr.io/charmillionaire/xread:latest
 ```
 
-或使用 `docker-compose.yml`：
+### Docker Compose 编排
 
 ```yaml
 services:
@@ -105,127 +92,50 @@ services:
       SERVER_PORT: "7777"
       LOG_LEVEL: "info"
       SECURE: "true"
-      PUBLIC_READ: "true"
+      PUBLIC_READ: "false"
     restart: unless-stopped
 ```
 
-```bash
-docker compose up -d
-```
+启动后访问 `http://<服务器地址>:7777` 即可初始化管理账户。
 
-启动后访问 `http://<你的地址>:7777`。
+---
 
-### 从源码构建
+## 环境变量配置说明
 
-```bash
-# 克隆项目
-git clone https://github.com/Charmillionaire/xread.git
-cd xread
-
-# 构建前端
-cd frontend
-npm install
-npm run build
-cd ..
-
-# 运行后端
-cargo run
-```
-
-前端开发模式（热更新）：
-
-```bash
-cd frontend
-npm run dev
-```
-
-## 配置项
-
-配置通过环境变量注入（可参考 `.env.example`）：
-
-| 变量 | 默认值 | 说明 |
+| 变量名 | 默认值 | 作用描述 |
 |---|---|---|
-| `SERVER_HOST` | `0.0.0.0` | 监听地址 |
-| `SERVER_PORT` | `7777` | 监听端口 |
-| `DATABASE_URL` | `sqlite:storage/reader.db?mode=rwc` | SQLite 数据库连接 |
-| `STORAGE_DIR` | `storage` | 数据存储目录 |
-| `ASSETS_DIR` | `storage/assets` | 静态资源目录 |
-| `WEB_ROOT` | `frontend/dist` | 前端产物目录 |
-| `LOG_LEVEL` | `info` | 日志级别 |
-| `REQUEST_TIMEOUT_SECS` | `15` | 请求超时（秒） |
-| `SECURE` | `false` | 是否开启多用户模式 |
-| `SECURE_KEY` | 空 | 管理密钥（可选） |
-| `PUBLIC_READ` | `false` | 公开只读模式：游客可读管理员的书源 / 书架 |
-| `INVITE_CODE` | 空 | 注册邀请码 |
-| `USER_LIMIT` | `50` | 用户数上限 |
-| `USER_BOOK_LIMIT` | `2000` | 单用户书籍上限 |
-| `USER_LOCAL_BOOK_LIMIT` | `0` | 单用户本地书上限（0 表示不限） |
+| `SERVER_HOST` | `0.0.0.0` | 服务绑定监听网卡地址 |
+| `SERVER_PORT` | `7777` | 服务对外监听端口 |
+| `DATABASE_URL` | `sqlite:storage/reader.db?mode=rwc` | 数据库连接字符串 |
+| `STORAGE_DIR` | `storage` | 数据与媒体缓存根目录 |
+| `ASSETS_DIR` | `storage/assets` | 静态资产持久化目录 |
+| `LOG_LEVEL` | `info` | 运行日志输出级别 |
+| `REQUEST_TIMEOUT_SECS` | `15` | 出站网络请求超时阈值（秒） |
+| `SECURE` | `false` | 是否开启多用户安全鉴权模式 |
+| `PUBLIC_READ` | `false` | 是否允许未认证用户只读公开内容 |
+| `INVITE_CODE` | 空 | 新用户注册邀请码（留空则开放自由注册） |
+| `USER_LIMIT` | `50` | 允许注册的最大用户数上限 |
 
-## 技术栈
+---
 
-- **后端**：Rust · axum · tokio · reqwest · sqlx (SQLite) · rquickjs (QuickJS)
-- **前端**：Vue 3 · Vite · TypeScript · Pinia · vue-router
-- **AI**：Gemini 3.8 Flash（AI 阅读助手）
-- **构建**：GitHub Actions → GitHub Container Registry (GHCR)
+## 技术架构
 
-## 测试
+- **后端核心**：Rust · Axum · Tokio · Reqwest · SQLx (SQLite) · rquickjs
+- **前端架构**：Vue 3 · Vite · TypeScript · Pinia · Vue Router
+- **部署标准**：OCI 兼容容器镜像 · GitHub Actions 持续集成与分发
 
-```bash
-# 后端测试
-cargo test
+---
 
-# 前端单测
-cd frontend && npm test
+## 免责声明与合规说明
 
-# 端到端测试
-npm run test:e2e
-```
+1. **纯技术工具定位**：XRead 仅作为纯技术用途的开源阅读管理服务端、文本解析器与媒体流式中继软件。本项目本身**不内置、不提供、不聚合、不存储、亦不分发任何受法律保护的书籍、音频、视频或网络媒体内容**。
+2. **规则与网络中立**：软件中包含的解析引擎属于技术中立工具。用户在使用本软件时所配置、导入的书源规则以及获取的网络资源，均由用户自行决定并完全承担法律责任。
+3. **知识产权尊重**：用户应当严格遵守所在国家与地区的法律法规，确保自身对通过本软件处理的所有内容享有合法的访问、阅读或存储授权。开发者不对任何用户的违法或侵权行为承担任何连带责任。
+4. **侵权联络渠道**：若任何权利人认为本项目源代码本身存在侵犯其知识产权的情形，请通过 GitHub Issues 提交正式权利通知，维护团队将在收到通知并核实后依法处置。
 
-## 自动构建
+---
 
-推送代码到 `master` 分支后，GitHub Actions 会自动构建并发布镜像：
+## 开源协作与致谢
 
-```
-ghcr.io/charmillionaire/xread:latest
-```
-
-## 项目结构
-
-```
-xread/
-├── src/              # Rust 后端
-│   ├── api/          # 路由与请求处理
-│   ├── service/      # 业务服务（书源、书籍、用户、RSS…）
-│   ├── model/        # 数据模型
-│   └── app/          # 配置与启动
-├── frontend/         # Vue 3 前端
-│   └── src/
-│       ├── views/        # 页面
-│       ├── components/   # 组件
-│       ├── stores/       # Pinia 状态
-│       └── utils/        # 工具函数
-├── docs/             # 文档站点
-└── tests/            # 集成测试
-```
-
-## 免责声明
-
-本项目仅提供书源管理、内容解析、阅读与缓存等技术能力，**不内置、不存储、不分发、不提供任何受版权保护的书籍内容**。
-
-用户应确保自行添加的书源、上传的本地文件以及通过本服务访问的内容均已获得合法授权，并自行承担由此产生的版权与合规责任。
-
-如任何权利人认为本项目相关内容或使用方式侵犯了其合法权益，请通过项目 Issues 联系维护者，我们将在核实后及时处理。
-
-## 贡献者
-
-| 角色 | 贡献者 |
-|---|---|
-| 作者 / 维护者 | **逍遥游** ([@Charmillionaire](https://github.com/Charmillionaire)) |
-| AI 协作开发 | **Gemini** · **Claude** |
-| 上游项目 | [reader-rust](https://github.com/givenge/reader-rust) · [reader](https://github.com/hectorqin/reader) |
-
-欢迎提交 Issue 与 Pull Request，一起把它做得更好。
-
-## Star 趋势
-
-如果这个项目对你有帮助，欢迎点个 ⭐ Star 支持一下！
+- **作者与主导维护**：**逍遥游** ([@Charmillionaire](https://github.com/Charmillionaire))
+- **基础项目溯源**：感谢 [reader-rust](https://github.com/givenge/reader-rust) 与 [reader](https://github.com/hectorqin/reader) 开源社区的技术积累。
