@@ -1328,18 +1328,10 @@ function clearRestoreStabilizers() {
   }
 }
 
-function scheduleRestoreStabilization(saved: SavedReadingPosition) {
+function scheduleRestoreStabilization(_saved: SavedReadingPosition) {
+  // 阅读位置只在打开章节时恢复一次。
+  // 之前 iOS 下会在 140/320/680ms 反复重新纠偏，用户已经开始阅读也会被拽回去，故移除。
   clearRestoreStabilizers()
-  if (!isIosWebkit.value || isHorizontalPageMode.value) return
-  ;[140, 320, 680].forEach((delay) => {
-    const timer = window.setTimeout(() => {
-      if (store.loading || !scrollContainerRef.value || saved.chapterIndex !== store.currentIndex) return
-      void nextTick(() => {
-        restoreReadingPositionInternal(saved, false)
-      })
-    }, delay)
-    restoreStabilizeTimers.push(timer)
-  })
 }
 
 function restoreReadingPositionInternal(saved: SavedReadingPosition | null, finalize: boolean) {
@@ -1679,20 +1671,9 @@ function handleScroll() {
       }
     }
 
+    // 只向下追加下一章；向上不再自动前插上一章，避免滚动高度补偿导致整页跳动
     if (Date.now() >= suppressContinuousAutoLoadUntil && container.scrollHeight - (container.scrollTop + container.clientHeight) < 480) {
       loadContinuousNext()
-    }
-    // 只有当存在上一章可供加载、且页面确实发生了滚动（scrollTop <= 10 触顶）、且当前未在加载上一章时才触发加载
-    if (
-      Date.now() >= suppressContinuousAutoLoadUntil &&
-      !continuousLoadingPrev.value &&
-      container.scrollTop <= 10 &&
-      continuousChapters.value.length > 0 &&
-      continuousChapters.value[0].index > 0
-    ) {
-      suppressContinuousAutoLoadUntil = Date.now() + 1200
-      suppressContinuousScrollSyncUntil = Date.now() + 1200
-      loadContinuousPrev()
     }
   } else if (container) {
     const maxScroll = Math.max(1, container.scrollHeight - container.clientHeight)
@@ -1715,12 +1696,9 @@ function handleScroll() {
         store.preloadAroundChapter(store.currentIndex)
       }
     } else {
+      // 只做预加载，绝不自动切章：章节切换一律由用户明确操作触发（目录 / 上一章 / 下一章 / 翻页区点击）
       if (config.value.enablePreload && container.scrollHeight - (container.scrollTop + container.clientHeight) < container.clientHeight * 1.5) {
         store.preloadAroundChapter(store.currentIndex)
-      }
-      // 单章滚动到底部时自动无感跳转下一章（媒体播放页不自动跳转，避免鼠标滚动误切集）
-      if (!mediaContent.value && store.hasNext && !store.loading && container.scrollHeight - (container.scrollTop + container.clientHeight) < 20) {
-        nextChapter()
       }
     }
   }
