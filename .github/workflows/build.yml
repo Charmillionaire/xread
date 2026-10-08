@@ -8,17 +8,94 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  build-binaries:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            target: x86_64-unknown-linux-musl
+          - arch: arm64
+            target: aarch64-unknown-linux-musl
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+
+    - name: Install musl and cross compilers
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y musl-tools
+        if [ "${{ matrix.arch }}" = "arm64" ]; then
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+        fi
+
+    - name: Build Rust binary
+      run: |
+        if [ "${{ matrix.arch }}" = "arm64" ]; then
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc
+          export CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc
+        fi
+        cargo build --release --target ${{ matrix.target }}
+        mkdir -p dist-bin
+        cp target/${{ matrix.target }}/release/xread dist-bin/xread-${{ matrix.arch }}
+
+    - name: Upload Binary Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: xread-${{ matrix.arch }}
+        path: dist-bin/xread-${{ matrix.arch }}
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm ci
+        npm run build
+
+    - name: Upload Frontend Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: frontend-dist
+        path: frontend/dist
+
+  build-and-push-images:
+    needs: [build-binaries, build-frontend]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Frontend
+      uses: actions/download-artifact@v4
+      with:
+        name: frontend-dist
+        path: frontend/dist
+
+    - name: Download Binary
+      uses: actions/download-artifact@v4
+      with:
+        name: xread-${{ matrix.arch }}
+        path: bin
+
+    - name: Make binary executable
+      run: chmod +x bin/xread-${{ matrix.arch }}
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -39,18 +116,55 @@ jobs:
           type=ref,event=tag
           type=raw,value=latest
           type=sha,prefix=
+        flavor: |
+          suffix=-${{ matrix.arch }}
 
-    - name: Build and push multi-arch Docker image
+    - name: Build and push single-arch image
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: Dockerfile.ci
-        platforms: linux/amd64,linux/arm64
+        file: Dockerfile.matrix
+        platforms: linux/${{ matrix.arch }}
+        build-args: TARGETARCH=${{ matrix.arch }}
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+
+  merge-manifests:
+    needs: build-and-push-images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: Charmillionaire
+        password: ${{ secrets.GHCR_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}
+        tags: |
+          type=ref,event=tag
+          type=raw,value=latest
+          type=sha,prefix=
+
+    - name: Create and push multi-arch manifest
+      run: |
+        TAGS=$(echo "${{ steps.meta.outputs.tags }}" | tr '\n' ' ')
+        for tag in $TAGS; do
+          if [ -n "$tag" ]; then
+            echo "Merging manifest for tag: $tag"
+            docker buildx imagetools create -t "$tag" \
+              "${tag}-amd64" \
+              "${tag}-arm64"
+          fi
+        done
 
     - name: Create GitHub Release
       if: startsWith(github.ref, 'refs/tags/v')

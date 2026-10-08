@@ -1,0 +1,23 @@
+FROM alpine:3.19
+ARG TARGETARCH
+RUN apk add --no-cache ca-certificates tzdata
+WORKDIR /app
+
+# 根据构建目标架构拷贝对应的二进制
+COPY bin/xread-${TARGETARCH} /app/xread
+RUN chmod +x /app/xread
+
+COPY frontend/dist /app/web/dist
+RUN mkdir -p /app/storage/assets
+
+ENV SERVER_HOST=0.0.0.0
+ENV SERVER_PORT=7777
+ENV DATABASE_URL=sqlite:/app/storage/reader.db?mode=rwc
+ENV STORAGE_DIR=/app/storage
+ENV ASSETS_DIR=/app/storage/assets
+ENV WEB_ROOT=/app/web/dist
+ENV LOG_LEVEL=info
+
+EXPOSE 7777
+VOLUME ["/app/storage"]
+CMD ["./xread"]
