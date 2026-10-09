@@ -58,18 +58,25 @@
 
       <!-- 榜单 / 分类标签（默认最多2行，超出可展开） -->
       <div v-if="store.rankingKinds.length" class="ranking-wrapper">
-        <div
-          ref="rankingBar"
-          class="ranking-bar"
-          :class="{ 'is-collapsed': isRankingCollapsed }"
-          :style="isRankingCollapsed && rankingCollapsedMax > 0 ? { maxHeight: rankingCollapsedMax + 'px' } : undefined"
-        >
+        <div class="ranking-bar" :class="{ 'is-measuring': !rankingMeasured }">
           <button
-            v-for="kind in store.rankingKinds"
+            v-for="kind in visibleRankingKinds"
             :key="kind.url || kind.title"
             class="ranking-chip"
             :class="{ active: store.activeCategoryUrl === kind.url }"
             @click="onCategoryClick(kind)"
+          >
+            {{ kind.title }}
+          </button>
+        </div>
+        <!-- 隐藏测量层：始终渲染全部标签，用于按行分组计算「前两行」的数量 -->
+        <div ref="rankingMeasure" class="ranking-bar ranking-measure" aria-hidden="true">
+          <button
+            v-for="kind in store.rankingKinds"
+            :key="`m-${kind.url || kind.title}`"
+            class="ranking-chip"
+            :class="{ active: store.activeCategoryUrl === kind.url }"
+            tabindex="-1"
           >
             {{ kind.title }}
           </button>
@@ -162,50 +169,61 @@ const openingBookUrl = ref('')
 const showDetail = ref(false)
 const selectedBook = ref<Book | SearchBook | null>(null)
 
-// 榜单标签：默认只显示两行，超出部分折叠，可用箭头展开
-const rankingBar = ref<HTMLElement>()
+// 榜单标签：默认只显示两行，超出部分折叠，可用箭头展开。
+// 折叠采用「只渲染前两行」的方式（而非容器裁切），
+// 这样标签的投影不会被 overflow 切断，边界处不会出现一条横向硬边。
+const rankingMeasure = ref<HTMLElement>()
 const isRankingExpanded = ref(false)
-const isRankingCollapsed = computed(() => !isRankingExpanded.value)
-const rankingCollapsedMax = ref(0)
-const rankingNaturalHeight = ref(0)
-const rankingHasOverflow = computed(
-  () => rankingNaturalHeight.value > rankingCollapsedMax.value + 1,
+const rankingVisibleCount = ref(Number.POSITIVE_INFINITY)
+const rankingHasOverflow = ref(false)
+// 首次测量完成前，先用 CSS 兜底折叠高度，避免首帧闪出全部标签
+const rankingMeasured = ref(false)
+
+const visibleRankingKinds = computed(() =>
+  isRankingExpanded.value
+    ? store.rankingKinds
+    : store.rankingKinds.slice(0, rankingVisibleCount.value),
 )
 
 /**
- * 测量标签行高，得出「前两行」的高度作为折叠高度。
- * 标签的换行位置只由宽度决定，因此即使处于折叠态，各行 offsetTop 仍是完整布局值。
+ * 在隐藏测量层里按行分组，统计「前两行」共有多少个标签。
+ * 测量层始终渲染全部标签且宽度与展示区一致，因此换行结果与展开态相同。
  */
 function measureRanking() {
-  const el = rankingBar.value
+  const el = rankingMeasure.value
   if (!el) return
-  const previousMaxHeight = el.style.maxHeight
-  // 测量时临时取消高度限制，避免任何意外干扰行位置
-  el.style.maxHeight = 'none'
 
   const chips = Array.from(el.querySelectorAll<HTMLElement>('.ranking-chip'))
   if (chips.length === 0) {
-    rankingCollapsedMax.value = 0
-    rankingNaturalHeight.value = 0
-    el.style.maxHeight = previousMaxHeight
+    rankingVisibleCount.value = Number.POSITIVE_INFINITY
+    rankingHasOverflow.value = false
+    rankingMeasured.value = true
     return
   }
 
-  // 按行归组：key 为行顶端，value 为该行最低底端
-  const rows = new Map<number, number>()
+  // 按行归组：key 为行顶端，value 为该行标签数
+  const rowTops: number[] = []
+  const rowCounts = new Map<number, number>()
   for (const chip of chips) {
     const top = chip.offsetTop
-    const bottom = top + chip.offsetHeight
-    rows.set(top, Math.max(rows.get(top) ?? top, bottom))
+    if (!rowCounts.has(top)) {
+      rowCounts.set(top, 0)
+      rowTops.push(top)
+    }
+    rowCounts.set(top, rowCounts.get(top)! + 1)
   }
-  const tops = Array.from(rows.keys()).sort((a, b) => a - b)
-  const firstTop = tops[0]!
-  rankingNaturalHeight.value = Math.max(...rows.values()) - firstTop
-  rankingCollapsedMax.value = tops.length <= 2
-    ? rankingNaturalHeight.value
-    : rows.get(tops[1]!)! - firstTop
+  rowTops.sort((a, b) => a - b)
 
-  el.style.maxHeight = previousMaxHeight
+  if (rowTops.length <= 2) {
+    rankingVisibleCount.value = chips.length
+    rankingHasOverflow.value = false
+    rankingMeasured.value = true
+    return
+  }
+
+  rankingVisibleCount.value = rowCounts.get(rowTops[0]!)! + rowCounts.get(rowTops[1]!)!
+  rankingHasOverflow.value = true
+  rankingMeasured.value = true
 }
 
 function toggleRanking() {
@@ -454,6 +472,7 @@ async function handleAddToShelf(book: Book | SearchBook) {
 
 /* 榜单标签栏：最多显示两行，超出部分折叠，可用箭头展开 */
 .ranking-wrapper {
+  position: relative;
   padding: 0 0 var(--space-3);
   display: flex;
   flex-direction: column;
@@ -468,18 +487,25 @@ async function handleAddToShelf(book: Book | SearchBook) {
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  overflow: hidden;
-  transition: max-height var(--duration-normal) var(--ease-out);
 }
 
-/* 折叠高度优先取 JS 实测值（内联 max-height）；这里只是未测量前的兜底。 */
-.ranking-bar.is-collapsed {
+/* 首次测量完成前的兜底：先按两行高度裁切，避免首帧闪出全部标签 */
+.ranking-bar.is-measuring {
   max-height: 76px;
+  overflow: hidden;
 }
 
-/* 展开时不限制高度 */
-.ranking-bar:not(.is-collapsed) {
-  max-height: none;
+/* 测量层：绝对定位 + 零高度裁切，标签仍会正常布局（offsetTop 可用于分行），
+   但既不显示、不拦截点击，也不会撑出多余的滚动区域。 */
+.ranking-measure {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .ranking-toggle-btn {
