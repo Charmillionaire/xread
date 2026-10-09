@@ -1,37 +1,39 @@
 ﻿<template>
   <div class="rss-view">
-    <header class="rss-toolbar">
-      <div class="toolbar-top">
-        <div class="toolbar-top-left">
-          <span v-if="store.activeSource?.sourceGroup" class="meta-chip">{{ store.activeSource.sourceGroup }}</span>
-          <label class="source-select">
-            <span>当前源</span>
-            <select v-model="store.activeSourceUrl" @change="handleReaderSourceChange" v-if="store.enabledSources.length">
+    <section
+      class="rss-main"
+      :class="{
+        'has-active-article': !!store.activeArticle,
+      }"
+    >
+      <aside class="article-list-panel">
+        <div class="panel-head source-head">
+          <label class="source-select" v-if="store.enabledSources.length">
+            <select v-model="store.activeSourceUrl" @change="handleReaderSourceChange">
               <option v-for="source in store.enabledSources" :key="source.sourceUrl" :value="source.sourceUrl">
                 {{ source.sourceName }}
               </option>
             </select>
+            <svg class="source-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
           </label>
+          <span v-else class="source-placeholder">暂无订阅源</span>
+          <div class="head-actions">
+            <button class="ghost-btn icon-btn" @click="goManage" aria-label="管理订阅源" title="管理订阅源">
+              <span class="btn-icon">⚙</span>
+            </button>
+            <button
+              class="ghost-btn icon-btn"
+              :disabled="!store.enabledSources.length"
+              @click="store.fetchArticles(true)"
+              aria-label="刷新文章"
+              title="刷新文章"
+            >
+              <span class="btn-icon">↻</span>
+            </button>
+          </div>
         </div>
-        <div class="rss-hero-actions">
-          <button class="ghost-btn icon-btn" @click="goManage" aria-label="管理订阅源" title="管理订阅源">
-            <span class="btn-icon">⚙</span>
-            <span class="btn-text">管理订阅源</span>
-          </button>
-          <button
-            class="ghost-btn icon-btn"
-            :disabled="!store.enabledSources.length"
-            @click="store.fetchArticles(true)"
-            aria-label="刷新文章"
-            title="刷新文章"
-          >
-            <span class="btn-icon">↻</span>
-            <span class="btn-text">刷新文章</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="toolbar-middle" v-if="store.enabledSources.length">
         <section class="rss-scope-bar" v-if="store.enabledSources.length">
           <button
             class="scope-chip"
@@ -57,20 +59,6 @@
             {{ group }}
           </button>
         </section>
-      </div>
-    </header>
-
-    <section
-      class="rss-main"
-      :class="{
-        'has-active-article': !!store.activeArticle,
-      }"
-    >
-      <aside class="article-list-panel">
-        <div class="panel-head">
-          <h2>文章列表</h2>
-          <span>{{ store.articles.length }}</span>
-        </div>
         <div class="panel-scroll article-list-scroll">
           <div v-if="!store.sources.length" class="empty-box">还没有 RSS 源，先去管理页添加。</div>
           <div v-else-if="!store.activeSourceUrl" class="empty-box">请选择一个 RSS 源。</div>
@@ -252,7 +240,6 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
   overflow: hidden;
 }
 
-.rss-toolbar,
 .article-list-panel,
 .article-content-panel {
   background: var(--glass-bg);
@@ -263,40 +250,24 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 
-.rss-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 6px 10px;
-}
-
-.toolbar-top,
-.toolbar-middle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* 左侧列表头部：订阅源下拉 + 操作按钮 */
+.panel-head.source-head {
+  margin-bottom: 8px;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
-.toolbar-top-left {
-  display: flex;
+.head-actions {
+  display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-}
-
-.rss-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
   gap: 4px;
+  flex: 0 0 auto;
 }
 
 .icon-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
 }
 
@@ -309,55 +280,69 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
   line-height: 1;
 }
 
-.source-select {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-  flex: 0 0 auto;
-  min-width: 0;
+.source-placeholder {
+  color: var(--color-text-tertiary);
   font-size: 13px;
 }
 
+.source-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
 .source-select select {
-  width: 18ch;
-  min-width: 10ch;
-  max-width: 18ch;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
   border-radius: var(--radius-full);
-  padding: 5px 12px;
+  padding: 6px 30px 6px 14px;
   color: var(--color-text);
   font-weight: 600;
+  font-size: 13px;
   outline: none;
   cursor: pointer;
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
   transition: all var(--duration-fast) var(--ease-out);
 }
 
 .source-select select:hover {
   background: var(--glass-bg-hover);
+  border-color: rgba(255, 255, 255, 0.85);
 }
 
-.meta-chip {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
-  color: var(--color-primary);
-  font-size: 10px;
-}
-
-.meta-text {
+.source-caret {
+  position: absolute;
+  right: 12px;
+  width: 13px;
+  height: 13px;
   color: var(--color-text-tertiary);
-  font-size: 11px;
+  pointer-events: none;
 }
 
+/* 范围/分组筛选：贴在左侧列表头部下方 */
 .rss-scope-bar {
   display: flex;
   gap: 6px;
   overflow-x: auto;
-  padding-top: 0;
+  margin-bottom: 8px;
   width: 100%;
   justify-content: flex-start;
+  flex-shrink: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.rss-scope-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .scope-chip,
@@ -408,6 +393,10 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
   grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
   box-sizing: border-box;
+}
+
+.article-list-panel {
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .article-content-panel.collapsed {
@@ -665,11 +654,6 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
     overflow: hidden;
   }
 
-  .toolbar-top,
-  .toolbar-middle {
-    align-items: flex-start;
-  }
-
   .article-list-panel {
     flex: 1;
     min-height: 0;
@@ -692,34 +676,9 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
     gap: 3px;
   }
 
-  .rss-toolbar {
-    padding: 5px 7px;
-    gap: 4px;
-  }
-
-  .rss-hero-actions {
-    margin-left: auto;
-  }
-
-  .toolbar-top {
-    align-items: center;
-  }
-
-  .toolbar-top-left {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .source-select {
-    align-items: center;
-    flex-direction: row;
-    gap: 6px;
-  }
-
   .source-select select {
-    width: 18ch;
-    min-width: 8ch;
-    max-width: 18ch;
+    font-size: 12.5px;
+    padding: 5px 28px 5px 12px;
   }
 
   .rss-main {
