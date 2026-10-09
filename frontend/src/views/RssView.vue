@@ -8,16 +8,59 @@
     >
       <aside class="article-list-panel">
         <div class="panel-head source-head">
-          <label class="source-select" v-if="store.enabledSources.length">
-            <select v-model="store.activeSourceUrl" @change="handleReaderSourceChange">
-              <option v-for="source in store.enabledSources" :key="source.sourceUrl" :value="source.sourceUrl">
-                {{ source.sourceName }}
-              </option>
-            </select>
-            <svg class="source-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </label>
+          <div class="source-select" v-if="store.enabledSources.length" ref="sourceSelectRef">
+            <button
+              type="button"
+              class="scope-chip source-chip"
+              :class="{ active: openSourceMenu }"
+              @click.stop="toggleSourceMenu"
+            >
+              <span class="source-chip-text">{{ scopeLabel }}</span>
+              <svg
+                class="source-caret"
+                :class="{ open: openSourceMenu }"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+
+            <Transition name="dropdown-fade">
+              <div v-if="openSourceMenu" class="source-menu" @click.stop>
+                <button
+                  type="button"
+                  class="source-menu-item"
+                  :class="{ active: store.articleScope === 'all' }"
+                  @click="selectAllSources"
+                >
+                  全部订阅
+                </button>
+                <button
+                  v-for="source in store.enabledSources"
+                  :key="source.sourceUrl"
+                  type="button"
+                  class="source-menu-item"
+                  :class="{ active: store.articleScope === 'source' && store.activeSourceUrl === source.sourceUrl }"
+                  @click="selectSource(source.sourceUrl)"
+                >
+                  {{ source.sourceName }}
+                </button>
+                <button
+                  v-for="group in store.groupNames"
+                  :key="`group-${group}`"
+                  type="button"
+                  class="source-menu-item"
+                  :class="{ active: store.articleScope === 'group' && store.activeGroupName === group }"
+                  @click="selectGroup(group)"
+                >
+                  {{ group }}
+                </button>
+              </div>
+            </Transition>
+          </div>
           <span v-else class="source-placeholder">暂无订阅源</span>
           <div class="head-actions">
             <button class="ghost-btn icon-btn" @click="goManage" aria-label="管理订阅源" title="管理订阅源">
@@ -34,31 +77,6 @@
             </button>
           </div>
         </div>
-        <section class="rss-scope-bar" v-if="store.enabledSources.length">
-          <button
-            class="scope-chip"
-            :class="{ active: store.articleScope === 'source' }"
-            @click="store.setSource(store.activeSourceUrl)"
-          >
-            当前源
-          </button>
-          <button
-            class="scope-chip"
-            :class="{ active: store.articleScope === 'all' }"
-            @click="store.setAllSources()"
-          >
-            全部文章
-          </button>
-          <button
-            v-for="group in store.groupNames"
-            :key="group"
-            class="scope-chip"
-            :class="{ active: store.articleScope === 'group' && store.activeGroupName === group }"
-            @click="store.setGroup(group)"
-          >
-            {{ group }}
-          </button>
-        </section>
         <div class="panel-scroll article-list-scroll">
           <div v-if="!store.sources.length" class="empty-box">还没有 RSS 源，先去管理页添加。</div>
           <div v-else-if="!store.activeSourceUrl" class="empty-box">请选择一个 RSS 源。</div>
@@ -128,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRssStore } from '../stores/rss'
 import type { RssArticle } from '../types'
@@ -136,16 +154,21 @@ import type { RssArticle } from '../types'
 const router = useRouter()
 const store = useRssStore()
 const isMobileLayout = ref(false)
+const openSourceMenu = ref(false)
+const sourceSelectRef = ref<HTMLElement | null>(null)
+
+const scopeLabel = computed(() => {
+  if (store.articleScope === 'all') return '全部订阅'
+  if (store.articleScope === 'group' && store.activeGroupName) return store.activeGroupName
+  return store.activeSource?.sourceName || '全部订阅'
+})
 
 onMounted(async () => {
   syncViewportMode()
   window.addEventListener('resize', syncViewportMode)
+  document.addEventListener('click', handleDocumentClick)
   await store.fetchSources()
-  if (!store.activeSourceUrl && store.enabledSources.length) {
-    await store.setSource(store.enabledSources[0]!.sourceUrl)
-    return
-  }
-  if (store.activeSourceUrl && store.articles.length === 0) {
+  if (store.enabledSources.length && store.articles.length === 0) {
     await store.fetchArticles(true)
   }
   if (isMobileLayout.value) {
@@ -156,7 +179,34 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncViewportMode)
+  document.removeEventListener('click', handleDocumentClick)
 })
+
+function toggleSourceMenu() {
+  openSourceMenu.value = !openSourceMenu.value
+}
+
+function handleDocumentClick(event: MouseEvent) {
+  if (!openSourceMenu.value) return
+  if (sourceSelectRef.value && !sourceSelectRef.value.contains(event.target as Node)) {
+    openSourceMenu.value = false
+  }
+}
+
+async function selectSource(url: string) {
+  openSourceMenu.value = false
+  await store.setSource(url)
+}
+
+async function selectAllSources() {
+  openSourceMenu.value = false
+  await store.setAllSources()
+}
+
+async function selectGroup(name: string) {
+  openSourceMenu.value = false
+  await store.setGroup(name)
+}
 
 function goManage() {
   router.push('/rss/manage')
@@ -199,12 +249,6 @@ function formatRelativeTime(value?: string) {
   if (diff < month) return `${Math.floor(diff / day)} 天前`
   if (diff < year) return `${Math.floor(diff / month)} 个月前`
   return `${Math.floor(diff / year)} 年前`
-}
-
-async function handleReaderSourceChange() {
-  if (store.activeSourceUrl) {
-    await store.setSource(store.activeSourceUrl)
-  }
 }
 
 async function handleOpenArticle(article: RssArticle & { variable?: string }) {
@@ -289,60 +333,99 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   min-width: 0;
   flex: 1 1 auto;
   max-width: 100%;
 }
 
-.source-select select {
-  appearance: none;
-  -webkit-appearance: none;
+/* 订阅源 / 全部订阅 / 分组：统一用一个通透毛玻璃下拉承载 */
+.source-chip {
   width: 100%;
-  min-width: 0;
   max-width: 100%;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  border-radius: var(--radius-full);
-  padding: 6px 30px 6px 14px;
-  color: var(--color-text);
-  font-weight: 600;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 13px;
-  outline: none;
-  cursor: pointer;
-  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
-  transition: all var(--duration-fast) var(--ease-out);
+  font-weight: 600;
+  color: var(--color-text);
 }
 
-.source-select select:hover {
-  background: var(--glass-bg-hover);
-  border-color: rgba(255, 255, 255, 0.85);
+.source-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .source-caret {
-  position: absolute;
-  right: 12px;
   width: 13px;
   height: 13px;
-  color: var(--color-text-tertiary);
-  pointer-events: none;
-}
-
-/* 范围/分组筛选：贴在左侧列表头部下方 */
-.rss-scope-bar {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  margin-bottom: 8px;
-  width: 100%;
-  justify-content: flex-start;
   flex-shrink: 0;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  color: var(--color-text-tertiary);
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 
-.rss-scope-bar::-webkit-scrollbar {
-  display: none;
+.source-caret.open {
+  transform: rotate(180deg);
+  color: var(--color-primary);
+}
+
+.source-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: var(--z-dropdown, 150);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow-hover), var(--glass-inset-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.source-menu-item {
+  width: 100%;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.source-menu-item:hover {
+  background: var(--glass-bg-hover);
+  color: var(--color-primary);
+}
+
+.source-menu-item.active {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.dropdown-fade-enter-active,
+.dropdown-fade-leave-active {
+  transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease;
+}
+
+.dropdown-fade-enter-from,
+.dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 .scope-chip,
@@ -395,9 +478,6 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
   box-sizing: border-box;
 }
 
-.article-list-panel {
-  grid-template-rows: auto auto minmax(0, 1fr);
-}
 
 .article-content-panel.collapsed {
   display: flex;
@@ -676,9 +756,9 @@ async function handleOpenArticle(article: RssArticle & { variable?: string }) {
     gap: 3px;
   }
 
-  .source-select select {
+  .source-chip {
     font-size: 12.5px;
-    padding: 5px 28px 5px 12px;
+    padding: 5px 12px;
   }
 
   .rss-main {

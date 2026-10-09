@@ -11,7 +11,7 @@ type ScopedArticle = RssArticle & { variable?: string }
 export const useRssStore = defineStore('rss', () => {
   const sources = ref<RssSource[]>([])
   const activeSourceUrl = ref('')
-  const articleScope = ref<ArticleScope>('source')
+  const articleScope = ref<ArticleScope>('all')
   const activeGroupName = ref('')
   const articles = ref<ScopedArticle[]>([])
   const page = ref(1)
