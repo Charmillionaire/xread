@@ -369,6 +369,9 @@ defineEmits<{
 .search-results {
   height: 100%;
   min-height: 0;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  width: 100%;
   overflow: auto;
   padding: 0 var(--space-6);
 }
