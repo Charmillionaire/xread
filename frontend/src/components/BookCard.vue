@@ -686,9 +686,9 @@ const bookIntro = computed(() => {
   min-height: 28px;
   padding: 0 10px;
   margin-left: auto;
-  background: color-mix(in srgb, var(--color-primary) 7.5%, transparent);
-  color: var(--color-primary);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
+  background: #16171c;
+  color: #ffffff;
+  border: 1px solid #16171c;
   border-radius: 7px;
   font-size: 12px;
   font-weight: 800;
@@ -697,9 +697,22 @@ const bookIntro = computed(() => {
 }
 
 .ai-entry-btn:hover {
-  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
-  border-color: color-mix(in srgb, var(--color-primary) 42%, transparent);
+  background: #000000;
+  border-color: #000000;
   transform: translateY(-1px);
+}
+
+[data-theme="dark"] .ai-entry-btn,
+.theme-dark .ai-entry-btn {
+  background: #16171c;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+[data-theme="dark"] .ai-entry-btn:hover,
+.theme-dark .ai-entry-btn:hover {
+  background: #000000;
+  border-color: rgba(255, 255, 255, 0.34);
 }
 
 .add-shelf-btn {
