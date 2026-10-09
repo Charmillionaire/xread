@@ -686,8 +686,8 @@ const bookIntro = computed(() => {
   min-height: 28px;
   padding: 0 10px;
   margin-left: auto;
-  background: #16171c;
-  color: #ffffff;
+  background: #ffffff;
+  color: #16171c;
   border: 1px solid #16171c;
   border-radius: 7px;
   font-size: 12px;
@@ -697,22 +697,24 @@ const bookIntro = computed(() => {
 }
 
 .ai-entry-btn:hover {
-  background: #000000;
+  background: #f4f4f6;
   border-color: #000000;
+  color: #000000;
   transform: translateY(-1px);
 }
 
 [data-theme="dark"] .ai-entry-btn,
 .theme-dark .ai-entry-btn {
-  background: #16171c;
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.22);
+  background: #1e1f24;
+  color: #f0f0f3;
+  border-color: rgba(255, 255, 255, 0.32);
 }
 
 [data-theme="dark"] .ai-entry-btn:hover,
 .theme-dark .ai-entry-btn:hover {
-  background: #000000;
-  border-color: rgba(255, 255, 255, 0.34);
+  background: #282930;
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #ffffff;
 }
 
 .add-shelf-btn {
